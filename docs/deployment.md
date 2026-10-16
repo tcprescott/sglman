@@ -141,6 +141,12 @@ Every boolean variable below uses one grammar (`env_flag` in `application/utils/
 | `CHALLONGE_SCOPES` | no | `me tournaments:read tournaments:write matches:read matches:write participants:read participants:write communities:manage` | `application/services/challonge_service.py` | Scopes for the shared **service-account** connection. `communities:manage` is what lets it reach tournaments on an organization subdomain (`<org>.challonge.com`); the connected Challonge account must administer that community, and adding the scope means reconnecting. `tournaments:write` lets staff advance a bracket's stage (start, finalize groups, finalize) from Admin → Challonge; a connection made before it was added shows those buttons disabled until staff reconnect. `participants:write` lets players sign themselves up for a Challonge bracket from the Tournaments tab; until staff reconnect, Admin → Challonge says so and those sign-ups are refused. Per-player linking always uses `me` only. |
 | `MOCK_CHALLONGE` | no | off | `application/utils/mocks/mock_challonge.py` | Swaps in a stub Challonge client/connection for local dev. **Refused in production.** |
 | `MOCK_CHALLONGE_IDENTITY` | no | `1` | `application/utils/clients/challonge_client.py` | Which canned mock identity the mock player-OAuth flow returns. Only read under `MOCK_CHALLONGE`. |
+| `STARTGG_API_TOKEN` | no | — | `application/services/startgg_service.py` | start.gg Personal Access Token the bracket mirror reads with (and reports results with, when a tournament opts in; the token's account must then be a Reporter on the event). The integration counts as configured only when this is set. |
+| `STARTGG_CLIENT_ID` | no | — | `application/services/startgg_link_service.py` | start.gg OAuth client ID for the player **identity link** (`user.identity` scope). |
+| `STARTGG_CLIENT_SECRET` | no | — | `application/services/startgg_link_service.py` | Used once per link for the code exchange, then discarded (no token stored). |
+| `STARTGG_REDIRECT_URI` | no | `{BASE_URL}/startgg/oauth/callback` | `application/services/startgg_link_service.py` | Must match the URI registered with the start.gg OAuth app. |
+| `MOCK_STARTGG` | no | off | `application/utils/mocks/mock_startgg.py` | Serves one canned event for any linked start.gg event and fakes the identity link. Set by `./start.sh mock` and `validate`. **Refused in production.** |
+| `MOCK_STARTGG_IDENTITY` | no | `1` | `application/utils/clients/startgg_client.py` | Which canned mock identity the mock link flow returns. Only read under `MOCK_STARTGG`. |
 | `RACETIME_CLIENT_ID` | no | — | `application/services/racetime_service.py` | racetime.gg **identity-link** OAuth client ID (read scope). Distinct from the per-category race-room bot credentials on `RacetimeBot` rows. |
 | `RACETIME_CLIENT_SECRET` | no | — | `application/services/racetime_service.py` | Used once per link for the code exchange, then discarded (no token stored). |
 | `RACETIME_REDIRECT_URI` | no | `{BASE_URL}/racetime/oauth/callback` | `application/services/racetime_service.py` | Must match the URI registered with the racetime OAuth app. |
@@ -227,7 +233,7 @@ Shutdown reverses this: the workers stop, the queue workers are cancelled (any s
 | Host binding | uvicorn default (`127.0.0.1`) | uvicorn default (`127.0.0.1`) | uvicorn default (`127.0.0.1`) | `0.0.0.0` (required in a container) |
 | Workers | n/a (reload implies one process) | n/a | one | `--workers 1` |
 | Port | 8000 | 8000 | 8000 | 8000 |
-| Forced env | — | `ENVIRONMENT=development`, `MOCK_DISCORD`, `MOCK_SEEDGEN`, `MOCK_CHALLONGE`, `MOCK_TWITCH`, `MOCK_RACETIME`, `MOCK_MATCHERINO` | same as `mock` | `ENVIRONMENT=production` |
+| Forced env | — | `ENVIRONMENT=development`, `MOCK_DISCORD`, `MOCK_SEEDGEN`, `MOCK_CHALLONGE`, `MOCK_TWITCH`, `MOCK_RACETIME`, `MOCK_MATCHERINO`, `MOCK_STARTGG` | same as `mock` | `ENVIRONMENT=production` |
 
 `mock` is the one-command offline dev loop — no Discord, Challonge, Twitch, racetime.gg, Matcherino or randomizer credentials needed. `validate` is `mock` without the watcher, for browser runs where a mid-run reload would tear down open pages and fill the log with teardown tracebacks; see [development.md](development.md#running-the-server-and-the-two-ways-it-bites).
 

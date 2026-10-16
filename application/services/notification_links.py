@@ -49,6 +49,7 @@ from application.utils.app_links import (
     player_match_url,
     player_reschedule_url,
     player_schedule_url,
+    player_startgg_schedule_url,
     qualifier_runs_url,
     qualifier_url,
     volunteer_my_shifts_url,
@@ -123,6 +124,13 @@ async def player_challonge_schedule(
 ) -> Optional[DMLink]:
     """"Pick a time" for a Challonge matchup — its schedule dialog, already open."""
     return await link_for(label, player_challonge_schedule_url(challonge_match_id))
+
+
+async def player_startgg_schedule(
+    startgg_set_id: int, *, label: str = 'Pick a time',
+) -> Optional[DMLink]:
+    """"Pick a time" for a start.gg set — its schedule dialog, already open."""
+    return await link_for(label, player_startgg_schedule_url(startgg_set_id))
 
 
 def player_qualifier(tenant: Any, qualifier_id: int, *, label: str) -> Optional[DMLink]:

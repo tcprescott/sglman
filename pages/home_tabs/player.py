@@ -10,6 +10,7 @@ from application.services import (
     MatchRescheduleService,
     MatchService,
     TournamentService,
+    bracket_sources,
     get_user_from_session,
 )
 from application.services.match.match_reads import (
@@ -24,6 +25,7 @@ from models import FeatureFlag, RescheduleRequestKind, RescheduleRequestStatus
 from pages.home_tabs.player_asks import render_opponent_requests
 from pages.home_tabs.race_rooms_section import render_race_rooms
 from theme.dialog.bracket_schedule_dialog import BracketScheduleDialog
+from theme.dialog.bracket_source_schedule_dialog import BracketSourceScheduleDialog
 from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.hard_preset_dialog import HardPresetDialog
 from theme.dialog.match_dialog import UserMatchDialog
@@ -68,7 +70,7 @@ def _notify_stale_schedule_link() -> None:
 
 def _report_stale_deep_link(deep_link: dict) -> None:
     """The same notice for the case where the viewer has no open matchups at all."""
-    stale = [deep_link.pop(key, None) for key in ('matchup_id', 'challonge_id')]
+    stale = [deep_link.pop(key, None) for key in ('matchup_id', 'challonge_id', 'startgg')]
     if any(v is not None for v in stale):
         _notify_stale_schedule_link()
 
@@ -86,8 +88,9 @@ def _booking_caption(tournaments) -> str:
     return caption + '.'
 
 
-async def _waiting_on_you(user) -> tuple[list, list]:
-    """The player's Challonge matchups and native bracket matchups with no time yet.
+async def _waiting_on_you(user) -> tuple[list, list, list]:
+    """The player's bracket matchups with no time yet: Challonge, native, and
+    every other linked bracket site (start.gg) through the shared bracket sources.
 
     Each source only where the community runs it: the services refuse a
     listing without their feature, and My Schedule itself isn't flag-gated.
@@ -100,10 +103,11 @@ async def _waiting_on_you(user) -> tuple[list, list]:
     matchups: list = []
     if FeatureFlag.BRACKETS in live:
         matchups = await BracketService().list_open_matches_for_user(user.id)
-    return challonge_rows, matchups
+    external = await bracket_sources.list_bookable_for_user(user)
+    return challonge_rows, matchups, external
 
 
-def _bookable_count(challonge_rows, matchups) -> int:
+def _bookable_count(challonge_rows, matchups, external=()) -> int:
     """How many of them the player can book right now.
 
     A Challonge row whose opponent isn't matched to an account is listed (so the
@@ -115,7 +119,7 @@ def _bookable_count(challonge_rows, matchups) -> int:
         if cm.participant1 is not None and cm.participant2 is not None
         and cm.participant1.user_id is not None and cm.participant2.user_id is not None
     )
-    return linked + len(matchups)
+    return linked + len(matchups) + len(external)
 
 
 async def count_waiting_on_you(user) -> int:
@@ -299,6 +303,7 @@ async def render_player_dashboard(
     schedule: int | None = None, reschedule: int | None = None,
     match: int | None = None, hard: int | None = None,
     agree: int | None = None, book: int | None = None, comments: int | None = None,
+    startgg: int | None = None,
 ):
     """The player's own schedule.
 
@@ -306,7 +311,7 @@ async def render_player_dashboard(
     schedule" DM's button (``?schedule=<id>`` on ``/home/player``). Its dialog is
     opened once the tab has rendered, so the notification's call to action ends
     at the date/time picker instead of at a page the reader then has to search.
-    ``book`` does the same for a Challonge matchup.
+    ``book`` does the same for a Challonge matchup, ``startgg`` for a start.gg one.
 
     ``reschedule`` is a match id doing the same for the declined-request DM:
     its "Ask again" button lands on the request form for that match, because
@@ -370,7 +375,7 @@ async def render_player_dashboard(
         # handler the button does. Per-client (a local, never module level) and
         # cleared once used, so a later refresh of the section does not re-open
         # the dialog under the reader.
-        deep_link = {'matchup_id': schedule, 'challonge_id': book}
+        deep_link = {'matchup_id': schedule, 'challonge_id': book, 'startgg': startgg}
 
         # Everything waiting on the player to pick a time, in one card: native
         # bracket matchups (the *only* scheduling route in a bracket-run
@@ -382,9 +387,9 @@ async def render_player_dashboard(
             user = await get_user_from_session(app.storage.user)
             if user is None:
                 return
-            challonge_rows, matchups = await _waiting_on_you(user)
-            set_nav_count('My Schedule', _bookable_count(challonge_rows, matchups))
-            if not challonge_rows and not matchups:
+            challonge_rows, matchups, external = await _waiting_on_you(user)
+            set_nav_count('My Schedule', _bookable_count(challonge_rows, matchups, external))
+            if not challonge_rows and not matchups and not external:
                 _report_stale_deep_link(deep_link)
                 return
 
@@ -396,11 +401,13 @@ async def render_player_dashboard(
 
             openers: dict = {}
             challonge_openers: dict = {}
+            external_openers: dict = {}
             with ui.card().classes('wiz-subcard'):
                 ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
                 ui.label(_booking_caption(
                     [cm.tournament for cm in challonge_rows]
-                    + [bm.bracket.tournament for bm in matchups],
+                    + [bm.bracket.tournament for bm in matchups]
+                    + [x.tournament for x in external],
                 )).classes('text-caption text-grey-7')
                 with ui.element('div').classes('wiz-pick-grid'):
                     for cm in challonge_rows:
@@ -424,6 +431,17 @@ async def render_player_dashboard(
                                 f"Can't book yet: {opponent_name} isn't matched to a "
                                 "Wizzrobe account. Staff can match them."
                             ),
+                        )
+
+                    for x in external:
+                        async def do_external(_=None, item=x):
+                            actor = await get_user_from_session(app.storage.user)
+                            await BracketSourceScheduleDialog(item, actor, on_submit=after).open()
+
+                        external_openers[(x.source, x.key)] = do_external
+                        _pick_row(
+                            x.tournament.name, x.opponent_name, x.round_label,
+                            'Schedule', do_external, source=x.source_label,
                         )
 
                     for bm in matchups:
@@ -466,7 +484,10 @@ async def render_player_dashboard(
             # listings are already scoped to them — so an id from a forwarded
             # link cannot open someone else's dialog; it falls through to the
             # stale notice.
-            for key, table in (('matchup_id', openers), ('challonge_id', challonge_openers)):
+            startgg_openers = {k: v for (src, k), v in external_openers.items() if src == 'startgg'}
+            for key, table in (
+                ('matchup_id', openers), ('challonge_id', challonge_openers), ('startgg', startgg_openers),
+            ):
                 wanted = deep_link.pop(key, None)
                 if wanted is None:
                     continue

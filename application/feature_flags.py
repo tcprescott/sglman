@@ -216,6 +216,15 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             service_modules=('application/services/notification_channel_service.py',),
         ),
         FeatureFlagSpec(
+            FeatureFlag.STARTGG,
+            'start.gg Brackets',
+            'Link a start.gg event to show its pools and bracket in Wizzrobe and '
+            'let players book their matches. Results are recorded on start.gg; each '
+            'tournament can opt in to reporting confirmed results back.',
+            'Community',
+            service_modules=('application/services/startgg_service.py',),
+        ),
+        FeatureFlagSpec(
             FeatureFlag.COMMUNITY_EVENTS,
             'Community Events',
             'Members submit the meetups, panels and side events they are running '

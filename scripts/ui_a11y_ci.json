@@ -65,6 +65,8 @@
     { "name": "settings-features", "path": "/admin/settings/features" },
     { "name": "checkin", "path": "/checkin" },
     { "name": "brackets", "path": "/brackets" },
+    { "name": "startgg-bracket", "path": "/tournament/9/startgg" },
+    { "name": "startgg-pools", "path": "/tournament/9/startgg?phase=7101" },
     { "name": "qualifiers", "path": "/qualifiers" },
     { "name": "equipment", "path": "/equipment" },
     { "name": "help", "path": "/help" },

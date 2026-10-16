@@ -76,6 +76,7 @@ from .enums import (
     Role,
     RoleSource,
     StaffRequestKind,
+    StartggSetState,
     StationFormat,
     StationSide,
     SyncStatus,
@@ -103,6 +104,7 @@ from .mcp import McpAuthorizationCode, McpOAuthClient
 from .preferences import UserTablePreference
 from .racetime import RaceRoomProfile, RacetimeBot, RacetimeBotTenant, RacetimeRoom
 from .speedgaming import SpeedGamingEpisode, SpeedGamingEventLink
+from .startgg import StartggEntrant, StartggPhase, StartggPool, StartggSet
 from .system import LogLevelOverride, RoomToken, SystemConfiguration
 from .tenant import (
     ProfileNudgeDismissal,
@@ -269,6 +271,11 @@ __all__ = [
     'StaffRequestDM',
     'StaffRequestKind',
     'Stage',
+    'StartggEntrant',
+    'StartggPhase',
+    'StartggPool',
+    'StartggSet',
+    'StartggSetState',
     'Station',
     'StationFormat',
     'StationSide',

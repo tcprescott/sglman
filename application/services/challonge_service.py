@@ -462,6 +462,12 @@ class ChallongeService(
                 "a native bracket or a Challonge link, never both."
             )
 
+        if tournament.startgg_event_slug:
+            raise ValueError(
+                "This tournament follows a start.gg event. Unlink it there first; a "
+                "tournament follows one bracket site."
+            )
+
         identifier, community = self.parse_tournament_identifier(id_or_url)
         try:
             full = await self._api_client().get_tournament_full(identifier, community=community)

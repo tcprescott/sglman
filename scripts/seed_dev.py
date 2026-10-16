@@ -90,6 +90,7 @@ from scripts.seed_payouts import seed_matcherino_handles, seed_payouts_for_tenan
 from scripts.seed_play_in import seed_play_in_for_tenant
 from scripts.seed_preferences import seed_notification_channels, seed_table_preferences
 from scripts.seed_staff_requests import seed_staff_request_dms
+from scripts.seed_startgg import seed_startgg_for_tenant
 from scripts.seed_support import (
     RACER_SPECS,
     USER_SPECS,
@@ -490,6 +491,9 @@ async def seed_for_tenant(
         await seed_challonge_for_tenant(
             tenant, users, tournament, staff, finished_match, now_utc, today,
         )
+
+        # --- start.gg mirror (scripts/seed_startgg.py) -----------------------
+        await seed_startgg_for_tenant(tenant, users, staff, now_utc)
 
         # --- Native brackets (scripts/seed_brackets.py) ----------------------
         # Seeded through BracketService, which enforces FeatureFlag.BRACKETS, so a

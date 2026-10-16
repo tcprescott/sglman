@@ -62,6 +62,12 @@ class User(Model):
     racetime_user_id = fields.CharField(max_length=64, null=True, unique=True)
     racetime_username = fields.CharField(max_length=255, null=True)
     racetime_linked_at = fields.DatetimeField(null=True)
+    # Verified start.gg identity (captured via one-time OAuth, ``user.identity``).
+    # Identity only, like Twitch: the token is discarded. Unique so an entrant's
+    # start.gg user id resolves to exactly one user.
+    startgg_user_id = fields.CharField(max_length=64, null=True, unique=True)
+    startgg_username = fields.CharField(max_length=255, null=True)
+    startgg_linked_at = fields.DatetimeField(null=True)
     # Placeholder identity (SpeedGaming ETL, PR 7). A player the SG sync could not
     # resolve to a real account becomes a placeholder User so its ``MatchPlayers``
     # row is still first-class. ``speedgaming_id`` is the SG-side numeric id used

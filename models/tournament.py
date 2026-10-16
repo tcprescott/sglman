@@ -35,6 +35,19 @@ class Tournament(Model):
     # so the admin page can offer the next stage action without an API call.
     challonge_state = fields.CharField(max_length=32, null=True)
     challonge_group_stage = fields.BooleanField(default=False)
+    # A linked start.gg event, read only: its organisers record results on
+    # start.gg and the sync mirrors them in. ``startgg_event_slug`` is the
+    # ``tournament/<t>/event/<e>`` path the API looks events up by.
+    startgg_event_id = fields.CharField(max_length=64, null=True)
+    startgg_event_slug = fields.CharField(max_length=255, null=True)
+    startgg_event_name = fields.CharField(max_length=255, null=True)
+    startgg_last_synced_at = fields.DatetimeField(null=True)
+    # The phase whose sets players book (and get "matchup ready" DMs for).
+    # Null means the event's last phase, usually the on-site bracket.
+    startgg_bookable_phase_id = fields.CharField(max_length=64, null=True)
+    # Opt-in writeback: report a confirmed Wizzrobe result to start.gg. Never
+    # overwrites a set start.gg already has a result for.
+    startgg_report_results = fields.BooleanField(default=False)
     # Hybrid config substrate (see docs/online-tournaments): worker-queried knobs
     # stay typed columns; templates, scoring params, and strategy choices live in
     # this schema-validated JSON blob. Written only through the service layer,

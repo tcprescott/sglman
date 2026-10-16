@@ -99,6 +99,11 @@ class BracketService(
                 "This tournament is already linked to a Challonge bracket; a "
                 "tournament uses a native bracket or a Challonge link, never both."
             )
+        if tournament.startgg_event_slug:
+            raise ValueError(
+                "This tournament follows a start.gg event; unlink it before building "
+                "a bracket here."
+            )
 
     # -- bracket authoring ------------------------------------------------
     @requires_feature(FeatureFlag.BRACKETS)

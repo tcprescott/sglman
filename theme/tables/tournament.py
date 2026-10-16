@@ -1,7 +1,8 @@
-from nicegui import ui
+from nicegui import app, ui
 from tortoise.functions import Count
 
 from application.content import parse_blocks
+from application.services import bracket_sources, get_user_from_session
 from application.tenant_context import get_current_tenant_id
 from application.utils.safe_url import http_url_or_empty
 from application.utils.timezone import format_local_display
@@ -10,7 +11,8 @@ from theme.dialog import TournamentDialog
 from theme.dialog.tournament_edit_dialog import confirm_tournament_delete
 from theme.dialog.tournament_players_dialog import TournamentPlayersDialog
 from theme.empty_state import no_data_slot
-from theme.menu import SlotItem, slot_more_menu
+from theme.menu import SlotItem, menu_action, slot_more_menu
+from theme.notify import notify_error
 from theme.tables.admin_crud import capture_render_context, refresh_button, scoped_background
 from theme.tables.export import csv_export_menu_item
 from theme.tables.mobile_grid import apply_column_visibility
@@ -88,9 +90,15 @@ def _description_preview(text: str | None) -> str:
     return ' '.join(lines)
 
 
-def _tournament_row(t) -> dict:
+def _bracket_site(t, live_sites) -> str:
+    """The key of the live bracket site this tournament follows, or ''."""
+    return next((s.key for s in live_sites if s.linked(t)), '')
+
+
+def _tournament_row(t, live_sites=()) -> dict:
     state = signup_window_state(t.signups_open_at, t.signups_close_at)
     return {
+        'bracket_site': _bracket_site(t, live_sites),
         'id': t.id,
         'name': t.name,
         'tournament_format': t.tournament_format or '',
@@ -186,8 +194,11 @@ def tournament_columns() -> list[dict]:
 class TournamentTableView:
     """Encapsulates the tournament table UI and logic for admin/player dashboards."""
     def __init__(self, columns, get_query, extra_slots=None, submit_tournament_callback=None,
-                 table_key=None, searchable=False, can_delete=False):
+                 table_key=None, searchable=False, can_delete=False, can_sync=False):
         self.columns = columns
+        # Offer Sync bracket (row) and Sync all linked brackets (toolbar).
+        self.can_sync = can_sync
+        self._live_sites: list = []
         # When set, this view's desktop columns follow the viewer's saved layout.
         self.table_key = table_key
         # A text box over the visible columns. Not persisted: working state.
@@ -215,6 +226,15 @@ class TournamentTableView:
         items = [
             SlotItem('edit', 'Edit tournament…', 'edit_tournament'),
             SlotItem('group', 'Manage players…', 'show_players'),
+        ]
+        if self.can_sync:
+            items += [
+                SlotItem('sync', 'Sync bracket from start.gg', 'sync_bracket',
+                         v_if="props.row.bracket_site === 'startgg'"),
+                SlotItem('sync', 'Sync bracket from Challonge', 'sync_bracket',
+                         v_if="props.row.bracket_site === 'challonge'"),
+            ]
+        items += [
             SlotItem('open_in_new', 'Open bracket', 'open_bracket', v_if='props.row.bracket_url'),
             SlotItem('open_in_new', 'Open rules', 'open_rules', v_if='props.row.rules_url'),
         ]
@@ -310,6 +330,8 @@ class TournamentTableView:
             with tools_slot:
                 with ui.button('Actions').props('flat dense color=primary icon-right=expand_more no-caps').classes('q-px-sm'):
                     with ui.menu().props('anchor="bottom right" self="top right"'):
+                        if self.can_sync:
+                            menu_action('sync', 'Sync all linked brackets', self.sync_all)
                         csv_export_menu_item(
                             'tournaments',
                             lambda: self._plan.columns if self._plan else self.columns,
@@ -318,6 +340,7 @@ class TournamentTableView:
                 preferences_button(self.table)
         self.table.on('edit_tournament', self.handle_edit_tournament)
         self.table.on('show_players', self.handle_show_players)
+        self.table.on('sync_bracket', self.handle_sync_bracket)
         self.table.on('open_bracket', lambda e: self._open_link(e, 'bracket_url'))
         self.table.on('open_rules', lambda e: self._open_link(e, 'rules_url'))
         self.table.on('delete_tournament', self.handle_delete_tournament)
@@ -331,7 +354,8 @@ class TournamentTableView:
         # row just to len() it.
         tournament_query = self.get_query().annotate(player_count=Count('players'))
         all_tournaments = await tournament_query.order_by('name')
-        self.table.rows = [_tournament_row(t) for t in all_tournaments]
+        self._live_sites = await bracket_sources.live_sources() if self.can_sync else []
+        self.table.rows = [_tournament_row(t, self._live_sites) for t in all_tournaments]
         self.table.update()
 
     async def update_row_by_id(self, tournament_id):
@@ -345,7 +369,7 @@ class TournamentTableView:
         t = await tournament_query.filter(id=tournament_id).first()
         if not t:
             return  # Tournament not found
-        self.table.rows[idx] = _tournament_row(t)
+        self.table.rows[idx] = _tournament_row(t, self._live_sites)
         self.table.update()
 
     @staticmethod
@@ -375,6 +399,41 @@ class TournamentTableView:
         # The dialog writes now, so the player-count column has to follow it.
         dialog = TournamentPlayersDialog(t, on_change=self.refresh)
         await dialog.open()
+
+    async def handle_sync_bracket(self, event):
+        t = await self._load(event)
+        if not t:
+            return
+        actor = await get_user_from_session(app.storage.user)
+        try:
+            result = await bracket_sources.sync_tournament(t, actor)
+        except (ValueError, PermissionError) as e:
+            notify_error(e)
+            return
+        except Exception as e:
+            ui.notify(f"Couldn't sync {t.name}: {e}", color='negative')
+            return
+        ui.notify(f'Synced {result.tournament_name} from {result.source_label}: {result.summary}.',
+                  color='positive')
+        await self.update_row_by_id(t.id)
+
+    async def sync_all(self):
+        actor = await get_user_from_session(app.storage.user)
+        tournaments = await self.get_query().order_by('name')
+        results = await bracket_sources.sync_all(list(tournaments), actor)
+        if not results:
+            ui.notify('No tournaments here are linked to a bracket site.', color='warning')
+            return
+        ok = [r for r in results if r.error is None]
+        failed = [r for r in results if r.error is not None]
+        message = f"Synced {len(ok)} bracket{'' if len(ok) == 1 else 's'}"
+        if ok:
+            message += ': ' + ', '.join(f'{r.tournament_name} ({r.source_label})' for r in ok)
+        message += '.'
+        if failed:
+            message += ' Failed: ' + '; '.join(f'{r.tournament_name}: {r.error}' for r in failed)
+        ui.notify(message, color='warning' if failed else 'positive', multi_line=True)
+        await self.refresh()
 
     async def handle_delete_tournament(self, event):
         t = await self._load(event)

@@ -113,6 +113,14 @@ def player_schedule_url(bracket_match_id: int) -> str:
     return home_url(HOME_PLAYER, schedule=bracket_match_id)
 
 
+def player_startgg_schedule_url(startgg_set_id: int) -> str:
+    """The Player tab with the schedule dialog for one start.gg set open.
+
+    Its own param for the reason Challonge has one: the ids index a different table.
+    """
+    return home_url(HOME_PLAYER, startgg=startgg_set_id)
+
+
 def player_challonge_schedule_url(challonge_match_id: int) -> str:
     """The Player tab with the schedule dialog for one Challonge matchup open.
 

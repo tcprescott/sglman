@@ -23,6 +23,7 @@ from pages.home_tabs.emergency_contact_section import render_emergency_contact_s
 from pages.home_tabs.my_feedback_section import render_my_feedback_section
 from pages.home_tabs.notification_channels_section import ChannelRows, render_test_button
 from pages.home_tabs.racetime_link_section import CONFIG as RACETIME_CONFIG
+from pages.home_tabs.startgg_link_section import CONFIG as STARTGG_CONFIG
 from pages.home_tabs.twitch_link_section import CONFIG as TWITCH_CONFIG
 from pages.home_tabs.web_push_section import render_device_rows
 from theme.banner import banner
@@ -424,6 +425,8 @@ async def render_edit_info_tab(focus: str | None = None):
             # Connected accounts (Challonge / Twitch / racetime) — one compact card
             # of rows instead of three near-identical cards.
             link_configs = [TWITCH_CONFIG, RACETIME_CONFIG]
+            if FeatureFlag.STARTGG in live:
+                link_configs.insert(0, STARTGG_CONFIG)
             if challonge_live:
                 link_configs.insert(0, CHALLONGE_CONFIG)
             await render_connected_accounts_section(user, link_configs)

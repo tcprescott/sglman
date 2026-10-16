@@ -46,6 +46,8 @@ from pages import (
     qualifiers,
     racetime_oauth,
     room_seeds,
+    startgg_bracket,
+    startgg_oauth,
     static_brackets,
     static_watch,
     twitch_oauth,
@@ -275,6 +277,7 @@ def init(fastapi_app: FastAPI) -> None:
     password_login.create()
     challonge_oauth.create()
     twitch_oauth.create()
+    startgg_oauth.create()
     racetime_oauth.create()
     discord_email_oauth.create()
     # Tenant-less like the provider callbacks above: an MCP grant authenticates
@@ -294,6 +297,7 @@ def init(fastapi_app: FastAPI) -> None:
     equipment.create()
     check_in.create()
     brackets.create()
+    startgg_bracket.create()
     room_seeds.create()
     # Registered before ui.run_with so the cached, socket-free spectator views
     # sit on the same app (and behind the same tenant middleware) as the pages.

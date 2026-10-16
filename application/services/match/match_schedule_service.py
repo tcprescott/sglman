@@ -307,6 +307,14 @@ class MatchScheduleService(MatchNotificationMixin):
 
         discord_queue.enqueue(_push_challonge_result())
 
+        # Every other linked bracket site (start.gg) hears about it through the
+        # shared bracket-source hook; it isolates each site's failure itself.
+        async def _notify_bracket_sources() -> None:
+            from application.services import bracket_sources
+            await bracket_sources.on_match_confirmed(match, actor)
+
+        discord_queue.enqueue(_notify_bracket_sources())
+
         # Advance the native bracket when this match mirrors a bracket match.
         # Peer of the Challonge push above: fire-and-forget so a failure never
         # blocks confirmation; failures are visible via audit and manual replay.

@@ -106,6 +106,7 @@ class FeatureFlag(str, Enum):
     COMMUNITY_EVENTS = 'community_events'
     EMERGENCY_CONTACTS = 'emergency_contacts'
     NOTIFICATION_CHANNELS = 'notification_channels'
+    STARTGG = 'startgg'
 
 
 class BracketFormat(str, Enum):
@@ -404,6 +405,14 @@ class ChallongeMatchState(str, Enum):
     PENDING = 'pending'   # participants not yet fully determined
     OPEN = 'open'         # both participants known and ready to play
     COMPLETE = 'complete' # result recorded on Challonge
+
+
+class StartggSetState(str, Enum):
+    """A mirrored start.gg set, reduced to what scheduling needs."""
+
+    PENDING = 'pending'    # an entrant is still to be decided
+    OPEN = 'open'          # both entrants known, no result yet
+    COMPLETE = 'complete'  # result recorded on start.gg
 
 
 class BotStatus(str, Enum):
