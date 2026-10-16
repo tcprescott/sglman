@@ -1,0 +1,7 @@
+description: Tournament logic and full item placement.
+settings:
+  logic: tournament
+  goal: defeatmb
+  placement: full
+  gamemode: normal
+  players: '1'

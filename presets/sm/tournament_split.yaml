@@ -1,0 +1,7 @@
+description: Tournament logic and a major/minor item split.
+settings:
+  logic: tournament
+  goal: defeatmb
+  placement: split
+  gamemode: normal
+  players: '1'
