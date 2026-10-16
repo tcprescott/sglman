@@ -166,7 +166,7 @@ async def list_tools(client: AsyncClient, raw_token: str) -> list:
 
 
 async def call_tool(
-    client: AsyncClient, raw_token: str, name: str, **arguments
+    client: AsyncClient, raw_token: str, name: str, /, **arguments
 ) -> Tuple[bool, Any]:
     """Call a tool. Returns ``(is_error, payload)``.
 

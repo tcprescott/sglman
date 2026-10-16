@@ -24,10 +24,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from application.content import ContentArticle, ContentSnippet
-from application.event_info import article_for_tenant, articles_for_tenant, snippet_for_tenant
+from application.event_info import (
+    article_for_tenant,
+    articles_for_tenant,
+    guide_pdf_for_tenant,
+    snippet_for_tenant,
+)
 from application.feature_flags import requires_feature
 from application.repositories import TenantRepository
 from application.services.auth_service import AuthService
@@ -37,7 +43,7 @@ from application.utils.safe_url import http_url_or_empty
 from application.utils.tournament_signup import SignupWindow, signup_window_state
 from models import FeatureFlag, Role, User
 
-__all__ = ['EventInfoService', 'HandbookTournament']
+__all__ = ['EventGuide', 'EventInfoService', 'HandbookTournament']
 
 
 @dataclass(frozen=True)
@@ -51,6 +57,20 @@ class HandbookTournament:
     bracket_url: str
     signups: SignupWindow
     signups_close_at: Optional[datetime]
+
+
+@dataclass(frozen=True)
+class EventGuide:
+    """The organisers' own guide, offered as a download beside the handbook."""
+
+    path: Path
+    filename: str
+    size_bytes: int
+
+    @property
+    def size_label(self) -> str:
+        kb = self.size_bytes / 1024
+        return f'{kb / 1024:.1f} MB' if kb >= 1024 else f'{max(1, round(kb))} KB'
 
 
 class EventInfoService:
@@ -102,6 +122,19 @@ class EventInfoService:
         if not EventInfoService._readable(article, live, roles):
             return None
         return replace(article, blocks=await EventInfoService._prune(article.blocks, user))
+
+    @staticmethod
+    @requires_feature(FeatureFlag.EVENT_INFO)
+    async def get_guide() -> Optional[EventGuide]:
+        """This community's event guide PDF, or ``None`` when it ships none.
+
+        Public like the articles: it is the document the organisers hand every
+        attendee, so there is no role gate.
+        """
+        path = guide_pdf_for_tenant(await EventInfoService._tenant_slug())
+        if path is None:
+            return None
+        return EventGuide(path=path, filename=path.name, size_bytes=path.stat().st_size)
 
     @staticmethod
     async def _prune(blocks, user: Optional[User]):

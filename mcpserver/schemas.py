@@ -599,3 +599,76 @@ class FeedbackEntry(BaseModel):
 
 # StageBlock forward-references MatchSummary, which is declared after it.
 StageBlock.model_rebuild()
+
+
+# --- Platform (super admin) ---------------------------------------------------
+
+
+class PlatformCommunity(BaseModel):
+    """One community as the /platform page lists it, switched-off ones included."""
+
+    id: int
+    slug: str = Field(description='Pass this as `community` to the platform tools.')
+    name: str
+    is_active: bool = Field(description='False means the community is hidden from everyone.')
+    domain: Optional[str] = None
+    discord_guild_id: Optional[Snowflake] = Field(None, description='Discord server id, as a string.')
+    feature_group: Optional[str] = Field(None, description='Feature group (tier). Null means the default group.')
+    setup_ready: bool = Field(description='Whether every required setup step is done.')
+    setup_missing: List[str] = Field(default_factory=list, description='Setup steps still to do.')
+
+
+class PlatformFeature(BaseModel):
+    """One feature's availability for one community."""
+
+    flag: str = Field(description='Feature key, as `platform_set_community_feature` takes it.')
+    label: str
+    group_available: bool = Field(description="Whether the community's feature group includes it.")
+    override: Optional[bool] = Field(
+        None, description='Platform override: true forced on, false forced off, null follows the group.'
+    )
+    available: bool = Field(description='Whether the community may use it, after the override.')
+    enabled: bool = Field(description="Whether the community's staff have it switched on.")
+    live: bool = Field(description='Available and enabled: the feature is on there.')
+
+
+class PlatformCommunityDetail(PlatformCommunity):
+    staff: List[UserSummary] = Field(default_factory=list, description='Everyone holding Staff there.')
+    features: List[PlatformFeature] = Field(default_factory=list)
+
+
+class PlatformUser(BaseModel):
+    """An account as the /platform Users tab shows it."""
+
+    id: int
+    username: str
+    display_name: Optional[str] = None
+    discord_id: Optional[Snowflake] = Field(None, description='Discord user id, as a string. Null for a password-only account.')
+    login_name: Optional[str] = Field(None, description='Password sign-in name. Null when there is no password.')
+    is_active: bool
+    is_super_admin: bool
+    communities: List[str] = Field(default_factory=list, description='Names of the communities they belong to.')
+
+
+class PlatformFeatureGroup(BaseModel):
+    id: int
+    name: str
+    description: str = ''
+    flags: List[str] = Field(default_factory=list, description='Feature keys the group makes available.')
+    is_default: bool = Field(description='Whether communities with no group fall back to this one.')
+    community_count: int
+
+
+class PlatformRacetimeBot(BaseModel):
+    """A shared racetime.gg bot. The client secret is never returned."""
+
+    id: int
+    category: str
+    name: str
+    client_id: str
+    description: str = ''
+    handler_class: str = ''
+    is_active: bool
+    status: str = Field(description='`unknown`, `connected`, `disconnected` or `error`.')
+    status_message: str = ''
+    communities: List[str] = Field(default_factory=list, description='Slugs of the communities allowed to use it.')

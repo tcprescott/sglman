@@ -133,6 +133,23 @@ async def delete_bot(bot_id: int, actor: User = Depends(require_super_admin_writ
     await RacetimeBotService().delete_bot(actor, bot_id)
 
 
+@router.post(
+    "/{bot_id}/restart",
+    response_model=RacetimeBotResponse,
+    summary="Restart a bot's connection",
+    description=(
+        "Drops the bot's racetime.gg connection and reconnects it, for every community using it. "
+        "An inactive bot is disconnected and stays off. Fails with 400 when the racetime bot "
+        "runtime is switched off on this server.\n\n"
+        "**Who can call this:** Super admins only (platform)."
+    ),
+)
+async def restart_bot(bot_id: int, actor: User = Depends(require_super_admin_write)):
+    await _load_bot_or_404(bot_id)
+    service = RacetimeBotService()
+    return service.serialize(await service.restart_connection(actor, bot_id))
+
+
 # --- Tenant authorization grants ------------------------------------------
 
 @router.get(

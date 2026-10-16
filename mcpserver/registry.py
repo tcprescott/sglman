@@ -53,6 +53,11 @@ def write_tool_names() -> FrozenSet[str]:
     return frozenset(name for name, spec in TOOL_SPECS.items() if spec.write)
 
 
+def platform_tool_names() -> FrozenSet[str]:
+    """Super-admin tools, by name."""
+    return frozenset(name for name, spec in TOOL_SPECS.items() if spec.gate is Gate.PLATFORM)
+
+
 def register(
     mcp: MCPServer,
     fn: Callable,
@@ -84,7 +89,7 @@ def register(
     async def wrapped(**kwargs):
         try:
             actor = current_actor()
-            if gate is Gate.GLOBAL:
+            if gate.names_no_community:
                 await authorize(actor, gate, feature, write=write)
                 return await fn(**kwargs)
             tenant = await resolve_tenant(kwargs.get('tenant'))

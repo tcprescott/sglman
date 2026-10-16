@@ -41,6 +41,7 @@ __all__ = [
     'CONTENT_ROOT',
     'article_for_tenant',
     'articles_for_tenant',
+    'guide_pdf_for_tenant',
     'snippet_for_tenant',
     'tenant_slugs',
 ]
@@ -100,6 +101,18 @@ def snippet_for_tenant(slug: str, name: str) -> ContentSnippet | None:
     """
     root = _root_for(slug)
     return catalog_for(root, BASE_PATH).snippet(name) if root else None
+
+
+def guide_pdf_for_tenant(slug: str) -> Path | None:
+    """The organisers' own guide, shipped as a PDF beside the articles, or ``None``.
+
+    One per community: the first ``*.pdf`` in the directory, by name. Its file
+    name is what a reader's download is saved as, so name it for them.
+    """
+    root = _root_for(slug)
+    if root is None:
+        return None
+    return next(iter(sorted(root.glob('*.pdf'))), None)
 
 
 def tenant_slugs() -> list[str]:

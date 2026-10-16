@@ -3,7 +3,8 @@
 Each module exposes ``register_tools(mcp)`` and registers only through
 ``mcpserver.registry.register``, so every tool carries an explicit gate.
 
-``match_writes`` and ``event_writes`` are the modules that change data, kept
+``match_writes``, ``event_writes``, ``tournament_writes``, ``admin_writes`` and
+``platform_writes`` are the modules that change data, kept
 apart from the read modules rather than filed by domain: whether a tool writes is the property that
 decides its annotation, its gate and whether a read-only connection is even
 shown it, so it is the property the layout should make obvious.
@@ -12,6 +13,7 @@ shown it, so it is the property the layout should make obvious.
 from mcp.server.mcpserver import MCPServer
 
 from mcpserver.tools import (
+    admin_writes,
     analytics,
     check_in,
     competition,
@@ -23,6 +25,9 @@ from mcpserver.tools import (
     online_play,
     orientation,
     people,
+    platform,
+    platform_writes,
+    tournament_writes,
     tournaments,
     volunteers,
 )
@@ -43,3 +48,7 @@ def register_all(mcp: MCPServer) -> None:
     check_in.register_tools(mcp)
     match_writes.register_tools(mcp)
     event_writes.register_tools(mcp)
+    tournament_writes.register_tools(mcp)
+    admin_writes.register_tools(mcp)
+    platform.register_tools(mcp)
+    platform_writes.register_tools(mcp)

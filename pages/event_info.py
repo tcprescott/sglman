@@ -17,10 +17,13 @@ blocks with :func:`theme.help.render_blocks`, the same closed-vocabulary rendere
 the help section uses. Nothing here touches the ORM.
 """
 
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 from nicegui import app, ui
 
 from application.content import ContentArticle
+from application.errors import FeatureDisabledError
 from application.services import (
+    EventGuide,
     EventInfoService,
     TenantService,
     TimezoneService,
@@ -31,6 +34,7 @@ from application.utils.tenant_urls import login_path
 from middleware.auth import public_page
 from models import FeatureFlag
 from theme.a11y import make_activatable
+from theme.banner import banner
 from theme.base import BaseLayout, current_local_url
 from theme.error_page import render_not_found
 from theme.event_info_tournaments import render_tournament_list
@@ -77,6 +81,28 @@ async def _embeds(article: ContentArticle) -> dict:
     return {'tournaments': lambda: render_tournament_list(rows, tz=tz)}
 
 
+#: The organisers' own guide, served beside the articles. A fixed path rather
+#: than the file's name so a printed link survives a new revision of the PDF.
+GUIDE_PATH = '/event-info/guide.pdf'
+
+
+def _open_guide() -> None:
+    ui.navigate.to(GUIDE_PATH, new_tab=True)
+
+
+def _guide_banner(guide: EventGuide) -> None:
+    with banner(f'Directions, the hotel map and every detail. PDF, {guide.size_label}.',
+                title='The full event guide', icon='picture_as_pdf'):
+        ui.button('Open guide', on_click=_open_guide).props('unelevated no-caps color=primary')
+
+
+def _guide_link() -> None:
+    with ui.row().classes('items-center gap-1 no-wrap q-mt-xs'):
+        ui.icon('picture_as_pdf').props('size=xs').classes('text-primary')
+        link = ui.link('Full details in the event guide (PDF)', GUIDE_PATH, new_tab=True)
+        link.props['aria-label'] = 'Full details in the event guide (PDF, opens in a new tab)'
+
+
 def _nothing_published() -> None:
     """The state a community sees between being granted the feature and writing.
 
@@ -88,6 +114,22 @@ def _nothing_published() -> None:
 
 
 def create() -> None:
+    # Registered before the article route so ``guide.pdf`` is never read as an
+    # article slug.
+    @app.get(GUIDE_PATH, include_in_schema=False)
+    async def event_guide_pdf() -> Response:
+        try:
+            guide = await EventInfoService.get_guide()
+        except (FeatureDisabledError, LookupError, RuntimeError):
+            guide = None
+        if guide is None:
+            return PlainTextResponse('Not found', status_code=404)
+        return FileResponse(
+            guide.path, media_type='application/pdf', filename=guide.filename,
+            content_disposition_type='inline',
+            headers={'Cache-Control': 'public, max-age=300', 'X-Content-Type-Options': 'nosniff'},
+        )
+
     @public_page('/event-info', feature=FeatureFlag.EVENT_INFO)
     async def event_info_index() -> None:
         ui.page_title(await _title('Event Information'))
@@ -95,15 +137,21 @@ def create() -> None:
         await _render_chrome(user)
 
         articles = await EventInfoService.list_articles(user)
+        guide = await EventInfoService.get_guide()
 
         with ui.column().classes('page-container-narrow w-full'):
             page_header('Event Information')
             ui.label(
+                'The short version: hours, tournaments, getting set up and who to ask.'
+                if guide else
                 'Everything about this event: what is on, attending on the day, '
                 'and who to ask.'
             ).classes('text-muted')
 
-            if not articles:
+            if guide:
+                _guide_banner(guide)
+
+            if not articles and not guide:
                 _nothing_published()
                 return
 
@@ -145,7 +193,9 @@ def create() -> None:
         ui.page_title(await _title(article.title, 'Event Information'))
         embeds = await _embeds(article)
         await _render_chrome(user)
+        guide = await EventInfoService.get_guide()
         render_article(
             article, await EventInfoService.list_articles(user),
             base='/event-info', back_label='All event information', embeds=embeds,
+            intro_extra=_guide_link if guide else None,
         )

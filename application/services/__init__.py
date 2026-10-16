@@ -63,7 +63,7 @@ from .discord import (
 from .door_seed_service import DoorSeedService
 from .emergency_contact_service import EmergencyContactService
 from .equipment_service import EquipmentService
-from .event_info_service import EventInfoService
+from .event_info_service import EventGuide, EventInfoService
 from .feature_flag_service import FeatureFlagService
 from .feedback_service import FeedbackService
 from .help_service import HelpService
@@ -89,6 +89,7 @@ from .mcp_auth_service import McpAuthService
 from .notification_channel_service import NotificationChannelService
 from .password_auth_service import PasswordAuthService
 from .payout_service import PayoutService
+from .platform_admin_service import AccountOverview, CommunityOverview, PlatformAdminService
 from .player_availability_service import PlayerAvailabilityService
 from .preset_service import PresetService
 from .profile_nudge_service import ProfileNudgeService
@@ -145,6 +146,7 @@ from .webhook_service import WebhookService
 
 __all__ = [
     'AccommodationService',
+    'AccountOverview',
     'AnalyticsService',
     'ApiTokenService',
     'AsyncQualifierConfig',
@@ -160,6 +162,7 @@ __all__ = [
     'CheckInDeskService',
     'CheckInService',
     'CommunityEventService',
+    'CommunityOverview',
     'CrewService',
     'DiscordEmailService',
     'DiscordEventReconcilerService',
@@ -173,6 +176,7 @@ __all__ = [
     'EmergencyContactService',
     'EquipmentService',
     'EventDraft',
+    'EventGuide',
     'EventInfoService',
     'FeatureFlagService',
     'FeedbackService',
@@ -200,6 +204,7 @@ __all__ = [
     'NotificationChannelService',
     'PasswordAuthService',
     'PayoutService',
+    'PlatformAdminService',
     'PlayerAvailabilityService',
     'PresetService',
     'ProbeResult',

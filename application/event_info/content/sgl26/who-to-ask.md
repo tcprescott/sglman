@@ -3,95 +3,42 @@ title: Who to ask
 slug: who-to-ask
 icon: contact_support
 order: 30
-summary: Helping out at the event, volunteering, and who to find when something needs a decision.
+summary: Who makes which call, staff, volunteering and crew, and lost property.
 ---
 
 ## Finding someone
 
-**Lanyards tell you who is who.** Attendee, volunteer and staff lanyards are
-different by design, so you are looking around a room for a lanyard rather than
-sending a message and waiting.
+**The proctor runs the room; an admin makes the calls.** A missing player,
+broken hardware, a dispute or anyone's conduct goes to an admin, and the fastest
+way to one is telling the proctor. The tournament room always has a proctor or
+the on-call admin in it.
 
-The pattern that holds everywhere at the event: **the proctor runs the room, an
-admin makes the calls.** Anything that changes whether or how a match is played,
-whether it's a missing player, hardware failing mid-match, a dispute, or
-anything about someone's conduct, goes to an admin. The fastest route to one is
-to tell the proctor rather than going looking yourself.
-
-**Somebody is always in the tournament room.** There is an on-call admin, and the
-role rotates through the day rather than sitting with one person. They are
-normally in the tournament room; if they step out briefly they tell the proctor
-first. So the room always has a proctor or an admin in it, and you are never
-left with nobody to ask.
+Lanyards differ for attendees, volunteers and staff, so look for a staff
+lanyard.
 
 **SGLive 2026 staff** are adirondackrick, clifford, darkmoonex, dani3883,
 Felix_TC, hurfydurfy, jamevil, synack and tsigma6.
 
-**If you genuinely cannot find anyone**, ping the **@Staff** role in the
-[event Discord](https://discord.com/invite/T6qzxNJ). That is the backstop, not the
-first move: someone in the room will almost always be quicker.
-
-**Before the day, you do not have to find anyone at all.** Moving or calling off
-a match is an admin's decision, but asking for one is a button: **Ask to
-change** on My Schedule sends the request and the reason to staff, and the
-answer comes back as a DM. Use it for anything with days or hours of notice.
-Once you are in the building and the match is imminent, the room beats the
-queue — see [If your match time does not work](/event-info/schedule).
+Can't find anyone? Ping **@Staff** in the
+[event Discord](https://discord.com/invite/T6qzxNJ).
 
 ## Volunteering
 
-Volunteering is working a shift: proctoring a room, and whatever else the event
-needs covered. **It can pay for your badge:** eight hours comps it outright, with
-more back at twelve and sixteen-plus hours.
+Volunteering is working shifts, like proctoring a room, and eight hours comps
+your badge. Once you're signed up you say when you're free and shifts are
+assigned in the app; see [Volunteering shifts](/help/volunteering). **Dani** is
+the volunteer coordinator and owns shifts and swaps (`Dani3883` on the Discord).
 
-Sign up through the [volunteer form](https://forms.gle/DSseFRkwKffPynN9A).
-Applications close in **September**, so this is not something to leave until you
-arrive.
+Proctors: the floor standard, *Running the tournament room*, shows here once
+you hold the Proctor or Volunteer role. Ask Dani if it's missing.
 
-Once you are signed up, the app takes over: you say when you are free and shifts
-are assigned to you. [Volunteering shifts](/help/volunteering) covers how that
-works.
+## Crew
 
-## Crew is a different thing
-
-**Crew** is commentating or tracking a match, per match rather than per shift.
-You sign up for the match, staff approve you, and you confirm.
-[Signing up as crew](/help/crew) is the whole process.
-
-The two availability editors in the app are separate on purpose: **My
-Availability** on Home is when you can *play*, and the one on the Volunteer tab is
-when you can *work*. Filling in one does not fill in the other.
-
-## If you are proctoring
-
-The floor standard, *Running the tournament room*, is on its own page, visible once you hold
-the Proctor or Volunteer role. If you've been given a shift and can't see it, ask
-Dani, since the role is what unlocks it.
-
-**Dani is the volunteer coordinator**, and shifts and swaps are theirs rather
-than the on-call admin's. They're `Dani3883` in the
-[event Discord](https://discord.com/invite/T6qzxNJ) if you can't find them in
-person.
-
-## Elsewhere
-
-- [sglive.speedgaming.org](https://sglive.speedgaming.org): tournaments, prize
-  pools and tickets
-- [Event Discord](https://discord.com/invite/T6qzxNJ): where the community answers
-  what these pages do not, and where **@Staff** reaches someone if nobody can be
-  found in person
+Crew is commentating or tracking, per match rather than per shift: sign up for
+a match, staff approve you, and you confirm. See
+[Signing up as crew](/help/crew).
 
 ## Lost property
 
-**Lost something, or found something? The check-in desk.** That is where things
-hand in and where you go looking, for the whole event. Anything the hotel picks
-up outside the event space goes to the hotel's own lost and found at the front
-desk, so it is worth asking both.
-
-## Medical help
-
-The nearest hospital and urgent care are listed under
-[Medical](/event-info/attending#medical).
-
-> **TODO:** accessibility provision, quiet space, first aid on site. Nothing on
-> any of these has been published or settled.
+Lost or found something? **The check-in desk.** The hotel's own lost and found
+at the front desk takes anything found outside the event space, so ask both.

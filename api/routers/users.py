@@ -21,7 +21,7 @@ from api.schemas.user_actions import (
     UserSelfUpdate,
 )
 from api.schemas.users import UserDetailResponse, UserListItem
-from application.services import TournamentService, UserService
+from application.services import TenantMembershipService, TournamentService, UserService
 from application.services.auth_service import AuthService
 from models import Role, User
 
@@ -247,3 +247,35 @@ async def grant_role(user_id: int, body: RoleRequest, actor: User = Depends(requ
 async def revoke_role(user_id: int, role: Role, actor: User = Depends(require_write_actor)):
     target = await load_user_or_404(user_id)
     await UserService().revoke_role(target, role, actor=actor)
+
+
+@router.post(
+    "/{user_id}/membership",
+    response_model=DetailResponse,
+    summary="Add someone to this community (Staff only)",
+    description=(
+        "Makes the person a member of this community, the same as Add member on the Users tab. "
+        "A join request they have waiting is closed as approved, and they get a DM saying "
+        "they're in. Adding someone who is already a member changes nothing.\n\n"
+        "**Who can call this:** Staff."
+    ),
+)
+async def add_member(user_id: int, actor: User = Depends(require_write_actor)):
+    target = await load_user_or_404(user_id)
+    await TenantMembershipService().add_member(actor, target)
+    return {"detail": "Member added"}
+
+
+@router.delete(
+    "/{user_id}/membership",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove someone from this community (Staff only)",
+    description=(
+        "Takes the person out of this community. Fails with 400 while they hold a role here or "
+        "admin or coordinate a tournament; take those away first.\n\n"
+        "**Who can call this:** Staff."
+    ),
+)
+async def remove_member(user_id: int, actor: User = Depends(require_write_actor)):
+    target = await load_community_user_or_404(user_id, actor)
+    await TenantMembershipService().remove_member(actor, target)
