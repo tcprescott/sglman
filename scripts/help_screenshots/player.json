@@ -17,7 +17,7 @@
     ],
     "annotate": [
       {
-        "selector": ".wiz-subcard:has-text(\"Waiting on you to pick a time\") >> button:has-text(\"Schedule\")",
+        "selector": ".wiz-subcard:has-text(\"Waiting on you to pick a time\") >> button:has-text(\"Pick a time\")",
         "n": 1
       }
     ]

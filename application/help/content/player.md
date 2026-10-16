@@ -98,20 +98,21 @@ matches. Your next matchup appears on My Schedule under **Waiting on you to pick
 a time**, and the bot DMs you a button that opens the time picker directly.
 
 :::snippet bracket-schedule
-Tap **Schedule** (or **Schedule game 2**, in a best-of series), pick a time you
-can both play, and tap **Schedule**. There's no confirm step: picking a time
-books it, and your opponent gets a message. If the tournament takes change
-requests, they can ask staff to move it.
+The card groups your matchups by tournament. Tap **Pick a time** beside the one
+you want, pick a time you can both play, and tap **Schedule**. There's no confirm
+step: picking a time books it, and your opponent gets a message. If the
+tournament takes change requests, they can ask staff to move it.
 
 Either of you can book it, so talk to your opponent first. If they get there
 before you, the matchup leaves your list.
 
-In a Challonge bracket, **Schedule** is greyed out until your opponent is matched
-to a Wizzrobe account, and the reason shows under the match. Staff can match them
-by hand. The **My Schedule** tab shows a count while anything is waiting on you.
+In a Challonge bracket, a matchup has no **Pick a time** button until your
+opponent is matched to a Wizzrobe account, and the reason shows in its place.
+Staff can match them by hand. The **My Schedule** tab shows a count while
+anything is waiting on you.
 :::
 
-![The Waiting on you to pick a time card, listing three bracket matchups each with a Schedule button, the first one marked 1](/static/help/player/bracket-schedule-phone.webp "Bracket matchups that still need a time: tap **Schedule** (1) to pick one.")
+![The Waiting on you to pick a time card, listing bracket matchups grouped by tournament, each with a Pick a time button, the first one marked 1](/static/help/player/bracket-schedule-phone.webp "Bracket matchups that still need a time: tap **Pick a time** (1) to book one.")
 
 ### Suggest a time
 
