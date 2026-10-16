@@ -251,7 +251,7 @@ The file-select symbols racers compare before starting ("Code: Bow · Hookshot �
 | `dk64r` | the finished task's `result.hash` (0–9 digits) | 5 icon names (Bongos … Saxophone, as DK64R's racetime bot names them) |
 | `smmap` | `seed_hash` beside `seed_url` in the `/randomize` response | 4 enemy names |
 | `smdash` | the `signature` in the `/seed/<key>` page's Next.js payload (one extra GET, no API) | 4 enemy names |
-| `ootr` | `settingsLog.file_hash` from `GET /api/v2/seed/details`; for an encrypted seed only a key with `locked_encrypt_spoiler_access` gets it, and a seed still generating answers 204 | 5 item names |
+| `ootr` | `file_hash` scraped from the public seed page (`/seed/get?id=`), after polling `GET /api/sglive/seed/status` until the seed is built (about 20s, capped at 45s). The SGL key only opens `/api/sglive/`, and its details endpoint omits the settings log, so the page is the only source; every miss logs at ERROR and the roll goes ahead without a code | 5 item names |
 
 `ff1r` (hashed in the browser from the RNG state after the whole randomization), `z1r` (closed-source tool) and `wwr` (see above) have none. `MOCK_SEEDGEN` returns a believable code for the randomizers that have one.
 
