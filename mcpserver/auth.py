@@ -78,12 +78,21 @@ class Gate(Enum):
     ``GLOBAL`` is not a weaker ``ACTOR`` — it marks a tool that names no
     community at all (``whoami``, ``list_tenants``), so there is nothing to
     scope and no tenant-scoped role to check.
+
+    ``PLATFORM`` also names no community, and requires the global super-admin
+    role: the ``/platform`` page's surface, mirroring ``require_super_admin``.
     """
 
     GLOBAL = 'global'
+    PLATFORM = 'platform'
     ACTOR = 'actor'
     ADMIN = 'admin'
     STAFF = 'staff'
+
+    @property
+    def names_no_community(self) -> bool:
+        """Whether the tool takes no ``tenant``, so there is nothing to bind."""
+        return self in (Gate.GLOBAL, Gate.PLATFORM)
 
 
 async def belongs_to_tenant(user: User) -> bool:
@@ -146,10 +155,10 @@ async def authorize(
     # slug: "hidden, not forbidden" is the posture used throughout the app, and
     # a distinguishable refusal would turn error text into a directory of every
     # community on the platform.
-    # GLOBAL tools are exempt: they name no community, and they are how a caller
+    # GLOBAL and PLATFORM tools are exempt: they name no community. GLOBAL ones are how a caller
     # discovers that they have access to none. Refusing them would leave a
     # role-less user unable to learn anything at all, including *that* fact.
-    if gate is not Gate.GLOBAL and not await AuthService.is_super_admin(actor.user):
+    if not gate.names_no_community and not await AuthService.is_super_admin(actor.user):
         if not await belongs_to_tenant(actor.user):
             raise NotFoundError(f"No community '{slug}' is available.")
 
@@ -177,6 +186,10 @@ async def authorize(
     elif gate is Gate.STAFF:
         await AuthService.ensure(
             await AuthService.is_staff(actor.user), 'Staff access required'
+        )
+    elif gate is Gate.PLATFORM:
+        await AuthService.ensure(
+            await AuthService.is_super_admin(actor.user), 'Super admin access required'
         )
     # Gate.ACTOR and Gate.GLOBAL need no further check — holding a live token is
     # the bar, exactly as `require_api_actor` is for the REST API.

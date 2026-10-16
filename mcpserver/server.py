@@ -8,14 +8,15 @@ logger names from every log line in the process. Building it from ``mount()``,
 which runs after logging is configured, keeps our format.
 """
 
-from typing import List
+from typing import List, Set
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import Tool as MCPTool
 
+from application.services.auth_service import AuthService
 from mcpserver.auth import optional_actor
-from mcpserver.registry import write_tool_names
+from mcpserver.registry import platform_tool_names, write_tool_names
 from mcpserver.tools import register_all
 
 INSTRUCTIONS = """\
@@ -36,10 +37,16 @@ Start with `whoami`. It reports which communities you belong to, what role you \
 hold in each, which optional features each has enabled, and whether this \
 connection may write — so you can avoid calling tools that would be refused.
 
-Wizzrobe hosts many independent communities. Every tool except `whoami` and \
-`list_tenants` takes a required `tenant` argument: the community's slug, as \
-returned by `list_tenants`. A tool that reports `not_found` for a feature means \
+Wizzrobe hosts many independent communities. Every tool except `whoami`, \
+`list_tenants` and the platform tools takes a required `tenant` argument: the \
+community's slug, as returned by `list_tenants`. A tool that reports `not_found` for a feature means \
 that community has not enabled it, not that you asked incorrectly.
+
+A super admin is also served the platform tools (`platform_*` and \
+`runtime_stats`), which cover the /platform page: every community, inactive \
+ones included, every account, feature groups, racetime bots, log levels and \
+the platform health board. They take no `tenant`; the ones about one community \
+take its slug as `community`. Passwords and new accounts stay on the page.
 
 All times are returned in UTC. Each community chooses the timezone its \
 members read them in, so convert before quoting a time to a person.
@@ -80,7 +87,8 @@ def start_transport(mcp: MCPServer) -> None:
 
 
 class WizzrobeMCP(MCPServer):
-    """MCPServer that hides the write tools from a read-only connection.
+    """MCPServer that hides the write tools from a read-only connection, and
+    the platform tools from anyone who is not a super admin.
 
     Every write is refused at the gate regardless, so this is not the security
     boundary — it is a context one. A read-only client offered nineteen tools it
@@ -97,9 +105,13 @@ class WizzrobeMCP(MCPServer):
     async def list_tools(self) -> List[MCPTool]:
         tools = await super().list_tools()
         actor = optional_actor()
-        if actor is None or not actor.token.read_only:
+        if actor is None:
             return tools
-        hidden = write_tool_names()
+        hidden: Set[str] = set()
+        if actor.token.read_only:
+            hidden |= write_tool_names()
+        if not await AuthService.is_super_admin(actor.user):
+            hidden |= platform_tool_names()
         return [tool for tool in tools if tool.name not in hidden]
 
 

@@ -250,6 +250,20 @@ Platform-managed racetime bots (no tenant FK). Responses are the secret-free
 - `GET /racetime-bots` · `/active` · `/{id}` (super-admin).
 - `POST` · `PATCH /{id}` · `DELETE /{id}` (super-admin write).
 - `GET /racetime-bots/{id}/grants` · `POST /{id}/grants` (`{tenant_id}`) · `DELETE /{id}/grants/{tenant_id}` — tenant authorization grants.
+- `POST /racetime-bots/{id}/restart` — drop and reconnect the bot's racetime connection (`RacetimeBotService.restart_connection`; 400 when `RACETIME_BOT_ENABLED` is off).
+
+### Platform (`/api/platform`) — **super-admin, global** · `platform.py`
+The `/platform` page's other tabs. Reads use `require_super_admin`, writes
+`require_super_admin_write`; communities are named by id and include switched-off
+ones. Composite reads come from `PlatformAdminService`; writes go through the
+owning service (`TenantService`, `FeatureFlagService`, `PasswordAuthService.set_active`,
+`LogLevelService`). Passwords and account creation stay on the page.
+- `GET /platform/communities` · `/{id}` (setup checklist + Staff); `POST` · `PATCH /{id}` (`null` clears `domain`/`discord_guild_id`; `is_active` switches it off).
+- `POST /platform/communities/{id}/staff` (`{user_id}`) — first-admin grant (`TenantService.bootstrap_staff`).
+- `GET /platform/communities/{id}/features` · `PUT /{id}/feature-group` (`{group_id|null}`) · `PUT /{id}/features/{flag}` (`{available: true|false|null}`).
+- `GET /platform/users` (`q`, `has_password`, `is_active`, `limit`) · `/{id}` · `PUT /{id}/active` (`{is_active}`).
+- `GET /platform/feature-groups`; `POST` · `PATCH /{id}` · `DELETE /{id}`.
+- `GET /platform/log-levels` · `PUT` (`{logger, level}`) · `DELETE ?logger=`.
 
 ### Race rooms (`/api/race-rooms`) · `race_rooms.py`
 - `GET /race-rooms/open` (Staff; filtered to your tenant) · `GET /race-rooms/by-match/{match_id}`.

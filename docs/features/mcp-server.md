@@ -140,7 +140,7 @@ leaves the screen usable and no other caller can grant write without it.
 
 ## Choosing a community
 
-Every tool except `whoami`, `list_tenants` and `runtime_stats` takes a required `tenant` argument
+Every tool except `whoami`, `list_tenants` and the platform tools (`runtime_stats`, `platform_*`) takes a required `tenant` argument
 — a community slug. `list_tenants` returns the slugs the caller may use.
 
 **Membership floor.** A tool reaches a community only where its user belongs —
@@ -163,6 +163,7 @@ agree.
 | Gate | Requirement | REST equivalent |
 |---|---|---|
 | `GLOBAL` | a live token; names no community | — |
+| `PLATFORM` | the global `SUPER_ADMIN` role; names no community; **listed only to a super admin** | `require_super_admin` |
 | `ACTOR` | a live token + membership of the named community | `require_api_actor` |
 | `STAFF` | `AuthService.is_staff` | `require_staff` |
 | `ADMIN` | `AuthService.can_view_admin` | `require_admin` |
@@ -190,7 +191,7 @@ a role — and the connection one is both cheaper and the common case.
 
 ## Tool catalogue
 
-`tenant` is required on every tool below except the two orientation tools and `runtime_stats`.
+`tenant` is required on every tool below except the two orientation tools and the platform tools.
 
 ### Orientation
 | Tool | Gate | Notes |
@@ -307,7 +308,7 @@ model needs in one call to find one person.
 | `telemetry_summary`, `telemetry_top`, `get_system_config` | STAFF |
 | `list_service_health`, `list_webhooks`, `list_webhook_deliveries` | STAFF |
 | `list_feedback` | STAFF | `FEEDBACK` |
-| `runtime_stats` | GLOBAL, then SUPER_ADMIN in `RuntimeStatsService` |
+| `runtime_stats` | PLATFORM (SUPER_ADMIN, checked again in `RuntimeStatsService`) |
 
 `runtime_stats` is the live load on the process (event-loop lag and stalls,
 CPU, memory, connected tabs, DB pool, worker timing; see
@@ -316,8 +317,34 @@ community because the figures cover all of them, which is also why a community
 role cannot read it.
 
 `list_webhooks` never returns the signing secret, and `list_service_health` is
-the **tenant subset** only — the platform-wide board is a super-admin surface and
-is not exposed here.
+the **tenant subset** only — the platform-wide board is `platform_service_health`.
+
+### Platform (super admin)
+The `/platform` page's tabs, in `mcpserver/tools/platform.py` (reads) and
+`platform_writes.py` (writes). Every tool is `Gate.PLATFORM`: it requires the
+global `SUPER_ADMIN` role, takes no `tenant`, and `WizzrobeMCP.list_tools` hides
+it from everyone else (a community's Staff is an outsider here). Each mirrors a
+REST endpoint under `/api/platform`, `/api/racetime-bots` or
+`/api/service-health`, and the owning services check the role again.
+
+Tools about one community take its slug as `community`, resolved by
+`PlatformAdminService.find_community`, which **includes switched-off
+communities** — the `tenant` argument hides those, and a super admin has to
+reach one to switch it back on.
+
+| Reads | Writes |
+|---|---|
+| `platform_list_communities`, `platform_get_community` (setup, Staff, every feature's availability) | `platform_create_community`, `platform_update_community`, `platform_set_community_active`†, `platform_grant_community_staff` |
+| `platform_list_feature_groups` | `platform_set_community_feature_group`, `platform_set_community_feature` (`inherit`/`on`/`off`), `platform_create_feature_group`, `platform_update_feature_group`, `platform_delete_feature_group`† |
+| `platform_list_users`, `platform_get_user` | `platform_set_user_active`† |
+| `platform_list_racetime_bots` (grants as slugs; never the secret) | `platform_update_racetime_bot`, `platform_grant_racetime_bot`, `platform_revoke_racetime_bot`†, `platform_restart_racetime_bot` |
+| `platform_list_log_levels` | `platform_set_log_level`, `platform_reset_log_level` |
+| `platform_service_health`, `runtime_stats` | `platform_refresh_service_health` (never alerts) |
+
+† destructive. **Left out on purpose** (Thomas, 2026-10-16): setting or removing
+a password, creating an account, and anything that takes a racetime bot's client
+secret (creating a bot) — a credential typed into a chat lands in a transcript.
+Deleting a bot is left out too, since only the page can make one again.
 
 `list_feedback` mirrors `GET /api/feedback` and carries that router's flag.
 `FeedbackService` refuses a community with the feature off regardless, so the

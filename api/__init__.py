@@ -26,6 +26,7 @@ from api.routers import (
     memberships,
     notifications,
     payouts,
+    platform,
     player_availability,
     presets,
     race_room_profiles,
@@ -113,6 +114,7 @@ router.include_router(
     dependencies=[Depends(require_feature(FeatureFlag.RACETIME_ROOMS))],
 )
 router.include_router(racetime_bots.router)
+router.include_router(platform.router)
 router.include_router(
     race_rooms.router,
     dependencies=[Depends(require_feature(FeatureFlag.RACETIME_ROOMS))],

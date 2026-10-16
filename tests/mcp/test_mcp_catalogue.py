@@ -8,11 +8,46 @@ in the suite would notice — its own happy-path test would pass.
 
 from mcpserver.auth import Gate
 from mcpserver.registry import TOOL_SPECS
+from models import Role
 from tests.mcp.conftest import create_oauth_token, list_tools, mcp_session
 
 # Tools that legitimately take no community, because they are how a caller
 # discovers which communities exist.
-GLOBAL_TOOLS = {'whoami', 'list_tenants', 'runtime_stats'}
+GLOBAL_TOOLS = {'whoami', 'list_tenants'}
+
+# Super-admin tools: they take no `tenant` either (they reach every community),
+# and are listed only to a super admin.
+PLATFORM_READ_TOOLS = {
+    'platform_get_community',
+    'platform_get_user',
+    'platform_list_communities',
+    'platform_list_feature_groups',
+    'platform_list_log_levels',
+    'platform_list_racetime_bots',
+    'platform_list_users',
+    'platform_service_health',
+    'runtime_stats',
+}
+PLATFORM_WRITE_TOOLS = {
+    'platform_create_community',
+    'platform_create_feature_group',
+    'platform_delete_feature_group',
+    'platform_grant_community_staff',
+    'platform_grant_racetime_bot',
+    'platform_refresh_service_health',
+    'platform_reset_log_level',
+    'platform_restart_racetime_bot',
+    'platform_revoke_racetime_bot',
+    'platform_set_community_active',
+    'platform_set_community_feature',
+    'platform_set_community_feature_group',
+    'platform_set_log_level',
+    'platform_set_user_active',
+    'platform_update_community',
+    'platform_update_feature_group',
+    'platform_update_racetime_bot',
+}
+PLATFORM_TOOLS = PLATFORM_READ_TOOLS | PLATFORM_WRITE_TOOLS
 
 # A snapshot, so adding or renaming a tool is a deliberate diff rather than an
 # invisible change to a published contract.
@@ -58,7 +93,6 @@ READ_TOOLS = {
     'list_speedgaming_links',
     'list_stages',
     'list_tenants',
-    'runtime_stats',
     'list_tournament_signups',
     'list_tournaments',
     'list_triforce_texts',
@@ -122,11 +156,16 @@ WRITE_TOOLS = {
 }
 
 EXPECTED_TOOLS = READ_TOOLS | WRITE_TOOLS
+EVERY_TOOL = EXPECTED_TOOLS | PLATFORM_TOOLS
 
 # Writes that remove something rather than adding or amending it. Clients use
 # the distinction to decide how hard to ask before proceeding.
 DESTRUCTIVE_TOOLS = {
     'delete_match',
+    'platform_delete_feature_group',
+    'platform_revoke_racetime_bot',
+    'platform_set_community_active',
+    'platform_set_user_active',
     'undo_attendee_check_in',
     'unlink_attendee',
     'withdraw_crew_signup',
@@ -154,9 +193,21 @@ class TestCatalogue:
             tools = await list_tools(client, raw)
         assert {t['name'] for t in tools} == READ_TOOLS
 
+    async def test_a_super_admin_is_also_served_the_platform_tools(self, db):
+        _, raw = await create_oauth_token(roles=[Role.SUPER_ADMIN], write=True)
+        async with mcp_session() as client:
+            tools = await list_tools(client, raw)
+        assert {t['name'] for t in tools} == EVERY_TOOL
+
+    async def test_a_read_only_super_admin_gets_no_platform_writes(self, db):
+        _, raw = await create_oauth_token(roles=[Role.SUPER_ADMIN])
+        async with mcp_session() as client:
+            tools = await list_tools(client, raw)
+        assert {t['name'] for t in tools} == READ_TOOLS | PLATFORM_READ_TOOLS
+
     async def test_every_served_tool_is_gated(self, db):
         """The load-bearing one: nothing reached the server bypassing register()."""
-        _, raw = await create_oauth_token(write=True)
+        _, raw = await create_oauth_token(roles=[Role.SUPER_ADMIN], write=True)
         async with mcp_session() as client:
             tools = await list_tools(client, raw)
         ungated = [t['name'] for t in tools if t['name'] not in TOOL_SPECS]
@@ -164,7 +215,7 @@ class TestCatalogue:
 
     async def test_every_tool_is_described_and_typed(self, db):
         """An undescribed tool is one the model will misuse or ignore."""
-        _, raw = await create_oauth_token(write=True)
+        _, raw = await create_oauth_token(roles=[Role.SUPER_ADMIN], write=True)
         async with mcp_session() as client:
             tools = await list_tools(client, raw)
         for tool in tools:
@@ -181,7 +232,7 @@ class TestCatalogue:
         is invisible in the tool source and only shows up at the client, which
         is exactly why it is asserted here.
         """
-        _, raw = await create_oauth_token(write=True)
+        _, raw = await create_oauth_token(roles=[Role.SUPER_ADMIN], write=True)
         async with mcp_session() as client:
             tools = await list_tools(client, raw)
         missing = [t['name'] for t in tools if not t.get('outputSchema')]
@@ -193,12 +244,12 @@ class TestCatalogue:
         So a write mis-annotated as a read is a change the user is never asked
         about, and a read mis-annotated as a write is a prompt on every lookup.
         """
-        _, raw = await create_oauth_token(write=True)
+        _, raw = await create_oauth_token(roles=[Role.SUPER_ADMIN], write=True)
         async with mcp_session() as client:
             tools = await list_tools(client, raw)
         for tool in tools:
             annotations = tool.get('annotations') or {}
-            expected = tool['name'] not in WRITE_TOOLS
+            expected = tool['name'] not in WRITE_TOOLS | PLATFORM_WRITE_TOOLS
             assert annotations.get('readOnlyHint') is expected, tool['name']
             assert annotations.get('destructiveHint') is (
                 tool['name'] in DESTRUCTIVE_TOOLS
@@ -210,13 +261,13 @@ class TestCatalogue:
         Catches the reverse mistake too: a genuinely global tool that grew a
         tenant argument nobody honours.
         """
-        _, raw = await create_oauth_token(write=True)
+        _, raw = await create_oauth_token(roles=[Role.SUPER_ADMIN], write=True)
         async with mcp_session() as client:
             tools = await list_tools(client, raw)
         for tool in tools:
             properties = (tool.get('inputSchema') or {}).get('properties') or {}
             has_tenant = 'tenant' in properties
-            if tool['name'] in GLOBAL_TOOLS:
+            if tool['name'] in GLOBAL_TOOLS | PLATFORM_TOOLS:
                 assert not has_tenant, f'{tool["name"]} should not take a tenant'
             else:
                 assert has_tenant, f'{tool["name"]} is missing a tenant argument'
@@ -236,4 +287,9 @@ class TestCatalogue:
         here would catch.
         """
         declared_write = {name for name, spec in TOOL_SPECS.items() if spec.write}
-        assert declared_write == WRITE_TOOLS
+        assert declared_write == WRITE_TOOLS | PLATFORM_WRITE_TOOLS
+
+    def test_gate_registry_agrees_with_the_platform_snapshot(self):
+        """``Gate.PLATFORM`` is what requires a super admin and hides the tool from everyone else."""
+        declared = {name for name, spec in TOOL_SPECS.items() if spec.gate is Gate.PLATFORM}
+        assert declared == PLATFORM_TOOLS
