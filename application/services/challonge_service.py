@@ -158,9 +158,15 @@ class ChallongeService(
     # ------------------------------------------------------------------
     # Service-account token management
     # ------------------------------------------------------------------
-    async def get_valid_access_token(self, force_refresh: bool = False) -> str:
-        """Return a live service access token, refreshing if expired/forced."""
-        connection = await self.repository.get_connection()
+    async def get_valid_access_token(
+        self, force_refresh: bool = False, community: Optional[str] = None,
+    ) -> str:
+        """Return a live service access token for ``community``, refreshing if expired/forced.
+
+        Challonge hides brackets outside the community a grant names, so each
+        bracket's calls use the grant for the community it lives in.
+        """
+        connection = await self.repository.get_connection_for(community)
         if connection is None:
             raise ValueError("Challonge is not connected. A staff member must connect the Wizzrobe account.")
 
@@ -222,6 +228,7 @@ class ChallongeService(
             scopes=scopes,
             challonge_username=username,
             connected_by=actor,
+            community=self.normalize_community(community),
         )
         await self._remember_community(community)
         await self.audit_service.write_log(
@@ -474,14 +481,7 @@ class ChallongeService(
                     f"of its admins."
                 ) from e
             if e.status == 404:
-                connection = await self.repository.get_connection()
-                account = (connection.challonge_username if connection else None) or 'the connected account'
-                raise ValueError(
-                    f"Challonge can't find '{identifier}' for {account}. Challonge only shows "
-                    f"brackets that account created or is an admin of, or that live in a "
-                    f"connected community. Check the URL, or ask the bracket's owner to add "
-                    f"{account} as an admin on Challonge, then try again."
-                ) from e
+                raise ValueError(await self._not_found_message(identifier, community)) from e
             raise ValueError(
                 f"Could not find that Challonge tournament: {challonge_error_detail(e)}"
             ) from e
@@ -506,6 +506,18 @@ class ChallongeService(
         await self._mirror_bracket(tournament, full['participants'], full['matches'], actor)
         await self._record_sync(tournament, remote)
         return tournament
+
+    async def _not_found_message(self, identifier: str, community: Optional[str]) -> str:
+        connection = await self.repository.get_connection()
+        account = (connection.challonge_username if connection else None) or 'the connected account'
+        message = f"Challonge can't find '{identifier}' for {account}."
+        if (community or '') not in await self.repository.granted_communities():
+            where = f"the '{community}' community" if community else 'brackets outside a community'
+            return (
+                f"{message} Wizzrobe hasn't been granted {where} yet. Reconnect in "
+                f"Admin → Challonge, approve every Challonge prompt, then try again."
+            )
+        return f"{message} Check the URL, and that {account} is an admin of the bracket on Challonge."
 
     @requires_feature(FeatureFlag.CHALLONGE)
     async def unlink_tournament(self, tournament_id: int, actor: User) -> Tournament:

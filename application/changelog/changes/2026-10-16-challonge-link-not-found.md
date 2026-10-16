@@ -1,3 +1,4 @@
-### Improved
+### Fixed
 
-- When Link & Sync can't see a Challonge bracket, the message now names the connected Challonge account and says to have the bracket's owner add it as an admin, instead of showing Challonge's raw error.
+- Link & Sync can now reach Challonge brackets that aren't in a Challonge community. Reconnect under Admin → Challonge once and approve each Challonge prompt; the last one covers brackets outside a community.
+- When Challonge can't find a bracket, the message now says why in plain words instead of showing Challonge's raw error.

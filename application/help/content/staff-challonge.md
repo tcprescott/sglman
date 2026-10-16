@@ -29,7 +29,9 @@ Without it, Challonge refuses to show Wizzrobe the community's tournaments.
 Wizzrobe remembers every community you've connected with, plus any community a
 linked tournament lives on, and lists them on the card. **Reconnect** asks
 Challonge for each of them again, one approval screen per community, so you only
-type a community once. Remove one with its ×. A community that linked
+type a community once. The last screen names no community: it's the one that
+lets Wizzrobe see brackets hosted outside any community, so approve that too.
+Remove one with its ×. A community that linked
 tournaments still use can't be removed.
 
 If the stage changes in a linked tournament's ⋮ menu are greyed out, press

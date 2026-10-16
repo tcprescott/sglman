@@ -204,7 +204,17 @@ class TestLinkTournament:
             )
         message = str(excinfo.value)
         assert "can't find 'sglmmr26' for the connected account" in message
+        assert "hasn't been granted brackets outside a community" in message
         assert '{' not in message
+
+    async def test_not_found_with_a_grant_points_at_the_bracket(self, db):
+        actor = await make_user(1, 'admin')
+        tournament = await Tournament.create(name='T')
+        await ChallongeConnection.create(access_token='t', community='', challonge_username='syn')
+        api = MagicMock()
+        api.get_tournament_full = AsyncMock(side_effect=ChallongeAPIError('404', status=404))
+        with pytest.raises(ValueError, match="that syn is an admin of the bracket"):
+            await make_service(api=api).link_tournament(tournament.id, 'sglmmr26', actor)
 
     async def test_community_403_explains_how_to_reconnect(self, db):
         actor = await make_user(1, 'admin')
