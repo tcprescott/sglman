@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional
 
 from application.utils.timezone import to_local, today_local
+from theme.tables.match_slots import seed_value_template
 
 #: The board's columns. Kept short on purpose: anything wider than "which match,
 #: when, where, how is it doing" belongs in the sheet.
@@ -133,10 +134,25 @@ def next_step(row: dict) -> Optional[dict]:
     if state == 'Scheduled':
         return {'event': 'seat', 'label': 'Check in', 'primary': bool(row.get('is_overdue'))}
     if state == 'Checked In':
+        # The seed is a step of its own: the proctor reads its code to the
+        # players before pressing Start. Starting without one stays in the sheet.
+        if seed_pending(row):
+            if row.get('seed_rolling_since'):
+                return {'event': None, 'label': 'Rolling', 'primary': False, 'rolling': True}
+            return {'event': 'roll', 'label': 'Roll seed', 'primary': True}
         return {'event': 'start', 'label': 'Start', 'primary': True}
     if state == 'Started':
         return {'event': 'finish', 'label': 'Finish', 'primary': False}
     return None
+
+
+def seed_pending(row: dict) -> bool:
+    """The tournament rolls seeds and this match, still unplayed, has none yet."""
+    return bool(
+        row.get('tournament_seed_generator') and not row.get('is_racetime')
+        and row.get('players') and not row.get('generated_seed')
+        and row.get('state') in ('Scheduled', 'Checked In')
+    )
 
 
 def _seats(row: dict) -> list[dict]:
@@ -248,6 +264,14 @@ def decorate_run_sheet_row(row: dict) -> dict:
     row['_crew'] = run_sheet_crew(row)
     row['_crew_by'] = {c['key']: c for c in row['_crew']}
     row['_next'] = next_step(row)
+    row['_seed_pending'] = seed_pending(row)
+    # "Not rolled" only once it's the next step; before check-in it is noise.
+    # A roll in flight or one that failed is news whatever the state.
+    row['_seed_line'] = bool(
+        (row.get('generated_seed') and row.get('state') not in ('Finished', 'Confirmed'))
+        or (row['_seed_pending'] and (row.get('state') == 'Checked In'
+                                      or row.get('seed_rolling_since') or row.get('seed_roll_error')))
+    )
     row['_seats'] = _seats(row)
     row['_seat_line'] = seat_line(row)
     row['_ada'] = [p.get('name') or '' for p in row.get('players') or [] if p.get('ada')]
@@ -349,15 +373,29 @@ _SEATED_WHO = r"""<template v-if="props.row._seats.length"><template v-for="(s, 
 
 _ADA = """<span v-if="props.row._ada.length" class="run-sheet__ada"><q-icon name="accessible" size="16px" aria-hidden="true" />ADA: {{ props.row._ada.join(', ') }}</span>"""
 
+# The seed, on the proctor's line: the link and code to read to the players, or
+# why there isn't one yet. Clicks stop here so the link and copy button don't
+# also open the sheet.
+_SEED_LINE = r"""<template v-if="props.row._seed_line"><span v-if="props.row.generated_seed" class="run-sheet__seed" @click.stop><q-icon name="casino" size="16px" aria-hidden="true" /><span class="wiz-sr-only">Seed: </span><span class="run-sheet__seed-value">""" + seed_value_template('props.row.generated_seed') + r"""</span></span>
+<span v-else class="run-sheet__seed" :class="props.row.seed_rolling_since ? '' : (props.row.seed_roll_error ? 'st-cancelled' : 'st-pending')"><q-spinner v-if="props.row.seed_rolling_since" size="14px" aria-hidden="true" /><q-icon v-else name="casino" size="16px" aria-hidden="true" /><span>{{ props.row.seed_rolling_since ? (props.row.seed_rolling_label || 'Rolling…') : (props.row.seed_roll_error ? 'Seed failed: ' + props.row.seed_roll_error : 'Seed not rolled') }}</span></span></template>"""
+
 # The next lifecycle step, on the line. Late and Ready are the primary buttons:
 # the room is waiting on them. The group already says Late or Checked in, so
 # the chip is left to the states a button does not explain.
 _NEXT_CHIP = """<span v-if="!['Scheduled', 'Checked in', 'Late'].includes(props.row._status)" class="wiz-chip" :class="'wiz-chip--' + props.row._tone">{{ props.row._status }}</span>"""
 
-_NEXT_BUTTON = """<q-btn v-if="props.row._next" no-caps unelevated color="primary" :outline="!props.row._next.primary"
-                   class="run-sheet__step" :label="props.row._next.label"
+# Roll seed spins until the row comes back, since a synchronous roll can take
+# several seconds and a second press would only be refused. A queued roll then
+# holds the button on its clock until the seed lands.
+_NEXT_BUTTON = """<q-btn v-if="props.row._next && props.row._next.event" no-caps no-wrap unelevated color="primary" :outline="!props.row._next.primary"
+                   class="run-sheet__step" :label="props.row._next.label" :loading="!!props.row._busy"
+                   :icon="props.row._next.event === 'roll' ? 'casino' : (props.row._next.event === 'start' ? 'play_arrow' : undefined)"
                    :aria-label="props.row._next.label + ': ' + (props.row._who || props.row.title)"
-                   @click.stop="$parent.$emit(props.row._next.event, { key: props.row.id })" />"""
+                   @click.stop="props.row._next.event === 'roll' && (props.row._busy = true); $parent.$emit(props.row._next.event, { key: props.row.id })" />
+<q-btn v-else-if="props.row._next && props.row._next.rolling" no-caps no-wrap unelevated disable class="run-sheet__step"
+       :aria-label="(props.row.seed_rolling_label || 'Rolling…') + ': ' + (props.row._who || props.row.title)">
+    <q-spinner size="16px" class="q-mr-sm" aria-hidden="true" />{{ props.row.seed_rolling_label || 'Rolling…' }}
+</q-btn>"""
 
 
 def _next(can_run: bool) -> str:
@@ -379,7 +417,8 @@ def _body_slot(proctor: bool, can_run: bool = False) -> str:
                 """ + _SEATED_WHO + """
             </button>""" + COMMENT_BADGES + """</span>
             <span class="run-sheet__meta">{{ props.row.tournament }}<template v-if="props.row.bracket"> · {{ props.row.bracket.name }}<template v-if="props.row.bracket.game"> · Game {{ props.row.bracket.game }}</template></template></span>
-            """ + _ADA
+            """ + _ADA + """
+            """ + _SEED_LINE
     else:
         match = """<span class="run-sheet__name-line"><button type="button" class="run-sheet__open" @click.stop="$parent.$emit('open_match', props.row.id)">
                 """ + _WHO + """
@@ -436,6 +475,7 @@ def _item_slot(proctor: bool, can_run: bool = False) -> str:
             </span>
         </button>
         """ + _next(can_run) + """
+        <div v-if="props.row._seed_line" class="run-sheet__seed-strip">""" + _SEED_LINE + """</div>
     </div>
 </div>
 """

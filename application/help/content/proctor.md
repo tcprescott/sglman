@@ -33,8 +33,9 @@ not you.
 
 Each line is one match: its time (orange when it's late), the players with the
 station each is sitting at, the stage, and a button for the next step: **Check
-in**, **Start** or **Finish**. Press it and the step's dialog opens, the same as
-it does from anywhere else. The time and the stage are what to call out across
+in**, **Roll seed**, **Start** or **Finish**. Press it and the step's dialog opens, the same as
+it does from anywhere else. Once a match is checked in, its line also shows the
+seed: the link and its code, or **Seed not rolled**. The time and the stage are what to call out across
 the room.
 
 Tap anywhere else on a line to open the match's details. They start with a
@@ -77,13 +78,15 @@ sits at the top of the match's details.
 1. **Check the match in** once both players are there. Press **Check in**,
    pick a station for each player (or press **Randomize**), and press **Check in
    & seat**. That stamps the match as {state:Checked In} and records where each
-   player is sitting.
-2. **Roll the seed** if the match does not already have one. Usually it is
-   there already. If not, open the match and press **Generate** on its Seed
-   line. A seed can only be
-   rolled once per match, and the players get it by DM.
+   player is sitting. Stations are optional here; you can fill them in at Start.
+2. **Roll the seed** if the match does not already have one. The line's button
+   reads **Roll seed** until it does. A seed can only be rolled once per match,
+   and the players get it by DM. The code appears on the line, so you can read
+   it out. A tournament without seeds skips this step.
 3. **Press Start** when the players actually start, not when you seat them, and
-   confirm. From that moment the match reads as {state:Started} to everyone
+   confirm. If a match that isn't on a stage still has a player without a
+   station, Start asks for the stations first; leave one blank to start anyway.
+   To start without rolling a seed, open the match and press **Start match**. From that moment the match reads as {state:Started} to everyone
    watching the board.
 4. **Press Finish** when it ends and say who won. Tap the winner, then the
    **Yes** button that names them. Picking a name does not record anything on
@@ -108,7 +111,7 @@ Some randomizers take a few minutes to produce a seed. The Seed line says
 **Rolling…** with a clock while it works; you can leave the page, and the
 players are DMed when it lands.
 
-If the last roll failed, the Seed line says why. Press **Generate** again.
+If the last roll failed, the Seed line says why. Press **Roll seed** again.
 
 "Couldn't DM" under a seed names any player who cannot receive Discord DMs.
 Read the seed out or show it to them, because the DM will not reach them.
