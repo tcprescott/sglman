@@ -143,9 +143,11 @@ leaves the screen usable and no other caller can grant write without it.
 Every tool except `whoami`, `list_tenants` and `runtime_stats` takes a required `tenant` argument
 — a community slug. `list_tenants` returns the slugs the caller may use.
 
-**Membership floor.** A tool reaches a community only where its user actually
-holds a role (super admins excepted) — parity with the REST surface, where a
-token is bound to one community and can never address another.
+**Membership floor.** A tool reaches a community only where its user belongs —
+a member, or a role holder (super admins excepted) — parity with the REST
+surface, where a token is bound to one community and can never address another.
+`list_tenants`/`whoami` list exactly those communities (`belongs_to_tenant` in
+`mcpserver/auth.py`); a plain member shows `roles: []`.
 
 An unknown slug and an entitled-elsewhere slug produce **byte-identical**
 `not_found` errors, so error text cannot be diffed into a directory of the
@@ -161,14 +163,14 @@ agree.
 | Gate | Requirement | REST equivalent |
 |---|---|---|
 | `GLOBAL` | a live token; names no community | — |
-| `ACTOR` | a live token + a role in the named community | `require_api_actor` |
+| `ACTOR` | a live token + membership of the named community | `require_api_actor` |
 | `STAFF` | `AuthService.is_staff` | `require_staff` |
 | `ADMIN` | `AuthService.can_view_admin` | `require_admin` |
 
 The feature flag is checked **before** the role, matching `@protected_page`: a
 subsystem the community has not enabled is hidden from everyone, staff included,
 and answers `not_found` — a `forbidden` would confirm the feature exists. It runs
-*after* the membership floor, though: someone with no role in a community gets the
+*after* the membership floor, though: someone who doesn't belong to a community gets the
 floor's "No community" answer whatever tool they call, so a feature-gated tool
 can't be used to learn which slugs exist.
 
@@ -404,16 +406,14 @@ tournament admins, so duplicating it here would only give the two surfaces a way
 to disagree. A writing grant is **not a promotion** — the token still acts as its
 user.
 
-**Where parity stops: the membership floor.** `mcpserver/auth.py` refuses anyone
-holding no role in the community, and the REST API has no equivalent (a PAT is
-bound to one community, so it never needed one). The floor governs the whole MCP
-surface, reads included, so the write tools did not introduce it — but it does
-mean the seven self-service tools (crew signup and withdrawal, acknowledge, watch
-and unwatch, tournament signup and withdrawal) are out of reach for a plain member who joined a community without
-being given a role, even though the same actions work for them on the web and
-through a PAT. Widening the floor to `TenantMembershipService.is_member` would
-fix that, and would also widen what the *read* tools disclose to any member — a
-decision about the read surface's posture, not one to make from the write side.
+**The membership floor.** `mcpserver/auth.py` refuses anyone who doesn't belong
+to the community, and the REST API has no equivalent (a PAT is bound to one
+community, so it never needed one). The floor is membership, not a role: it used
+to ask for a role, which left a plain player with an empty `list_tenants` and
+the seven self-service tools (crew signup and withdrawal, acknowledge, watch and
+unwatch, tournament signup and withdrawal) out of reach, though the web and a PAT
+gave them the same reads and actions. Members get exactly what a member's PAT
+gets; `STAFF`/`ADMIN` gates still apply on top.
 
 `delete_match`, `withdraw_crew_signup`, `withdraw_from_tournament`,
 `withdraw_stream_offer`, `undo_attendee_check_in` and `unlink_attendee` are

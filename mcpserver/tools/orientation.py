@@ -13,7 +13,7 @@ from mcp.server.mcpserver import MCPServer
 from application.services import AuthService, FeatureFlagService
 from application.services.tenant_service import TenantService
 from application.tenant_context import tenant_scope
-from mcpserver.auth import Gate, current_actor
+from mcpserver.auth import Gate, belongs_to_tenant, current_actor
 from mcpserver.registry import register
 from mcpserver.schemas import TenantInfo, WhoAmI
 
@@ -23,7 +23,7 @@ async def _tenants_for_actor() -> List[TenantInfo]:
 
     A super admin sees every active community — that role is global and bypasses
     the per-tenant gate everywhere else, so hiding communities here would only
-    make the tool lie. Everyone else sees the communities they hold a role in;
+    make the tool lie. Everyone else sees the communities they belong to;
     listing the rest would leak the platform's customer list to any authenticated
     user, and would offer slugs whose tools all refuse them anyway.
     """
@@ -37,9 +37,9 @@ async def _tenants_for_actor() -> List[TenantInfo]:
         # each community's scope — the same predicate returns different answers
         # per binding.
         with tenant_scope(tenant.id):
-            roles = await AuthService.get_roles(actor.user)
-            if not roles and not is_super:
+            if not is_super and not await belongs_to_tenant(actor.user):
                 continue
+            roles = await AuthService.get_roles(actor.user)
             # One query per community, and the reason a caller can skip a tool
             # instead of discovering its `not_found` a round-trip later. A flag
             # is not a permission: it is reported to everyone who can see the
