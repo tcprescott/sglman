@@ -119,6 +119,7 @@ from .tournament import (
     Preset,
     ProviderTask,
     RandomizerCredential,
+    RomPatch,
     Tournament,
     TournamentNotificationPreference,
     TournamentPayout,
@@ -264,6 +265,7 @@ __all__ = [
     'RescheduleRequestStatus',
     'Role',
     'RoleSource',
+    'RomPatch',
     'RoomToken',
     # speedgaming
     'SpeedGamingEpisode',

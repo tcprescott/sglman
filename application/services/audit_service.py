@@ -325,6 +325,11 @@ class AuditActions:
     PRESET_DELETED = 'preset.deleted'
     PRESET_IMPORTED = 'preset.imported'
     PRESET_TEST_ROLLED = 'preset.test_rolled'
+    # Hosted ROM patches (the generic patcher)
+    ROM_PATCH_CREATED = 'rom_patch.created'
+    ROM_PATCH_UPDATED = 'rom_patch.updated'
+    ROM_PATCH_REPLACED = 'rom_patch.replaced'
+    ROM_PATCH_DELETED = 'rom_patch.deleted'
     RANDOMIZER_CREDENTIAL_SET = 'randomizer_credential.set'
     RANDOMIZER_CREDENTIAL_CLEARED = 'randomizer_credential.cleared'
 

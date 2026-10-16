@@ -101,6 +101,7 @@ from .racetime_room_service import RacetimeRoomService
 from .racetime_service import RacetimeService
 from .randomizer_credential_service import RandomizerCredentialService
 from .reports_service import ReportsService
+from .rom_patch_service import RomPatchService
 from .room_token_service import RoomTokenService
 from .runtime_stats_service import RuntimeStatsService
 from .seed_roll_service import SeedRollService
@@ -217,6 +218,7 @@ __all__ = [
     'RacetimeService',
     'RandomizerCredentialService',
     'ReportsService',
+    'RomPatchService',
     'RoomTokenService',
     'RuntimeStatsService',
     'SeedGenerationService',

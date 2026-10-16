@@ -35,6 +35,7 @@ from datetime import datetime, timedelta, timezone
 from application.randomizer_credentials import all_specs, credentials_for
 from application.services.preset_service import PresetService
 from application.utils.door_seed_store import DoorSeedStore
+from application.utils.rom_patch_store import RomPatchStore
 from application.utils.timezone import now_local
 from models import (
     BotStatus,
@@ -53,6 +54,7 @@ from models import (
     RacetimeBotTenant,
     RacetimeRoom,
     RandomizerCredential,
+    RomPatch,
     SpeedGamingEpisode,
     SpeedGamingEventLink,
     SyncStatus,
@@ -251,6 +253,7 @@ async def seed_online_for_tenant(
     await _seed_discord_events(tenant, tournament, scheduled)
     await seed_qualifiers_for_tenant(tenant, preset)
     await _seed_door_seed(tenant)
+    await _seed_rom_patches(tenant, tournament)
     print(f"    [{tenant.slug}] online tournament ok")
     return tournament
 
@@ -276,6 +279,34 @@ async def _seed_door_seed(tenant: Tenant) -> DoorSeed:
     if not await store.has_base_patch("dev"):
         await store.put_base_patch("dev", _dev_base_patch())
     return seed
+
+
+async def _seed_rom_patches(tenant: Tenant, tournament: Tournament) -> None:
+    """Two hosted ROM patches, so Admin → Patches and ``/patch/<token>`` show both states.
+
+    The BPS names its ROM (the same 1MB of zeros as the door seed's base patch,
+    so ``dev-rom.sfc`` patches it); the IPS names none, which is the other way
+    the patch page reads.
+    """
+    store = RomPatchStore()
+    rows = [
+        (f"dev-patch-{tenant.slug}"[:32], "Practice ROM", "Dev ROM (1 MB of zeros)", "bps",
+         _dev_base_patch(), zlib.crc32(bytes(0x100000)), tournament),
+        (f"dev-ips-{tenant.slug}"[:32], "Quality of life fixes", "Dev ROM (any)", "ips",
+         b"PATCH" + bytes([0, 0, 0x10, 0, 4]) + b"WIZZ" + b"EOF", None, None),
+    ]
+    for token, title, game, fmt, data, crc, linked in rows:
+        await RomPatch.get_or_create(
+            token=token,
+            defaults={
+                "tenant": tenant, "title": title, "game": game, "format": fmt,
+                "filename": f"{title.lower().replace(' ', '-')}.{fmt}", "size": len(data),
+                "source_crc": f"{crc:08X}" if crc is not None else None, "tournament": linked,
+                "description": "A stand-in patch for the dev environment." if linked else None,
+            },
+        )
+        if await store.get(token, fmt) is None:
+            await store.put(token, fmt, data)
 
 
 def _dev_base_patch() -> bytes:

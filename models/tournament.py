@@ -313,6 +313,41 @@ class DoorSeed(Model):
         table = 'doorseed'
 
 
+class RomPatch(Model):
+    """A ROM patch staff host for players to apply in their browser.
+
+    The patch file lives on disk under ``token`` (``RomPatchStore``); players
+    reach it at ``/patch/<token>``, where their own ROM is patched on their
+    device. ``source_crc`` is the CRC32 of the ROM the patch was made for: BPS
+    and UPS patches carry it, and staff may type it for an IPS, which doesn't.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='rom_patches', on_delete=fields.CASCADE)  # type: ignore[var-annotated]
+    token = fields.CharField(max_length=32, unique=True)
+    title = fields.CharField(max_length=120)
+    # What a player needs, in words: "Super Metroid (Japan, USA)".
+    game = fields.CharField(max_length=120)
+    description = fields.TextField(null=True)
+    # 'bps', 'ips' or 'ups', read from the file itself.
+    format = fields.CharField(max_length=4)
+    filename = fields.CharField(max_length=200)
+    size = fields.IntField()
+    source_crc = fields.CharField(max_length=8, null=True)
+    tournament = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.Tournament', related_name='rom_patches', null=True, on_delete=fields.SET_NULL,
+    )
+    uploaded_by = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.User', related_name='rom_patches', null=True, on_delete=fields.SET_NULL,
+    )
+    download_count = fields.IntField(default=0)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'rompatch'
+
+
 class ProviderTask(Model):
     """One long-running call to an upstream provider, tracked across restarts.
 

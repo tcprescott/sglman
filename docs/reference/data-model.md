@@ -1072,6 +1072,26 @@ One Door Randomizer seed whose patch Wizzrobe hosts for its built-in patcher (se
 | `spoiler_access` | `CharField(10)` | `'staff'` | `public`, `staff` (this community's staff) or `none` (never kept) |
 | `created_at` | `DatetimeField` | auto | |
 
+#### `RomPatch`
+
+A ROM patch a community hosts for its players (the generic patcher, see [rom-patcher.md](../features/rom-patcher.md)). Managed by `RomPatchService` from Admin → Patches; players reach it at `/patch/<token>`. The file itself is on disk under `ROM_PATCH_DIR` (`RomPatchStore`), named `<token>.<format>`. Tenant-scoped.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='rom_patches'` |
+| `token` | `CharField(32)` | unique | The unguessable name in the patch's link and its file; kept when the file is replaced |
+| `title` | `CharField(120)` | not null | |
+| `game` | `CharField(120)` | not null | The ROM it needs, in words ("Super Metroid (Japan, USA)") |
+| `description` | `TextField` | null | Plain text |
+| `format` | `CharField(4)` | not null | `bps`, `ips` or `ups`, read from the file |
+| `filename` | `CharField(200)` | not null | The uploaded name, for staff |
+| `size` | `IntField` | not null | Bytes |
+| `source_crc` | `CharField(8)` | null | CRC32 of the ROM it was made for, upper-case hex. Read from a BPS/UPS; typed by staff for an IPS |
+| `tournament` | FK → `Tournament` | null, `SET_NULL` | Optional label for staff and the page byline |
+| `uploaded_by` | FK → `User` | null, `SET_NULL` | |
+| `download_count` | `IntField` | `0` | Patched ROMs downloaded from its page |
+| `created_at` / `updated_at` | `DatetimeField` | auto | `updated_at` versions the file URL |
+
 #### `ProviderTask`
 
 One long-running call to an upstream provider, tracked across restarts. Created by `ProviderTaskService`; polled to completion by the `seed_roll_worker`. See [seed-generation.md](seed-generation.md#asynchronous-rolls).
@@ -2163,6 +2183,7 @@ Consult the source for full signatures.
 | `WebhookRepository` | [`webhook_repository.py`](../../application/repositories/webhook_repository.py) | `Webhook` | `get_by_id`, `list_all`, `list_active`, `create`, `update`, `delete` |
 | `WebhookDeliveryRepository` | [`webhook_delivery_repository.py`](../../application/repositories/webhook_delivery_repository.py) | `WebhookDelivery` | `create`, `list_for_webhook`, `outcome_counts_since`, `prune_older_than` |
 | `PresetRepository` | [`preset_repository.py`](../../application/repositories/preset_repository.py) | `Preset` | `get_by_id`, `get_by_natural_key`, `list_all`, `list_by_randomizer`, `create`, `update`, `delete` |
+| `RomPatchRepository` | [`rom_patch_repository.py`](../../application/repositories/rom_patch_repository.py) | `RomPatch` | `list_all` (tournament and uploader prefetched), `get_by_token` (scoped), `get_by_token_any_tenant` (the patch file route has no community in its path), `count_download`, plus the `TenantScopedRepository` CRUD quartet |
 | `DoorSeedRepository` | [`door_seed_repository.py`](../../application/repositories/door_seed_repository.py) | `DoorSeed` | `get_by_token` (scoped), `get_by_token_any_tenant` (the public `/door/{token}` page resolves its tenant from the seed), plus the `TenantScopedRepository` CRUD quartet |
 | `MatcherinoLoginRepository` | [`matcherino_login_repository.py`](../../application/repositories/matcherino_login_repository.py) | `MatcherinoLogin` | `get_current` (the tenant's one row, `updated_by`/`alert_user` prefetched), `upsert` (also re-arms the alert), `delete_current`, `set_alert_user`, `claim_alert(now)` (one conditional `UPDATE`; the login only for the caller that won), `clear_alert` |
 | `RandomizerCredentialRepository` | [`randomizer_credential_repository.py`](../../application/repositories/randomizer_credential_repository.py) | `RandomizerCredential` | `list_all`, `get_by_natural_key`, `upsert`, `delete_by_natural_key`, `configured_pairs` |

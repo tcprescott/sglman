@@ -46,6 +46,7 @@ from pages import (
     platform,
     qualifiers,
     racetime_oauth,
+    rom_patch,
     room_seeds,
     static_brackets,
     static_watch,
@@ -269,6 +270,23 @@ def _register_root_routes(fastapi_app: FastAPI) -> None:
         })
 
 
+    # Hosted ROM patches (RomPatchService), for /patch/<token>. The token is the
+    # unguessable name its link carries. The last path part only versions the
+    # URL (the page puts the patch's updated time in it), so a replaced file is
+    # fetched fresh while each version caches.
+    @fastapi_app.get('/rom-patches/{token}/{version}', include_in_schema=False)
+    async def _rom_patch_file(token: str, version: str) -> Response:
+        from application.services import RomPatchService
+
+        found = await RomPatchService().patch_file(token)
+        if found is None:
+            return Response(status_code=404, headers=_missing)
+        patch, content = found
+        return Response(content, media_type='application/octet-stream', headers={
+            'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff',
+            'Content-Disposition': f'attachment; filename="{patch.token}.{patch.format}"',
+        })
+
 def init(fastapi_app: FastAPI) -> None:
     """
     Initialize the frontend by registering NiceGUI pages and attaching them to the FastAPI app.
@@ -340,6 +358,7 @@ def init(fastapi_app: FastAPI) -> None:
     brackets.create()
     room_seeds.create()
     door_seed.create()
+    rom_patch.create()
     # Registered before ui.run_with so the cached, socket-free spectator views
     # sit on the same app (and behind the same tenant middleware) as the pages.
     static_brackets.create()

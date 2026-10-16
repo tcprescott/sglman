@@ -27,7 +27,7 @@ class AuditArea:
 AREAS: tuple[AuditArea, ...] = (
     AuditArea('matches', 'Matches', ('match.', 'crew.', 'race_room.')),
     AuditArea('tournaments', 'Tournaments', (
-        'tournament.', 'bracket.', 'preset.', 'async_qualifier.', 'randomizer_credential.',
+        'tournament.', 'bracket.', 'preset.', 'rom_patch.', 'async_qualifier.', 'randomizer_credential.',
         'triforce_text.', 'player.',
     )),
     AuditArea('people', 'People', (
@@ -149,6 +149,10 @@ ACTION_LABELS: dict[str, str] = {
     'preset.deleted': 'Deleted a seed preset',
     'preset.imported': 'Imported a seed preset',
     'preset.test_rolled': 'Test-rolled a seed preset',
+    'rom_patch.created': 'Uploaded a ROM patch',
+    'rom_patch.updated': 'Edited a ROM patch',
+    'rom_patch.replaced': 'Replaced a ROM patch file',
+    'rom_patch.deleted': 'Deleted a ROM patch',
     'randomizer_credential.set': 'Saved a randomizer login',
     'randomizer_credential.cleared': 'Removed a randomizer login',
     'triforce_text.submitted': 'Submitted a triforce text',
@@ -432,6 +436,7 @@ FIELD_LABELS: dict[str, str] = {
     'entrant_id': 'entrant',
     'event_id': 'event',
     'preset_id': 'preset',
+    'rom_patch_id': 'ROM patch',
     'token_id': 'token',
     'comment_id': 'comment',
     'request_id': 'request',

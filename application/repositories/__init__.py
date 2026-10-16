@@ -60,6 +60,7 @@ from .racetime_bot_repository import RacetimeBotRepository
 from .racetime_room_repository import RacetimeRoomRepository
 from .randomizer_credential_repository import RandomizerCredentialRepository
 from .reschedule_request_repository import RescheduleRequestRepository
+from .rom_patch_repository import RomPatchRepository
 from .room_token_repository import RoomTokenRepository
 from .speedgaming_episode_repository import SpeedGamingEpisodeRepository
 from .speedgaming_event_link_repository import SpeedGamingEventLinkRepository
@@ -139,6 +140,7 @@ __all__ = [
     'RacetimeRoomRepository',
     'RandomizerCredentialRepository',
     'RescheduleRequestRepository',
+    'RomPatchRepository',
     'RoomTokenRepository',
     'SpeedGamingEpisodeRepository',
     'SpeedGamingEventLinkRepository',
