@@ -139,7 +139,7 @@ class ChallongeStageMixin:
                     community=tournament.challonge_community,
                 )
             except ChallongeAPIError as e:
-                failure = _challonge_error_detail(e)
+                failure = challonge_error_detail(e)
                 break
             done.append(step)
 
@@ -164,7 +164,7 @@ class ChallongeStageMixin:
         return tournament
 
 
-def _challonge_error_detail(error: ChallongeAPIError) -> str:
+def challonge_error_detail(error: ChallongeAPIError) -> str:
     """Challonge's own explanation, without the status-code wrapper."""
     import json
 

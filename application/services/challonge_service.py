@@ -24,7 +24,7 @@ from application.repositories import ChallongeRepository, TournamentRepository, 
 from application.services._challonge_communities import ChallongeCommunitiesMixin
 from application.services._challonge_participants import ChallongeParticipantAssignmentMixin
 from application.services._challonge_signup import ChallongeSignupMixin, misc_user_id
-from application.services._challonge_stages import ChallongeStageMixin
+from application.services._challonge_stages import ChallongeStageMixin, challonge_error_detail
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.feature_flag_service import FeatureFlagService
@@ -473,7 +473,18 @@ class ChallongeService(
                     f"'{community}' as the community and reconnect, signing in as one "
                     f"of its admins."
                 ) from e
-            raise ValueError(f"Could not find that Challonge tournament: {e}") from e
+            if e.status == 404:
+                connection = await self.repository.get_connection()
+                account = (connection.challonge_username if connection else None) or 'the connected account'
+                raise ValueError(
+                    f"Challonge can't find '{identifier}' for {account}. Challonge only shows "
+                    f"brackets that account created or is an admin of, or that live in a "
+                    f"connected community. Check the URL, or ask the bracket's owner to add "
+                    f"{account} as an admin on Challonge, then try again."
+                ) from e
+            raise ValueError(
+                f"Could not find that Challonge tournament: {challonge_error_detail(e)}"
+            ) from e
 
         remote = full['tournament']
         tournament.challonge_tournament_id = remote.get('id') or identifier
