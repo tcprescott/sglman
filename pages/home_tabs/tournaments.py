@@ -60,7 +60,7 @@ _SECTIONS = (
     # reading the window alone would put a started Challonge bracket under a
     # heading whose whole promise is a button. A Challonge bracket the reader
     # can enter once they link counts, because the card's button does the link.
-    ('Open for signup', 'how_to_reg', lambda c: c.can_sign_up or c.needs_challonge_link),
+    ('Open for signup', 'how_to_reg', lambda c: c.can_sign_up or c.needs_challonge_link or c.signs_up_on_startgg),
     ('My tournaments', 'emoji_events', lambda c: c.enrolled),
     (
         'Opening soon',
@@ -74,7 +74,7 @@ _SECTIONS = (
         'Not taking signups',
         'lock',
         lambda c: not c.enrolled and not c.can_sign_up and not c.needs_challonge_link
-        and c.window is not SignupWindow.UPCOMING,
+        and not c.signs_up_on_startgg and c.window is not SignupWindow.UPCOMING,
     ),
 )
 
@@ -290,8 +290,25 @@ async def tournaments_tab() -> None:
                 if challonge_line:
                     ui.label(challonge_line).classes('text-caption text-grey-7')
 
+                if card.startgg_url:
+                    ui.label(
+                        "You're in through start.gg. Withdraw there if you need to drop out."
+                        if card.enrolled else
+                        'Sign-ups for this one happen on start.gg.'
+                    ).classes('text-caption text-grey-7')
+
                 with ui.row().classes('items-center gap-2'):
-                    if card.can_sign_up and card.challonge_managed:
+                    if card.startgg_url:
+                        if card.signs_up_on_startgg:
+                            ui.button(
+                                'Sign up on start.gg', icon='open_in_new',
+                                on_click=lambda _e, url=card.startgg_url: ui.navigate.to(url, new_tab=True),
+                            ).props('color=primary no-caps')
+                        ui.button(
+                            'Bracket', icon='account_tree',
+                            on_click=lambda _e, tid=t.id: ui.navigate.to(f'/tournament/{tid}/startgg'),
+                        ).props('flat color=primary no-caps')
+                    elif card.can_sign_up and card.challonge_managed:
                         ui.button(
                             'Sign up', icon='how_to_reg',
                             on_click=lambda _e, c=card: confirm_challonge_signup(c),

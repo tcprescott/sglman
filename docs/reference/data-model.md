@@ -31,7 +31,7 @@ community owns or produces is tenant-scoped.**
 
 | Class | Models | Notes |
 |---|---|---|
-| **Global** — no `tenant` FK | `User`, `WebPushSubscription`, `ContactVerification`, `UserTablePreference`, `Tenant`, `FeatureFlagGroup`, `RacetimeBot`, `McpOAuthClient`, `McpAuthorizationCode` | `User.discord_id` / `challonge_user_id` / `twitch_user_id` / `racetime_user_id` / `matcherino_user_id` uniques stay global — identity links are to the person. `RacetimeBot.category` is globally unique. An OAuth grant authenticates a user platform-wide |
+| **Global** — no `tenant` FK | `User`, `WebPushSubscription`, `ContactVerification`, `UserTablePreference`, `Tenant`, `FeatureFlagGroup`, `RacetimeBot`, `McpOAuthClient`, `McpAuthorizationCode` | `User.discord_id` / `challonge_user_id` / `twitch_user_id` / `racetime_user_id` / `startgg_user_id` / `matcherino_user_id` uniques stay global — identity links are to the person. `RacetimeBot.category` is globally unique. An OAuth grant authenticates a user platform-wide |
 | **Nullable `tenant`** — stamped from context, NULL = platform-level row | `AuditLog`, `TelemetryEvent` (`SET NULL` on tenant delete), `UserRole` (`CASCADE`; NULL only for the global `SUPER_ADMIN`), `ApiToken` (`CASCADE`; NULL only for platform-wide OAuth tokens) | |
 | **Has a `tenant` FK but is never auto-scoped** | `TenantMembership`, `TenantJoinRequest`, `TenantMemberBlock`, `RacetimeBotTenant` | All answer "which tenants?" and so are queried across tenants with explicit ids |
 | **Tenant-scoped** — `tenant` FK, NOT NULL, `CASCADE` | every other model | The default (see conventions above) |
@@ -162,6 +162,14 @@ erDiagram
     ChallongeParticipant |o--o{ ChallongeMatch : "participant1 / participant2 / winner"
     Match |o--o{ ChallongeMatch : "match"
 
+    Tournament ||--o{ StartggEntrant : "tournament"
+    User |o--o{ StartggEntrant : "user / suggested_user"
+    Tournament ||--o{ StartggPhase : "tournament"
+    StartggPhase ||--o{ StartggPool : "phase"
+    StartggPool ||--o{ StartggSet : "pool"
+    StartggEntrant |o--o{ StartggSet : "entrant1 / entrant2 / winner"
+    Match |o--o{ StartggSet : "match"
+
     Tournament ||--o{ Bracket : "tournament"
     Tournament ||--o{ BracketEntrant : "tournament"
     User |o--o{ BracketEntrant : "user"
@@ -219,7 +227,7 @@ list — one member per **deliberately gated** subsystem, not one per feature
 (renaming a value is a data migration). Members, whose values are the snake_case
 names: `ASYNC_QUALIFIERS`, `RACETIME_ROOMS`, `SPEEDGAMING_ETL`, `CHALLONGE`,
 `EQUIPMENT`, `VOLUNTEERS`, `TRIFORCE_TEXTS`, `BRACKETS`, `FEEDBACK`, `EVENT_INFO`,
-`PAYOUTS`, `ADA_ACCOMMODATIONS`, `EVENT_CHECK_IN`. Human copy and grouping
+`PAYOUTS`, `ADA_ACCOMMODATIONS`, `EVENT_CHECK_IN`, `STARTGG` (and the later members in `models/enums.py`). Human copy and grouping
 live in `application/feature_flags`; see [feature-flags.md](../features/feature-flags.md).
 
 ### `ApiTokenOrigin`
@@ -297,6 +305,10 @@ Stored in `SystemConfiguration` under key `station_format`. Controls the validat
 ### `ChallongeMatchState`
 
 Used by `ChallongeMatch.state` (`max_length=20`, default `PENDING`). Mirrors the subset of Challonge match states relevant to scheduling: `PENDING` = `'pending'` (participants not yet fully determined), `OPEN` = `'open'` (both known and ready to play), `COMPLETE` = `'complete'` (result recorded on Challonge).
+
+### `StartggSetState`
+
+Used by `StartggSet.state` (`max_length=16`, default `PENDING`): `PENDING` = `'pending'` (a slot still undecided, or a `preview_…` set of an unstarted phase), `OPEN` = `'open'` (both entrants known on a real set), `COMPLETE` = `'complete'` (start.gg has a result).
 
 ### `BotStatus`
 
@@ -609,6 +621,9 @@ Discord-authenticated account. Created/updated during OAuth login; access contro
 | `racetime_user_id` | `CharField(64)` | null, `unique=True` | Verified racetime.gg identity, captured via one-time OAuth (read scope). Unique so a racetime id resolves to exactly one user (Postgres allows multiple NULLs) |
 | `racetime_username` | `CharField(255)` | null | Cached racetime.gg name |
 | `racetime_linked_at` | `DatetimeField` | null | When the racetime identity was linked |
+| `startgg_user_id` | `CharField(64)` | null, `unique=True` | Verified start.gg identity, captured via one-time OAuth (`user.identity`). Maps the player to their entrants in linked start.gg events |
+| `startgg_username` | `CharField(255)` | null | Cached start.gg gamer tag (or slug) |
+| `startgg_linked_at` | `DatetimeField` | null | When the start.gg identity was linked |
 | `is_placeholder` | `BooleanField` | default `False` | Flags an unresolved SpeedGaming player kept as a first-class `User` so its `MatchPlayers` row stays NOT NULL |
 | `speedgaming_id` | `CharField(64)` | null, `unique=True` | SG-side id used to re-find the same placeholder across syncs and to **upgrade it in place** once a `discord_id` appears |
 | `login_name` | `CharField(64)` | null, `unique=True` | Password sign-in name, stored lower-cased; set only by a platform super-admin ([authentication.md](authentication.md#password-sign-in)) |
@@ -848,6 +863,12 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 | `challonge_last_synced_at` | `DatetimeField` | null | Last successful Challonge sync (UTC) |
 | `challonge_state` | `CharField(32)` | null | The linked bracket's Challonge state as of the last sync (`pending`, `group_stages_underway`, `underway`, `awaiting_review`, …); drives which stage action Admin → Challonge offers |
 | `challonge_group_stage` | `BooleanField` | default `False` | The linked bracket has a group stage, as of the last sync |
+| `startgg_event_id` | `CharField(64)` | null | Linked start.gg event id (migration 107) |
+| `startgg_event_slug` | `CharField(255)` | null | `tournament/<t>/event/<e>`; set means the tournament follows that start.gg event |
+| `startgg_event_name` | `CharField(255)` | null | Event name as of the last sync |
+| `startgg_last_synced_at` | `DatetimeField` | null | Last successful start.gg sync (UTC) |
+| `startgg_bookable_phase_id` | `CharField(64)` | null | The phase players book from; null = the event's last phase |
+| `startgg_report_results` | `BooleanField` | default `False` | Opt-in writeback of confirmed results to start.gg (migration 108) |
 | `config` | `JSONField` | null | Hybrid-config JSON half (messaging templates, scoring params, strategy choices). Written only through `TournamentService`, which validates it with `validate_tournament_config` (unknown keys raise `ValueError`); typed knobs stay their own columns. See [online-tournaments.md](../features/online-tournaments.md) |
 | `preset` | FK → `Preset` | null, `SET_NULL` | Seed-rolling preset; resolves the randomizer + settings for seed generation and overrides `seed_generator` when set. `related_name='tournaments'` |
 | `hard_preset` | FK → `Preset` | null, `SET_NULL` | The opt-in "harder" preset players can privately agree to instead. Must share `preset`'s randomizer and requires `preset` to be set (both enforced in `TournamentService`). Null = this tournament does not offer one, which is what keeps the whole opt-in surface invisible. `related_name='hard_tournaments'` |
@@ -2024,6 +2045,44 @@ service, never by a caller — see [features/brackets.md](../features/brackets.m
 
 Unique `(bracket_match, game_number)`; indexes on `bracket_match`, `match`.
 
+### start.gg integration
+
+A read-only mirror of one start.gg event per tournament, refreshed by `StartggService` (on demand and every two minutes from `startgg_sync_worker`). Organisers record results on start.gg; a tournament can opt in to reporting confirmed Wizzrobe results back (`Tournament.startgg_report_results`). All four models are tenant-scoped and rebuilt by sync, which prunes what start.gg no longer has. Detail: [startgg.md](../features/startgg.md).
+
+#### `StartggEntrant`
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tournament` | FK → `Tournament` | not null, `CASCADE` | `related_name='startgg_entrants'` |
+| `entrant_id` | `CharField(64)` | not null | start.gg entrant id |
+| `name` / `gamer_tag` | `CharField(255)` | `gamer_tag` null | Display name and tag on start.gg |
+| `startgg_user_id` / `discord_id` | `CharField(64)` | null | The entrant's start.gg account and the Discord account connected to it, used to map `user` |
+| `user` | FK → `User` | null, `SET_NULL` | Resolved from a hand assignment, then `User.startgg_user_id`, then `User.discord_id`. `related_name='startgg_entries'` |
+| `user_assigned_manually` | `BooleanField` | default `False` | Staff set `user`; sync keeps it |
+| `suggested_user` | FK → `User` | null, `SET_NULL` | A unique same-name community member, offered to staff; never books anything until confirmed. `related_name='startgg_suggestions'` |
+| `suggestion_dismissed` | `BooleanField` | default `False` | Staff said "Not them"; sync stops suggesting |
+
+Constraint: `unique_together (('tournament', 'entrant_id'),)`.
+
+#### `StartggPhase` / `StartggPool`
+
+`StartggPhase` (`phase_id`, `name`, `phase_order`, `bracket_type`, `state`; unique on `(tournament, phase_id)`) is one start.gg phase, e.g. "Group Prelim". `StartggPool` is one of its phase groups: `phase` FK (`CASCADE`, `related_name='pools'`), `phase_group_id`, `identifier`, `bracket_type`, `complete`, and `standings` (JSON `[{entrant_id, placement}]`, start.gg's order). Unique on `(tournament, phase_group_id)`.
+
+#### `StartggSet`
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `pool` | FK → `StartggPool` | not null, `CASCADE` | `related_name='sets'` |
+| `set_id` | `CharField(64)` | not null | start.gg set id; `preview_…` for an unstarted phase (shown, never bookable) |
+| `round` / `round_text` / `identifier` | `IntField` / `CharField(64)` / `CharField(16)` | | Negative rounds are a losers bracket |
+| `state` | `CharEnumField(StartggSetState)` | default `PENDING` | |
+| `entrant1` / `entrant2` / `winner` | FK → `StartggEntrant` | null, `SET_NULL` | |
+| `slot1_label` / `slot2_label` | `CharField(64)` | null | "Winner of B" for an undecided slot |
+| `score1` / `score2` / `completed_at` | | null | Result as start.gg reports it |
+| `match` | FK → `Match` | null, `SET_NULL` | The booked Wizzrobe match. `related_name='startgg_sets'` |
+
+Constraint: `unique_together (('tournament', 'set_id'),)`.
+
 ## Match lifecycle
 
 `Match.current_state` is derived from three nullable timestamps; there is no status column. State is recomputed from whichever timestamps are set, so the precedence order (`finished_at` > `started_at` > `seated_at`) is what matters: a match with `started_at` set but `seated_at` still null reads "In Progress", and clearing a timestamp moves the match back a state.
@@ -2143,6 +2202,7 @@ Consult the source for full signatures.
 | `VolunteerQualificationRepository` | [`volunteer_qualification_repository.py`](../../application/repositories/volunteer_qualification_repository.py) | `VolunteerQualification` | `qualified_position_ids`, `qualified_user_ids_for_position`, `set_for_user`, `list_all` |
 | `VolunteerRoleMappingRepository` | [`volunteer_role_mapping_repository.py`](../../application/repositories/volunteer_role_mapping_repository.py) | `VolunteerRoleMapping` | `TenantScopedRepository` CRUD, `get_by_id` / `list_all` (prefetch `position`), `exists` |
 | `PlayerAvailabilityRepository` | [`player_availability_repository.py`](../../application/repositories/player_availability_repository.py) | `PlayerAvailability` | `get_by_id`, `list_for_user`, `for_users_overlapping`, `create`, `delete`, `delete_for_user` |
+| `StartggRepository` | [`startgg_repository.py`](../../application/repositories/startgg_repository.py) | `StartggEntrant`, `StartggPhase`, `StartggPool`, `StartggSet`, start.gg columns on `Tournament` | link: `set_event_link`, `record_sync`, `set_bookable_phase`, `set_report_results`, `linked_tournaments`, `linked_tenant_ids` (cross-tenant, worker only); identity: `users_by_startgg_ids`, `users_by_discord_ids`, `members_by_lower_name`; entrants: `list_entrants`, `count_entrants`, `get_entrant`, `upsert_entrant`, `set_entrant_user`, `dismiss_suggestion`, `entrant_tournament_ids_for_user`; structure: `upsert_phase`, `upsert_pool`, `upsert_set`, `list_phases`, `list_pools`, `list_sets`, `get_set`, `sets_for_match`, `link_match`, `open_unbooked_sets_for_user`; cleanup: `prune`, `delete_mirror` |
 | `ChallongeRepository` | [`challonge_repository.py`](../../application/repositories/challonge_repository.py) | `ChallongeConnection`, `ChallongeParticipant`, `ChallongeMatch`, `ChallongeApiUsage` | connection: `get_connection`, `list_all_connections`, `save_connection`, `update_connection_tokens`, `clear_connection`; mirror teardown: `delete_mirror` (drops a tournament's participants + matches, leaving the scheduled `Match` rows) and `prune_mirror` (each sync drops the rows Challonge no longer has, same rule); participants: `upsert_participant`, `resolve_users_by_challonge_ids`, `get_participant`, `list_participants`, `participant_tournament_ids_for_user`; matches: `upsert_match`, `get_match`, `get_challonge_match_for_match`, `link_match`, `unscheduled_open_matches_for_user`; counts/sync: `count_participants`, `count_matches`, `set_last_synced_at`; usage metering: `increment_api_usage`, `get_monthly_usage` |
 | `WebPushRepository` | [`web_push_repository.py`](../../application/repositories/web_push_repository.py) | `WebPushSubscription` | `get_by_endpoint`, `get_by_id`, `list_for_user`, `list_for_discord_id`, `upsert` (re-binds an existing endpoint), `rotate`, `delete`, `delete_by_endpoint`, `touch_last_used` |
 | `NotificationChannelRepository` | [`notification_channel_repository.py`](../../application/repositories/notification_channel_repository.py) | `User` (channel columns), `ContactVerification` | `replace_verification`, `get_verification`, `get_verification_by_hash`, `count_attempt`, `delete_verification`, `delete_expired`, `set_email`, `set_email_notifications`, `get_by_telegram_chat`, `set_telegram`, `set_telegram_notifications`, `get_user`, `get_by_discord_id` |

@@ -159,12 +159,15 @@ class EventInfoService:
         published: set[int] = set()
         if await FeatureFlagService().is_enabled(FeatureFlag.BRACKETS):
             published = {b.tournament_id for b in await BracketService().list_all_visible_brackets(None)}
+        startgg_live = await FeatureFlagService().is_enabled(FeatureFlag.STARTGG)
         rows = []
         for t in await TournamentService().get_all_tournaments(active_only=True):
             if t.is_test:
                 continue
             if t.id in published:
                 bracket = f'/live/tournament/{t.id}/brackets'
+            elif startgg_live and t.startgg_event_slug:
+                bracket = f'/tournament/{t.id}/startgg'
             else:
                 bracket = http_url_or_empty(t.bracket_url) or http_url_or_empty(t.challonge_tournament_url)
             rows.append(HandbookTournament(

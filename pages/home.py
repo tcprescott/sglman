@@ -131,6 +131,7 @@ def create() -> None:
         hard: str | None = None,
         agree: str | None = None,
         book: str | None = None,
+        startgg: str | None = None,
         comments: str | None = None,
         focus: str | None = None,
     ):
@@ -144,7 +145,7 @@ def create() -> None:
             return RedirectResponse(f"{request.scope.get('root_path', '') if request else ''}/live")
         ids, malformed_link = deep_link_ids(
             schedule=schedule, reschedule=reschedule, match=match, hard=hard, agree=agree,
-            book=book, comments=comments,
+            book=book, startgg=startgg, comments=comments,
         )
         # A bare ``ui.page`` misses the page view ``_tenant_page`` records, so
         # home records its own: every section under one path, like the hubs.
@@ -206,7 +207,7 @@ def create() -> None:
              'badge': community_new,
              'content': (event_tab, (), {'view': section, 'community_new': community_new})},
             # `schedule` is a bracket matchup id (`book` the same for a Challonge
-            # matchup): the matches section opens its schedule dialog on arrival, so the "matchup ready" DM's button
+            # matchup, `startgg` for a start.gg one): the matches section opens its schedule dialog on arrival, so the "matchup ready" DM's button
             # lands on the date/time picker rather than on a page about it.
             # `reschedule` is a match id doing the same job for the declined
             # reschedule DM, whose next step is asking again with a new time.
@@ -224,7 +225,8 @@ def create() -> None:
              'content': (my_schedule_tab, (),
                          {'schedule': ids['schedule'], 'reschedule': ids['reschedule'],
                           'match': ids['match'], 'hard': ids['hard'], 'agree': ids['agree'],
-                          'book': ids['book'], 'comments': ids['comments']})},
+                          'book': ids['book'], 'startgg': ids['startgg'],
+                          'comments': ids['comments']})},
             # Signing up is the step that comes before having a schedule at all,
             # and it used to be a checkbox on Profile that a player could use the
             # app for a season without ever finding. Triforce text submission

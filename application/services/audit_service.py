@@ -246,6 +246,17 @@ class AuditActions:
     CHALLONGE_WEBHOOK_SYNCED = 'challonge.webhook_synced'
 
     # Twitch integration
+    STARTGG_LINKED = 'startgg.linked'
+    STARTGG_UNLINKED = 'startgg.unlinked'
+    STARTGG_EVENT_LINKED = 'startgg.event_linked'
+    STARTGG_EVENT_UNLINKED = 'startgg.event_unlinked'
+    STARTGG_EVENT_SYNCED = 'startgg.event_synced'
+    STARTGG_BOOKABLE_PHASE_SET = 'startgg.bookable_phase_set'
+    STARTGG_ENTRANT_ASSIGNED = 'startgg.entrant_assigned'
+    STARTGG_ENTRANT_UNASSIGNED = 'startgg.entrant_unassigned'
+    STARTGG_SUGGESTION_DISMISSED = 'startgg.suggestion_dismissed'
+    STARTGG_REPORTING_SET = 'startgg.reporting_set'
+    STARTGG_RESULT_REPORTED = 'startgg.result_reported'
     TWITCH_LINKED = 'twitch.linked'
     TWITCH_UNLINKED = 'twitch.unlinked'
 

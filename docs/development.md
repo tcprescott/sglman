@@ -124,7 +124,7 @@ a restart and a re-run is cheaper than the wrong diagnosis.
 
 ## Local development without Discord (MOCK_DISCORD)
 
-The recommended dev loop — `./start.sh mock` sets `MOCK_DISCORD`, `MOCK_SEEDGEN`, `MOCK_CHALLONGE`, `MOCK_TWITCH`, `MOCK_RACETIME`, `MOCK_MATCHERINO` and `ENVIRONMENT=development` in one command (`MOCK_MATCHERINO` serves canned venue badge sales to [event check-in](features/event-check-in.md), so the desk's Sync works offline; refused in production). With `MOCK_DISCORD`:
+The recommended dev loop — `./start.sh mock` sets `MOCK_DISCORD`, `MOCK_SEEDGEN`, `MOCK_CHALLONGE`, `MOCK_TWITCH`, `MOCK_RACETIME`, `MOCK_MATCHERINO`, `MOCK_STARTGG` and `ENVIRONMENT=development` in one command (`MOCK_MATCHERINO` serves canned venue badge sales to [event check-in](features/event-check-in.md), so the desk's Sync works offline; refused in production). With `MOCK_DISCORD`:
 
 - `/login` renders a **user picker** instead of redirecting to Discord OAuth — pick any user in the database or use "Create test user". Picked and created users are real rows that persist across restarts.
 - All `DiscordService` calls (DMs, guild member lookups, …) are stubbed no-ops, and the **bot does not start**, so `DISCORD_TOKEN` is not required.
@@ -141,6 +141,7 @@ Profile → **Connected accounts** hides any provider whose integration is not c
 | `MOCK_CHALLONGE` | the Challonge row (also gated on `FeatureFlag.CHALLONGE`) plus the staff service connection at `/admin/challonge` | `1001`…`1004` / `mockone`…`mockfour` |
 | `MOCK_TWITCH` | the Twitch row | `20001`…`20004` / `MockTwitchOne`…`Four` |
 | `MOCK_RACETIME` | the racetime.gg row | `mockrt0001`…`mockrt0004` / `MockRacerOne`…`Four` |
+| `MOCK_STARTGG` | the start.gg row (also gated on `FeatureFlag.STARTGG`); linking any event link loads one canned event | `30001`…`30002` / `MockGGOne`…`MockGGTwo` |
 
 `MOCK_<PROVIDER>_IDENTITY` is read per request, so changing it in the environment and re-linking binds a different identity — that is how a collision between two users is produced. `MOCK_RACETIME` also gates the racetime *bot* runtime, but that is separately gated by `RACETIME_BOT_ENABLED` (off by default), so turning the mock on starts no bot.
 

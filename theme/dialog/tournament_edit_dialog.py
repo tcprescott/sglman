@@ -9,6 +9,7 @@ from application.services import (
     PresetService,
     RaceRoomProfileService,
     RacetimeBotService,
+    StartggService,
     TournamentService,
     get_user_from_session,
 )
@@ -27,6 +28,7 @@ from theme.dialog._helpers import (
     submit_on_enter,
 )
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.dialog.startgg_section import render_startgg_section
 from theme.markdown_editor import MarkdownEditor
 from theme.notify import notify_error
 
@@ -62,6 +64,10 @@ class TournamentDialog:
         # authorized for are selectable. Same reason as Challonge above: this
         # dialog opens from the ungated Tournaments tab, so it checks the flag
         # itself — every racetime surface behind it already refuses without it.
+        startgg_live = (
+            StartggService.is_configured()
+            and await FeatureFlagService().is_enabled(FeatureFlag.STARTGG)
+        )
         racetime_live = can_sync and await FeatureFlagService().is_enabled(
             FeatureFlag.RACETIME_ROOMS
         )
@@ -365,7 +371,8 @@ class TournamentDialog:
                         value=self.tournament.bracket_url if self.tournament and self.tournament.bracket_url else '',
                     ).classes('input-full-width')
 
-                    if self.tournament and challonge_live:
+                    # A tournament follows one bracket site, so a link to one hides the other.
+                    if self.tournament and challonge_live and not self.tournament.startgg_event_slug:
                         ui.separator()
                         ui.label('Challonge').classes('text-bold')
                         challonge_status = ui.label().classes('text-caption text-muted')
@@ -402,6 +409,9 @@ class TournamentDialog:
                                     notify_error(e)
 
                         ui.button('Link & Sync', icon='sync', on_click=link_and_sync).props('flat color=primary')
+
+                    if self.tournament and startgg_live and not self.tournament.challonge_tournament_id:
+                        await render_startgg_section(self.tournament, dialog)
 
                     if racetime_live:
                         ui.separator()

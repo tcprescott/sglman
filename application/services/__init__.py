@@ -9,6 +9,7 @@ from application.errors import NotFoundError, require_found
 
 from . import (
     availability_windows,
+    bracket_sources,
     check_in_accounts,
     check_in_comps,
     check_in_dm,
@@ -24,6 +25,7 @@ from . import (
     service_health_worker,
     speedgaming_sync_worker,
     staff_request_dms,
+    startgg_sync_worker,
     telegram_bot_worker,
 )
 from .accommodation_service import AccommodationService
@@ -108,6 +110,8 @@ from .service_health_service import ProbeResult, ServiceHealthService, ServiceSt
 from .speedgaming_etl_service import SpeedGamingETLService
 from .speedgaming_sync_service import SpeedGamingSyncService
 from .stage_service import StageService
+from .startgg_link_service import StartggLinkService
+from .startgg_service import StartggService
 from .station_service import StationService
 from .system_config_service import SystemConfigService
 from .table_preference_service import TablePreferenceService
@@ -225,6 +229,8 @@ __all__ = [
     'SpeedGamingETLService',
     'SpeedGamingSyncService',
     'StageService',
+    'StartggLinkService',
+    'StartggService',
     'StationService',
     'SystemConfigService',
     'TablePreferenceService',
@@ -258,6 +264,7 @@ __all__ = [
     'async_qualifier_access',
     'async_qualifier_scoring',
     'availability_windows',
+    'bracket_sources',
     'check_in_accounts',
     'check_in_comps',
     'check_in_dm',
@@ -278,6 +285,7 @@ __all__ = [
     'service_health_worker',
     'speedgaming_sync_worker',
     'staff_request_dms',
+    'startgg_sync_worker',
     'telegram_bot_worker',
     'validate_async_qualifier_config',
     'validate_bracket_config',

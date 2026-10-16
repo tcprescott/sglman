@@ -54,6 +54,10 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `PasswordAuthService` | [password_auth_service.py](../../application/services/password_auth_service.py) | Password sign-in check plus the super-admin account tools on Platform → Users: set/remove password, create a password-only account, (de)activate | [authentication.md](authentication.md#password-sign-in) |
 | `BracketService` | [bracket_service.py](../../application/services/bracket_service.py) | Native bracket lifecycle: author stages, roster/enroll/seed, start (generate + persist), report results + advance, complete, multi-stage advancement, scheduling seam, best-of-N series (`SeriesMixin`: game numbering, clinch, the racetime auto-open hold) | [brackets.md](../features/brackets.md) |
 | `ChallongeService` | [challonge_service.py](../../application/services/challonge_service.py) | Challonge OAuth, bracket sync, scheduling, result push | — |
+| `StartggService` | [startgg_service.py](../../application/services/startgg_service.py) | start.gg event mirror, entrant mapping, booking, opt-in result writeback | — |
+| `StartggLinkService` | [startgg_link_service.py](../../application/services/startgg_link_service.py) | Player start.gg account linking (`IdentityLinkService`) | — |
+| `bracket_sources` | [bracket_sources.py](../../application/services/bracket_sources.py) | Shared contract for linked bracket sites: result hook, My Schedule bookables, sync | — |
+| `startgg_sync_worker` | [startgg_sync_worker.py](../../application/services/startgg_sync_worker.py) | Re-syncs linked start.gg events every 2 minutes | — |
 | `CheckInService` | [check_in_service.py](../../application/services/check_in_service.py) | Matcherino-backed event check-in: roster sync, auto-linking, the desk's check-in/link actions, walk-ups | [event-check-in.md](../features/event-check-in.md), `EVENT_CHECK_IN` |
 | `CheckInDeskService` | [check_in_desk_service.py](../../application/services/check_in_desk_service.py) | The desk's gated reads (events you can work, an event's roster) for the REST and MCP surfaces | [event-check-in.md](../features/event-check-in.md), `EVENT_CHECK_IN` |
 | `MatcherinoLoginService` | [matcherino_login_service.py](../../application/services/matcherino_login_service.py) | The per-community Matcherino login check-in syncs with: status, verified save, remove, sync-time resolve | [event-check-in.md](../features/event-check-in.md#the-stored-login), `EVENT_CHECK_IN` |
@@ -303,6 +307,14 @@ One module rather than a private `_url` helper per service, because three mistak
 | `admin_qualifier_queue(qualifier_id, *, label='Open the review queue')` | `DMLink \| None` | `/admin/qualifiers?qualifier=<id>&tab=queue` — one qualifier's review queue, open. |
 
 Paths come from the pure [`app_links.py`](#additional-utilities), shared with the pages that render the same routes. Detail: [discord.md → Calls to action](../features/discord.md#calls-to-action).
+
+### startgg_service.py — StartggService
+
+A read-only mirror of a linked start.gg event (`StartggEntrant`/`Phase`/`Pool`/`Set`), gated by `FeatureFlag.STARTGG`. `link_event` (refuses a Challonge link or a native bracket), `unlink_event`, `sync_event(force)` (20 s throttle), `sync_linked_events` (worker, unaudited), `set_bookable_phase`, `set_report_results`; staff entrant mapping `list_entrants`, `assign_entrant`, `confirm_all_suggestions`, `dismiss_suggestion`, `clear_entrant`; players `list_unbooked_sets_for_user`, `schedule_set` (through `MatchService.submit_match_request(from_bracket=True)`); the public page reads `get_event_view`. A sync DMs both players of each set that newly became bookable. `report_result_if_linked` is the soft-gated writeback: only when the tournament opted in, re-reading the set and skipping it when start.gg already has a result. Detail: [startgg.md](../features/startgg.md).
+
+### bracket_sources.py — module functions
+
+The shared contract for brackets that live on another site (`BracketSource` protocol; `StartggSource`, and `ChallongeSource` for sync only so far). `on_match_confirmed` (called from match confirmation, isolates each site's failure), `list_bookable_for_user` / `schedule` (My Schedule), `sync_tournament` / `sync_all` (Admin → Tournaments), `live_sources`, `source_for`.
 
 ### challonge_service.py — ChallongeService
 

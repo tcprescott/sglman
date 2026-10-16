@@ -79,6 +79,7 @@ elif [ "$1" = "mock" ]; then
     export MOCK_TWITCH=true
     export MOCK_RACETIME=true
     export MOCK_MATCHERINO=true
+    export MOCK_STARTGG=true
     poetry run uvicorn main:app "${GRACEFUL_SHUTDOWN[@]}" --reload "${RELOAD_EXCLUDES[@]}" --log-level info --port 8000
 elif [ "$1" = "validate" ]; then
     # Same environment as `mock`, but **no `--reload` at all**. This is the mode
@@ -97,6 +98,7 @@ elif [ "$1" = "validate" ]; then
     export MOCK_TWITCH=true
     export MOCK_RACETIME=true
     export MOCK_MATCHERINO=true
+    export MOCK_STARTGG=true
     poetry run uvicorn main:app "${GRACEFUL_SHUTDOWN[@]}" --log-level info --port 8000
 else
     echo "Invalid parameter. Use 'prod', 'dev', 'mock', 'validate', or 'stop'."

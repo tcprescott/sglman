@@ -208,6 +208,19 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # tournament.withdrawn, the roster events every other enrolment path shares.
     AuditActions.CHALLONGE_PARTICIPANT_SIGNED_UP,
     AuditActions.CHALLONGE_PARTICIPANT_WITHDRAWN,
+    # start.gg integration side-effects, same reasoning as Challonge above
+    # (result_reported mirrors match.result_recorded).
+    AuditActions.STARTGG_LINKED,
+    AuditActions.STARTGG_UNLINKED,
+    AuditActions.STARTGG_EVENT_LINKED,
+    AuditActions.STARTGG_EVENT_UNLINKED,
+    AuditActions.STARTGG_EVENT_SYNCED,
+    AuditActions.STARTGG_BOOKABLE_PHASE_SET,
+    AuditActions.STARTGG_ENTRANT_ASSIGNED,
+    AuditActions.STARTGG_ENTRANT_UNASSIGNED,
+    AuditActions.STARTGG_SUGGESTION_DISMISSED,
+    AuditActions.STARTGG_REPORTING_SET,
+    AuditActions.STARTGG_RESULT_REPORTED,
     # Twitch account linking.
     AuditActions.TWITCH_LINKED,
     AuditActions.TWITCH_UNLINKED,

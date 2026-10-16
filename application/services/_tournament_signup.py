@@ -24,6 +24,7 @@ from application.repositories import TournamentRepository
 from application.services._challonge_signup import roster_locked
 from application.services.audit_service import AuditActions, AuditService
 from application.services.tenant_membership_service import TenantMembershipService
+from application.utils.clients.startgg_client import event_url
 from application.utils.discord_embeds import COLOR_SCHEDULED
 from application.utils.tournament_signup import SignupWindow, signup_window_state
 from models import FeatureFlag, Tournament, User
@@ -58,9 +59,14 @@ class TournamentSignupCard:
     roster_locked: bool = False
     # Bracket entrants nobody has mapped to a Wizzrobe user, by Challonge name.
     unmapped_entrant_names: List[str] = field(default_factory=list)
+    # Roster lives on a linked start.gg event, read-only: players sign up and
+    # withdraw there, and the sync brings them in.
+    startgg_url: Optional[str] = None
 
     @property
     def _roster_open(self) -> bool:
+        if self.startgg_url:
+            return False
         return not (self.challonge_managed and self.roster_locked)
 
     @property
@@ -82,6 +88,11 @@ class TournamentSignupCard:
             and self._roster_open
             and self.challonge_name is None
         )
+
+    @property
+    def signs_up_on_startgg(self) -> bool:
+        """Open, but the sign-up itself happens on start.gg."""
+        return bool(self.startgg_url) and not self.enrolled and self.window is SignupWindow.OPEN
 
     @property
     def can_withdraw(self) -> bool:
@@ -196,6 +207,7 @@ class TournamentSignupMixin:
             await self.repository.enrolled_tournament_ids(user.id) if user else set()
         )
         challonge_ids = await self._challonge_managed_ids()
+        startgg_live = await self._startgg_live()
         rosters = {}
         if challonge_ids:
             from application.services.challonge_service import ChallongeService
@@ -216,6 +228,10 @@ class TournamentSignupMixin:
                     enrolled=t.id in enrolled_ids,
                     entrant_count=counts.get(t.id, 0),
                     entrants=entrants.get(t.id, []),
+                    startgg_url=(
+                        event_url(t.startgg_event_slug)
+                        if startgg_live and t.startgg_event_slug else None
+                    ),
                 ))
                 continue
             roster = rosters.get(t.id, [])
@@ -233,6 +249,12 @@ class TournamentSignupMixin:
                 ),
             ))
         return cards
+
+    @staticmethod
+    async def _startgg_live() -> bool:
+        from application.services.feature_flag_service import FeatureFlagService
+
+        return FeatureFlag.STARTGG in await FeatureFlagService().enabled_flags()
 
     async def _is_challonge_managed(self, tournament: Tournament) -> bool:
         # Asked of the row in hand rather than through ``_challonge_managed_ids``,
@@ -257,6 +279,11 @@ class TournamentSignupMixin:
         )
         if not tournament.is_active:
             raise ValueError('That tournament is not accepting signups.')
+        if tournament.startgg_event_slug and await self._startgg_live():
+            raise ValueError(
+                f'{tournament.name} takes sign-ups on start.gg: '
+                f'{event_url(tournament.startgg_event_slug)}'
+            )
         state = signup_window_state(tournament.signups_open_at, tournament.signups_close_at)
         if state is SignupWindow.CLOSED:
             raise ValueError(

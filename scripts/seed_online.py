@@ -121,7 +121,7 @@ async def link_twitch_identities(users: dict[str, User]) -> None:
 
 
 PROBE_UNLINKED_USERS = ("player_three", "player_four")
-_PROVIDER_PREFIXES = ("challonge", "twitch", "racetime")
+_PROVIDER_PREFIXES = ("challonge", "twitch", "racetime", "startgg")
 
 
 async def reset_unlinked_probe_users(users: dict[str, User]) -> None:

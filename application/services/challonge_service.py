@@ -452,15 +452,13 @@ class ChallongeService(
             "You do not have permission to link this tournament",
         )
 
-        # Exclusivity: a tournament uses a native bracket OR a Challonge link,
-        # never both (the symmetric guard lives in
-        # ``BracketService._ensure_no_challonge_link``).
+        # Exclusivity: one bracket site per tournament (native, Challonge or start.gg); the
+        # symmetric guards are ``BracketService._ensure_no_challonge_link`` and ``StartggService.link_event``.
+        if tournament.startgg_event_slug:
+            raise ValueError("This tournament follows a start.gg event; a tournament follows one bracket site.")
         from application.repositories import BracketRepository
         if await BracketRepository().list_for_tournament(tournament_id):
-            raise ValueError(
-                "This tournament already has a native bracket; a tournament uses "
-                "a native bracket or a Challonge link, never both."
-            )
+            raise ValueError("This tournament already has a native bracket; a tournament uses one bracket site.")
 
         identifier, community = self.parse_tournament_identifier(id_or_url)
         try:

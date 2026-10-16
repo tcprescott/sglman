@@ -36,6 +36,7 @@ async def my_schedule_tab(
     hard: Optional[int] = None,
     agree: Optional[int] = None,
     book: Optional[int] = None,
+    startgg: Optional[int] = None,
     comments: Optional[int] = None,
 ) -> None:
     """The deep-link params belong to the matches section and pass straight
@@ -59,7 +60,7 @@ async def my_schedule_tab(
             await my_crew_tab(focus_match=match)
         await render_player_dashboard(
             schedule=schedule, reschedule=reschedule, match=match, hard=hard,
-            agree=agree, book=book, comments=comments,
+            agree=agree, book=book, startgg=startgg, comments=comments,
         )
         if plays:
             await my_crew_tab(focus_match=match)
