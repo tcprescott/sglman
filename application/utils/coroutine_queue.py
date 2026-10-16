@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+import weakref
 from collections.abc import Coroutine
 from types import ModuleType
 from typing import Optional
@@ -19,6 +20,13 @@ from typing import Optional
 from application.utils.sentry import sentry_tags
 
 _default_logger = logging.getLogger(__name__)
+
+_queues: 'weakref.WeakSet[CoroutineQueue]' = weakref.WeakSet()
+
+
+def queue_depths() -> dict[str, int]:
+    """Items waiting in each live queue, for ``runtime_stats`` and Sentry Metrics."""
+    return {q.name: q.qsize() for q in sorted(list(_queues), key=lambda q: q.name)}
 
 
 class CoroutineQueue:
@@ -44,6 +52,10 @@ class CoroutineQueue:
         )
         self._queue: asyncio.Queue[Coroutine] = asyncio.Queue()
         self._worker_task: Optional[asyncio.Task] = None
+        _queues.add(self)
+
+    def qsize(self) -> int:
+        return self._queue.qsize()
 
     async def _worker(self) -> None:
         while True:

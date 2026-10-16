@@ -18,9 +18,22 @@ from typing import Any, Dict, Optional
 
 from application.utils import live_audience
 from application.utils.background_loop import worker_stats
+from application.utils.coroutine_queue import queue_depths
 from application.utils.loop_watchdog import watchdog
 
 _PROCESS_STARTED = time.time()
+
+_http_in_flight = 0
+
+
+def http_request_started() -> None:
+    global _http_in_flight
+    _http_in_flight += 1
+
+
+def http_request_finished() -> None:
+    global _http_in_flight
+    _http_in_flight = max(0, _http_in_flight - 1)
 
 
 def _rss_mb() -> Optional[float]:
@@ -86,6 +99,8 @@ def collect() -> Dict[str, Any]:
         'rss_mb': _rss_mb(),
         'asyncio_tasks': tasks,
         'clients': _clients(),
+        'http_in_flight': _http_in_flight,
+        'queues': queue_depths(),
         'db_pool': _db_pool(),
         'event_loop': watchdog.snapshot(),
         'workers': worker_stats(),
