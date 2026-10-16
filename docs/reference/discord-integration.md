@@ -313,7 +313,8 @@ Ephemeral confirmation strings sit beside their domain's builders: `match_ack_co
 | Stream candidate alert | `MatchService.create_match` (flagged) / `set_stream_candidate(flag=True)` → `notify_stream_candidate_subscribers` | `send_dm_with_crew_buttons` | Sign up as Commentator / Tracker |
 | Crew approved — ack request | `CrewService.update_crew_approval(approved=True)` → `_request_crew_acknowledgment` | `send_dm_with_crew_acknowledgment_button` | Acknowledge |
 | Match seated (checked in) | `MatchScheduleService.seat_match` → `notify_match_participants` | `send_dm` / `send_dm_with_unwatch_button` | Unwatch (watchers only) |
-| Match started / finished / confirmed | `MatchScheduleService.start_match` / `finish_match` / `confirm_match` → `notify_match_participants` | `send_dm` / `send_dm_with_unwatch_button` | Unwatch (watchers only) |
+| Match started / finished | `MatchScheduleService.start_match` / `finish_match` → `notify_match_participants(silent=True, players=False)`: crew and watchers only, no ping | `send_dm` / `send_dm_with_unwatch_button` | Unwatch (watchers only) |
+| Match confirmed | `MatchScheduleService.confirm_match` → `notify_match_participants` | `send_dm` / `send_dm_with_unwatch_button` | Unwatch (watchers only) |
 | Match cancelled | `MatchService._cancel_match` (the `CancellationMixin` in `match_cancellation.py`) → `notify_match_cancelled(recipients, message, embed)` (recipients collected before the delete) | `send_dm` | none |
 | Stage assigned / cleared | `MatchService.assign_stage` → `notify_stage_changed` | `send_dm` | View your match (link) |
 | Stage reminder | `stage_reminder` loop → `notify_stage_reminder` | `send_dm` | View your match (link) |
@@ -327,4 +328,6 @@ Ephemeral confirmation strings sit beside their domain's builders: `match_ack_co
 | Volunteer shift reminder | `volunteer_reminder` loop, per un-reminded upcoming assignment | `send_dm_with_volunteer_acknowledgment_button` | Acknowledge |
 | Admin direct message | `SendMessageDialog.send` — awaited inline, **not** queued | `send_dm` | none |
 
-Note the asymmetry in lifecycle notifications: scheduling/rescheduling DMs are split (players get the Acknowledge DM via `notify_acknowledgment_request`; crew, watchers, and subscribers get informational variants), while seated/started/finished/confirmed DMs go to everyone at once via `notify_match_participants`.
+Note the asymmetry in lifecycle notifications: scheduling/rescheduling DMs are split (players get the Acknowledge DM via `notify_acknowledgment_request`; crew, watchers, and subscribers get informational variants), while seated/confirmed DMs go to everyone at once via `notify_match_participants` and started/finished skip the players and go out silent.
+
+`send_dm(..., silent=True)` sends with Discord's `SUPPRESS_NOTIFICATIONS` flag (`@silent`): the DM lands but doesn't ping. The web-push copy carries `silent: true` and the Telegram copy `disable_notification`; email has no quiet mode.

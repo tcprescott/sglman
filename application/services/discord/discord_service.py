@@ -61,7 +61,7 @@ async def discord_dms_enabled(discord_id: int) -> bool:
 
 
 def _mirror_dm_to_web_push(
-    user_id: int, message: str, navigate: Optional[str] = None,
+    user_id: int, message: str, navigate: Optional[str] = None, silent: bool = False,
 ) -> None:
     """Fan every outgoing DM out to the recipient's web-push devices.
 
@@ -79,12 +79,12 @@ def _mirror_dm_to_web_push(
     if not WebPushService.is_configured():
         return
     event_dispatch_queue.enqueue(
-        WebPushService().mirror_dm(user_id, message, navigate=navigate)
+        WebPushService().mirror_dm(user_id, message, navigate=navigate, silent=silent)
     )
 
 
 def _mirror_dm_to_channels(
-    user_id: int, message: str, link: Optional[DMLink] = None,
+    user_id: int, message: str, link: Optional[DMLink] = None, silent: bool = False,
 ) -> None:
     """Fan every outgoing DM out to the recipient's email and Telegram too.
 
@@ -111,6 +111,7 @@ def _mirror_dm_to_channels(
                 user_id, message,
                 navigate=link.url if link else None,
                 label=link.label if link else None,
+                silent=silent,
             )
 
     event_dispatch_queue.enqueue(_run())
@@ -302,6 +303,7 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
         link: Optional[DMLink] = None,
         on_sent: Optional[DMSentHook] = None,
         mirror: bool = True,
+        silent: bool = False,
     ) -> Tuple[bool, str]:
         """
         Send a direct message to a Discord user, optionally with attached buttons.
@@ -328,6 +330,9 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
                 reported as a failed send.
             mirror: ``False`` sends to Discord alone, skipping the copies to
                 devices, email and Telegram (a per-channel test).
+            silent: Deliver without a ping or phone buzz (Discord's @silent),
+                for news the recipient doesn't need to act on. Device and
+                Telegram copies go quietly too; email can't.
 
         Returns:
             Tuple of (success: bool, message: str)
@@ -343,8 +348,10 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
         # devices may already have been notified, so don't blindly re-send. The
         # mirror always uses the plain text, even when an embed carries the DM.
         if mirror:
-            _mirror_dm_to_web_push(user_id, message, navigate=link.url if link else None)
-            _mirror_dm_to_channels(user_id, message, link)
+            _mirror_dm_to_web_push(
+                user_id, message, navigate=link.url if link else None, silent=silent,
+            )
+            _mirror_dm_to_channels(user_id, message, link, silent=silent)
         try:
             if self._bot is None:
                 logger.error('Discord DM to %s not sent: bot not initialized', user_id)
@@ -360,7 +367,7 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
                 return True, DM_DISCORD_OFF
 
             user = await self._bot.fetch_user(user_id)
-            kwargs: dict = {}
+            kwargs: dict = {'silent': silent}
             view = _with_link_button(
                 view_factory() if view_factory is not None else None, link,
             )
@@ -499,9 +506,9 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
         """Send the shift-start DM: I'm here / Running late / I can't make it."""
         return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_VOLUNTEER_ARRIVAL](assignment_id), embed=embed, link=link)
 
-    async def send_dm_with_unwatch_button(self, user_id: int, message: str, match_id: int, embed: Optional[discord.Embed] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
+    async def send_dm_with_unwatch_button(self, user_id: int, message: str, match_id: int, embed: Optional[discord.Embed] = None, link: Optional[DMLink] = None, silent: bool = False) -> Tuple[bool, str]:
         """Send a DM with an Unwatch button for match watchers."""
-        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_UNWATCH](match_id), embed=embed, link=link)
+        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_UNWATCH](match_id), embed=embed, link=link, silent=silent)
 
     def get_bot(self) -> Optional[commands.Bot]:
         """Get the Discord bot instance."""
@@ -530,11 +537,12 @@ class MockDiscordService(MockGuildOpsMixin, MockScheduledEventsMixin):
         link: Optional[DMLink] = None,
         on_sent: Optional[DMSentHook] = None,
         mirror: bool = True,
+        silent: bool = False,
     ) -> Tuple[bool, str]:
         # Email and Telegram mirror in mock mode too: their transports print
         # instead of sending, so there's no external side effect to fear.
         if mirror:
-            _mirror_dm_to_channels(user_id, message, link)
+            _mirror_dm_to_channels(user_id, message, link, silent=silent)
         # Deliberately no web-push mirror: mock mode must have no external side
         # effects (a dev with a prod DB snapshot + prod VAPID keys would push
         # to real users' phones). Real delivery requires the real service.
@@ -547,6 +555,8 @@ class MockDiscordService(MockGuildOpsMixin, MockScheduledEventsMixin):
         # call to action points anywhere is checkable from stdout.
         if link is not None and link.url:
             suffix += f" [button: {link.label} -> {link.url}]"
+        if silent:
+            suffix += " [silent]"
         print(f"[MOCK Discord DM] -> {user_id}: {message}{suffix}")
         # Made-up ids, so a later edit_dm has something to print against.
         self.__class__._mock_message_id += 1
@@ -587,8 +597,8 @@ class MockDiscordService(MockGuildOpsMixin, MockScheduledEventsMixin):
     async def send_dm_with_volunteer_arrival_buttons(self, user_id: int, message: str, assignment_id: int, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
         return await self.send_dm(user_id, message, embed=embed, link=link)
 
-    async def send_dm_with_unwatch_button(self, user_id: int, message: str, match_id: int, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
-        return await self.send_dm(user_id, message, embed=embed, link=link)
+    async def send_dm_with_unwatch_button(self, user_id: int, message: str, match_id: int, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None, silent: bool = False) -> Tuple[bool, str]:
+        return await self.send_dm(user_id, message, embed=embed, link=link, silent=silent)
 
     def get_bot(self) -> None:
         return None

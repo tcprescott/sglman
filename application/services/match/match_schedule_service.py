@@ -147,6 +147,8 @@ class MatchScheduleService(MatchNotificationMixin):
         event_type: str,
         build_message: Callable[[Match, str, str], tuple],
         authorize: Optional[Callable] = None,
+        silent: bool = False,
+        notify_players: bool = True,
     ) -> None:
         """Shared match lifecycle transition: authorize, validate, stamp, audit, notify.
 
@@ -159,6 +161,9 @@ class MatchScheduleService(MatchNotificationMixin):
         ``authorize`` defaults to ``AuthService.can_run_match`` — the gate for
         the floor transitions a proctor owns. ``confirm_match`` overrides it with
         ``AuthService.can_confirm_match``, which excludes PROCTOR.
+
+        ``silent`` sends the DM without a ping, for a transition nobody has to
+        act on; ``notify_players=False`` leaves the players out of it.
         """
         gate = authorize or AuthService.can_run_match
         await AuthService.ensure(
@@ -188,7 +193,9 @@ class MatchScheduleService(MatchNotificationMixin):
         # queue worker, and pass the pre-built embed down with the text.
         community = await _community_name()
         message, embed = build_message(match, community, await bracket_line_for(match.id))
-        discord_queue.enqueue(self.notify_match_participants(match, message, embed))
+        discord_queue.enqueue(self.notify_match_participants(
+            match, message, embed, silent=silent, players=notify_players,
+        ))
         match_live.publish(match.id)
 
     async def seat_match(self, match: Match, actor: Optional[User] = None) -> None:
@@ -232,6 +239,10 @@ class MatchScheduleService(MatchNotificationMixin):
             audit_action=AuditActions.MATCH_STARTED,
             event_type=EventType.MATCH_STARTED,
             build_message=lambda m, c, b: _state_notification(m, c, "Started", b),
+            # The players are sitting at the station and know; crew and
+            # watchers get a quiet note rather than a ping.
+            silent=True,
+            notify_players=False,
         )
 
     async def finish_match(self, match: Match, actor: Optional[User] = None) -> None:
@@ -248,6 +259,8 @@ class MatchScheduleService(MatchNotificationMixin):
             audit_action=AuditActions.MATCH_FINISHED,
             event_type=EventType.MATCH_FINISHED,
             build_message=lambda m, c, b: _state_notification(m, c, "Finished", b),
+            silent=True,
+            notify_players=False,
         )
 
     async def confirm_match(self, match: Match, actor: Optional[User] = None) -> None:

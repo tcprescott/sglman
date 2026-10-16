@@ -195,6 +195,11 @@ class TestStartMatch:
         await service.start_match(match)
         assert match.seated_at == seated
 
+    async def test_dm_skips_players_and_goes_out_silent(self, service):
+        await service.start_match(MockMatch(seated_at=datetime.now()))
+        kwargs = service.notify_match_participants.call_args.kwargs
+        assert kwargs == {'silent': True, 'players': False}
+
 
 class TestFinishMatch:
     async def test_sets_finished_at(self, service):
@@ -208,6 +213,12 @@ class TestFinishMatch:
         match = MockMatch(seated_at=now, started_at=now)
         await service.finish_match(match)
         service.match_repository.stamp_if_unset.assert_awaited_once()
+
+    async def test_dm_skips_players_and_goes_out_silent(self, service):
+        now = datetime.now()
+        await service.finish_match(MockMatch(seated_at=now, started_at=now))
+        kwargs = service.notify_match_participants.call_args.kwargs
+        assert kwargs == {'silent': True, 'players': False}
 
     async def test_raises_if_not_started(self, service):
         match = MockMatch()
@@ -601,7 +612,7 @@ class TestNotifyMatchParticipants:
              self._patch_query('application.services.match._match_recipients.MatchWatcher.filter', []):
             await real_notify_service.notify_match_participants(match, "hello")
 
-        real_notify_service.discord_service.send_dm.assert_awaited_once_with(111, "hello", embed=None, link=None)
+        real_notify_service.discord_service.send_dm.assert_awaited_once_with(111, "hello", embed=None, link=None, silent=False)
         real_notify_service.discord_service.send_dm_with_unwatch_button.assert_not_awaited()
 
     async def test_watcher_only_gets_unwatch_button_dm(self, real_notify_service):
@@ -615,7 +626,7 @@ class TestNotifyMatchParticipants:
             await real_notify_service.notify_match_participants(match, "hello")
 
         real_notify_service.discord_service.send_dm.assert_not_awaited()
-        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "hello", match.id, embed=None, link=None)
+        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "hello", match.id, embed=None, link=None, silent=False)
 
     async def test_player_who_is_also_watcher_gets_unwatch_button(self, real_notify_service):
         match = MockMatch()
@@ -630,7 +641,21 @@ class TestNotifyMatchParticipants:
             await real_notify_service.notify_match_participants(match, "hello")
 
         real_notify_service.discord_service.send_dm.assert_not_awaited()
-        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(333, "hello", match.id, embed=None, link=None)
+        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(333, "hello", match.id, embed=None, link=None, silent=False)
+
+    async def test_players_false_reaches_only_the_others(self, real_notify_service):
+        match = MockMatch()
+        player = SimpleNamespace(user=SimpleNamespace(discord_id=111, dm_notifications=True))
+        watcher = SimpleNamespace(user=SimpleNamespace(discord_id=222, dm_notifications=True))
+
+        with self._patch_query('application.services.match._match_recipients.MatchPlayers.filter', [player]), \
+             self._patch_query('application.services.match._match_recipients.Commentator.filter', []), \
+             self._patch_query('application.services.match._match_recipients.Tracker.filter', []), \
+             self._patch_query('application.services.match._match_recipients.MatchWatcher.filter', [watcher]):
+            await real_notify_service.notify_match_participants(match, "hello", silent=True, players=False)
+
+        real_notify_service.discord_service.send_dm.assert_not_awaited()
+        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "hello", match.id, embed=None, link=None, silent=True)
 
     async def test_discord_off_still_reaches_send_dm(self, real_notify_service):
         match = MockMatch()

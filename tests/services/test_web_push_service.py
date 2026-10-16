@@ -383,9 +383,21 @@ class TestDelivery:
         assert payload['notification']['body'] == 'Match scheduled today for player__one!'
         assert payload['notification']['title'] == 'Wizzrobe'
         assert payload['notification']['navigate']
+        assert 'silent' not in payload['notification']
 
         stored = await WebPushSubscription.get(endpoint=ENDPOINT)
         assert stored.last_used_at is not None
+
+    async def test_silent_mirror_marks_the_payload(self, db, vapid_env, fake_client):
+        fake = fake_client([201])
+        await _subscribed_user(discord_id=42)
+
+        await WebPushService().mirror_dm(42, 'Match started', silent=True)
+
+        plaintext = decrypt_payload(
+            fake.calls[0]['content'], load_vapid_private_key(RFC_UA_PRIVATE), b64url_decode(RFC_AUTH)
+        )
+        assert json.loads(plaintext)['notification']['silent'] is True
 
     async def test_delivery_rechecks_the_host_and_skips_a_rebound_one(
         self, db, vapid_env, fake_client, monkeypatch,

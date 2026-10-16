@@ -440,7 +440,7 @@ def real_svc_ready(monkeypatch):
     mirrored: list[int] = []
     monkeypatch.setattr(
         ds, '_mirror_dm_to_web_push',
-        lambda user_id, message, navigate=None: mirrored.append(user_id),
+        lambda user_id, message, navigate=None, silent=False: mirrored.append(user_id),
     )
     svc = object.__new__(ds._RealDiscordService)
     svc._bot = stub_bot
@@ -472,6 +472,20 @@ class TestDiscordSwitch:
         assert ok is True
         discord_user.send.assert_awaited_once()
         assert mirrored == [556]
+
+    async def test_silent_reaches_discord(self, db, real_svc_ready):
+        svc, _, discord_user, _ = real_svc_ready
+
+        await svc.send_dm(557, 'Match started', silent=True)
+
+        assert discord_user.send.call_args.kwargs['silent'] is True
+
+    async def test_pings_by_default(self, db, real_svc_ready):
+        svc, _, discord_user, _ = real_svc_ready
+
+        await svc.send_dm(558, 'Your match moved')
+
+        assert discord_user.send.call_args.kwargs['silent'] is False
 
     async def test_unknown_discord_id_still_gets_the_dm(self, db, real_svc_ready):
         svc, _, discord_user, _ = real_svc_ready

@@ -45,7 +45,7 @@ class TestNotifyMatchCrew:
         await service.notify_match_crew(m, "hello crew")
 
         service.discord_service.send_dm.assert_awaited_once_with(
-            111, "hello crew\n\nYou're on this match as commentator.", embed=None, link=ANY,
+            111, "hello crew\n\nYou're on this match as commentator.", embed=None, link=ANY, silent=False,
         )
         link = service.discord_service.send_dm.await_args.kwargs['link']
         # Their crew slot, not the player filter that is empty for them.
@@ -60,7 +60,7 @@ class TestNotifyMatchCrew:
         await service.notify_match_crew(m, "hi")
 
         service.discord_service.send_dm.assert_awaited_once_with(
-            112, "hi\n\nYou're on this match as tracker.", embed=None, link=ANY,
+            112, "hi\n\nYou're on this match as tracker.", embed=None, link=ANY, silent=False,
         )
 
     async def test_crew_on_both_slots_reads_both_in_text_and_title(self, service, db):
@@ -92,7 +92,7 @@ class TestNotifyMatchCrew:
         await service.notify_match_crew(m, "crew msg", watcher_message="watch msg")
 
         service.discord_service.send_dm.assert_not_awaited()
-        service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "watch msg", m.id, embed=None, link=None)
+        service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "watch msg", m.id, embed=None, link=None, silent=False)
 
     async def test_crew_who_also_watches_reads_the_crew_copy(self, service, db):
         """Watching adds the Unwatch button; it does not demote them to a spectator."""
@@ -105,7 +105,7 @@ class TestNotifyMatchCrew:
         await service.notify_match_crew(m, "crew msg", watcher_message="watch msg")
 
         service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(
-            223, "crew msg\n\nYou're on this match as commentator.", m.id, embed=None, link=ANY,
+            223, "crew msg\n\nYou're on this match as commentator.", m.id, embed=None, link=ANY, silent=False,
         )
 
     async def test_player_who_is_crew_is_excluded(self, service, db):
@@ -244,7 +244,7 @@ class TestNotifyMatchParticipantsBranches:
         await service.notify_match_participants(m, "hi")
 
         service.discord_service.send_dm.assert_awaited_once_with(
-            444, "hi\n\nYou're on this match as tracker.", embed=None, link=None,
+            444, "hi\n\nYou're on this match as tracker.", embed=None, link=None, silent=False,
         )
 
     async def test_dm_failure_is_swallowed(self, service, db):
@@ -309,7 +309,7 @@ class TestNotifyMatchParticipantsCommentatorAndWatcher:
         await service.notify_match_participants(m, "hi")
 
         service.discord_service.send_dm.assert_awaited_once_with(
-            211, "hi\n\nYou're on this match as commentator.", embed=None, link=None,
+            211, "hi\n\nYou're on this match as commentator.", embed=None, link=None, silent=False,
         )
 
     async def test_watcher_receives_unwatch_button(self, service, db):
@@ -320,7 +320,7 @@ class TestNotifyMatchParticipantsCommentatorAndWatcher:
         await service.notify_match_participants(m, "hi")
 
         service.discord_service.send_dm.assert_not_awaited()
-        service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(212, "hi", m.id, embed=None, link=None)
+        service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(212, "hi", m.id, embed=None, link=None, silent=False)
 
 
 class TestNotifyStreamCandidateSubscribersExtra:
