@@ -107,6 +107,11 @@ takes it back until the shift ends, unless a coordinator checked you in.
 
 Shifts that have finished drop off the list. Turn on **Show all shifts** to see
 them again.
+
+Your upcoming shifts also show on **My Schedule** under **Your volunteer
+shifts**, one row each, grouped by day, next to your matches and crew slots.
+Each row has the same **I'm here** or **Acknowledge** button, and its ⋮ menu
+has **Shift details** and **Can't make it…**.
 :::
 
 ![My Shifts on a phone: the hours line, the Show all shifts switch marked 3, then a Broadcast Tech shift card with its notes, Can't make it marked 1 and Acknowledge marked 2](/static/help/volunteering/my-shifts-phone.webp "One upcoming shift: **Can't make it** (1), **Acknowledge** (2), and **Show all shifts** (3) for the ones that have finished.")

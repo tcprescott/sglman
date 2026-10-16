@@ -1,8 +1,8 @@
 """My Schedule — everything the viewer personally committed to, on one scroll.
 
-Your matches, the crew slots you signed up for, when you said you can play, and
-any equipment you are still holding. These were four separate tabs, which meant
-the answer to "what am I doing at this event?" was spread across four taps and,
+Your matches, the crew slots you signed up for, your volunteer shifts, when you
+said you can play, and any equipment you are still holding. Most of these were
+separate tabs, which meant the answer to "what am I doing at this event?" was spread across four taps and,
 on a phone, three of them lived behind **More**.
 
 Sections render in commitment order: what you are scheduled to play, then what
@@ -26,6 +26,7 @@ from models import FeatureFlag
 from pages.home_tabs.availability import availability_tab
 from pages.home_tabs.equipment import equipment_checkouts_section
 from pages.home_tabs.my_crew import my_crew_tab
+from pages.home_tabs.my_volunteer_shifts import my_volunteer_shifts_section
 from pages.home_tabs.player import render_player_dashboard
 
 
@@ -54,9 +55,12 @@ async def my_schedule_tab(
     # it is where a forwarded player link explains itself.
     user = await get_user_from_session(app.storage.user)
     plays = bool(user and await TournamentService().get_enrolled_players_by_user(user))
+    volunteer = user if FeatureFlag.VOLUNTEERS in live else None
 
     with ui.column().classes('page-container wiz-section-stack'):
         if not plays:
+            if volunteer:
+                await my_volunteer_shifts_section(volunteer)
             await my_crew_tab(focus_match=match)
         await render_player_dashboard(
             schedule=schedule, reschedule=reschedule, match=match, hard=hard,
@@ -64,6 +68,8 @@ async def my_schedule_tab(
         )
         if plays:
             await my_crew_tab(focus_match=match)
+            if volunteer:
+                await my_volunteer_shifts_section(volunteer)
         await availability_tab()
         if FeatureFlag.EQUIPMENT in live:
             await equipment_checkouts_section()

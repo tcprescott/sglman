@@ -4192,6 +4192,48 @@ body.wiz-offline .wiz-requires-socket {
     min-width: 168px;
 }
 
+/* My Schedule's volunteer shift agenda: time | shift + status | button + ⋮.
+   On a phone the actions drop under the row, right-aligned, so the title
+   keeps the width. */
+.wiz-shift-day {
+    width: 100%;
+    margin: var(--space-3) 0 var(--space-1);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+}
+
+.wiz-shift-day:first-child {
+    margin-top: 0;
+}
+
+.wiz-shift-row {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    align-items: center;
+    width: 100%;
+    padding: 10px 0;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.wiz-shift-row__main {
+    min-width: 0;
+}
+
+@media (max-width: 599.98px) {
+    .wiz-shift-row {
+        grid-template-columns: 64px minmax(0, 1fr);
+    }
+
+    .wiz-shift-row__actions {
+        grid-column: 1 / -1;
+        justify-content: flex-end;
+    }
+}
+
 .wiz-shift-status {
     box-sizing: border-box;
     display: inline-flex;
