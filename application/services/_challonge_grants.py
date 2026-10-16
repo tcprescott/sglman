@@ -56,9 +56,9 @@ class ChallongeGrantsMixin:
 
     @staticmethod
     def _token_expiring(connection: ChallongeConnection) -> bool:
-        if connection.token_expires_at is None:
-            return False
         expires = _as_aware_utc(connection.token_expires_at)
+        if expires is None:
+            return False
         return datetime.now(timezone.utc) >= (expires - _TOKEN_REFRESH_BUFFER)
 
     @staticmethod
