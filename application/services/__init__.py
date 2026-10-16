@@ -88,6 +88,7 @@ from .mcp_auth_service import McpAuthService
 from .notification_channel_service import NotificationChannelService
 from .password_auth_service import PasswordAuthService
 from .payout_service import PayoutService
+from .platform_admin_service import AccountOverview, CommunityOverview, PlatformAdminService
 from .player_availability_service import PlayerAvailabilityService
 from .preset_service import PresetService
 from .profile_nudge_service import ProfileNudgeService
@@ -144,6 +145,7 @@ from .webhook_service import WebhookService
 
 __all__ = [
     'AccommodationService',
+    'AccountOverview',
     'AnalyticsService',
     'ApiTokenService',
     'AsyncQualifierConfig',
@@ -159,6 +161,7 @@ __all__ = [
     'CheckInDeskService',
     'CheckInService',
     'CommunityEventService',
+    'CommunityOverview',
     'CrewService',
     'DiscordEmailService',
     'DiscordEventReconcilerService',
@@ -198,6 +201,7 @@ __all__ = [
     'NotificationChannelService',
     'PasswordAuthService',
     'PayoutService',
+    'PlatformAdminService',
     'PlayerAvailabilityService',
     'PresetService',
     'ProbeResult',

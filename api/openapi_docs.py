@@ -156,6 +156,10 @@ TAG_GROUPS: List[tuple[str, List[tuple[str, str]]]] = [
         ('Discord events', 'Discord scheduled events mirrored from matches.'),
     ]),
     ('Platform', [
+        ('Communities', 'Every community on the platform, its first Staff and which features it may use.'),
+        ('Platform users', 'Every account on the platform, and switching one off.'),
+        ('Feature groups', 'Tiers that decide which features a community may use.'),
+        ('Log levels', 'How much each part of the server writes to its log.'),
         ('Racetime bots', 'racetime.gg bot accounts shared across communities.'),
         ('Service health', 'Whether the outside services Wizzrobe depends on are up.'),
         ('Health', 'Liveness check for the server itself.'),

@@ -257,7 +257,7 @@ def register_tools(mcp: MCPServer) -> None:
     register(mcp, telemetry_top, gate=Gate.STAFF, title='Telemetry leaderboards')
     register(mcp, get_system_config, gate=Gate.STAFF, title='Get system config')
     register(mcp, list_service_health, gate=Gate.STAFF, title='Service health')
-    register(mcp, runtime_stats, gate=Gate.GLOBAL, title='Runtime stats')
+    register(mcp, runtime_stats, gate=Gate.PLATFORM, title='Runtime stats')
     register(mcp, list_webhooks, gate=Gate.STAFF, title='List webhooks')
     register(
         mcp, list_webhook_deliveries, gate=Gate.STAFF,

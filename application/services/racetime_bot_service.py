@@ -154,6 +154,17 @@ class RacetimeBotService:
         )
         await self.repository.delete(bot)
 
+    async def restart_connection(self, actor: Optional[User], bot_id: int) -> RacetimeBot:
+        """Drop and respawn one bot's racetime connection, for every community using it."""
+        await self._ensure_super_admin(actor)
+        assert actor is not None
+        await self._require(bot_id)
+        # Lazy: racetimebot.manager imports this module.
+        from racetimebot import get_racetime_manager
+
+        await get_racetime_manager().restart(actor, bot_id)
+        return await self._require(bot_id)
+
     # ---- tenant authorization grants -------------------------------------
 
     async def list_grants(self, actor: Optional[User], bot_id: int) -> List[RacetimeBotTenant]:
