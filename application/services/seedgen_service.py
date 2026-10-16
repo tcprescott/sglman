@@ -2,8 +2,8 @@
 Seed Generation Service - Business Logic Layer
 
 Handles random seed generation for various randomizers.
-Supports: ALTTPR, AVIANART, FF1R, Z1R, Z2R, SMB3R, AoSR, SM, SMZ3, SMMAP, OOTR,
-DK64R, DASH, WWR, and Test.
+Supports: ALTTPR, ALTTPR Door Randomizer, AVIANART, FF1R, Z1R, Z2R, SMB3R, AoSR,
+SM, SMZ3, SMMAP, OOTR, DK64R, DASH, WWR, and Test.
 """
 
 import asyncio
@@ -25,6 +25,12 @@ import application.services._seedgen_local as local_rolls
 import application.services._seedgen_wwr as wwr_permalinks
 from application.errors import MissingCredentialError
 from application.randomizer_credentials import credentials_for, spec_for
+from application.services._seedgen_alttprdr import (
+    DOOR_RANDO_TIMEOUT,
+    DoorRandoBackend,
+    door_preset_settings,
+    door_rando_configured,
+)
 from application.services._seedgen_avianart import (
     AVIANART_MAX_POLLS,
     AVIANART_POLL_INTERVAL,
@@ -37,6 +43,7 @@ from application.services._seedgen_dk64r import (
     DK64R_SITE_HOSTS,
     DK64RBackend,
 )
+from application.services._seedgen_ff1r import FF1R_HOST, ff1r_reference_url
 from application.services._seedgen_samus import generate_samus, samus_settings
 from application.services._seedgen_types import (
     AsyncRollPoll,
@@ -77,38 +84,18 @@ async def _read_bundled_preset(path: str) -> str:
     return await asyncio.to_thread(Path(path).read_text, encoding='utf-8')
 
 
-_FF1R_HOST = 'finalfantasyrandomizer.com'
-
-
-def _ff1r_reference_url(settings: Optional[dict]) -> str:
-    """The FFR flags link a preset holds, checked, or ``ValueError`` naming what's wrong."""
-    url = settings.get('url') if isinstance(settings, dict) else None
-    if not isinstance(url, str) or not url.strip():
-        raise ValueError('A Final Fantasy preset needs a "url": the flags link copied from finalfantasyrandomizer.com.')
-    unknown = set(settings) - {'url'}
-    if unknown:
-        raise ValueError(f"A Final Fantasy preset holds only a flags link, not {', '.join(sorted(unknown))}.")
-    url = url.strip()
-    parsed = urllib.parse.urlparse(url)
-    host = (parsed.hostname or '').lower()
-    if parsed.scheme != 'https' or not (host == _FF1R_HOST or host.endswith('.' + _FF1R_HOST)):
-        raise ValueError('That isn\'t a finalfantasyrandomizer.com link. Copy the link from the site\'s address bar.')
-    if not urllib.parse.parse_qs(parsed.query).get('f', [''])[0]:
-        raise ValueError('That link has no flags in it (the "f=" part). Copy it again after setting the flags.')
-    return url
-
-
 # The bare domain 308s to www, and the generate call is read without following
 # redirects, so it has to start on the host that answers it.
 _DASH_BASE_URL = 'https://www.dashrando.net'
 
 
-class SeedGenerationService(DK64RBackend):
+class SeedGenerationService(DK64RBackend, DoorRandoBackend):
     """Service for generating seeds for various randomizers."""
 
     # Available randomizers
     AVAILABLE_RANDOMIZERS: ClassVar[List[str]] = [
         'alttpr',
+        'alttprdr',
         'avianart',
         'ff1r',
         'z1r',
@@ -128,6 +115,7 @@ class SeedGenerationService(DK64RBackend):
     # What a person calls each one; the slug above is what the data stores.
     RANDOMIZER_NAMES: ClassVar[Dict[str, str]] = {
         'alttpr': 'A Link to the Past',
+        'alttprdr': 'ALttP Door Randomizer',
         'avianart': 'A Link to the Past (AVIANART)',
         'ff1r': 'Final Fantasy',
         'z1r': 'Zelda 1',
@@ -151,7 +139,8 @@ class SeedGenerationService(DK64RBackend):
     # Randomizers whose generator resolves a ``Preset`` (its settings feed the
     # roll). Anything else ignores the preset and rolls hard-coded settings.
     PRESET_AWARE_RANDOMIZERS: ClassVar[Set[str]] = {
-        'alttpr', 'aosr', 'avianart', 'dk64r', 'ff1r', 'sm', 'smb3r', 'smdash', 'smz3', 'wwr', 'z1r', 'z2r',
+        'alttpr', 'alttprdr', 'aosr', 'avianart', 'dk64r', 'ff1r', 'sm', 'smb3r', 'smdash', 'smz3', 'wwr', 'z1r',
+        'z2r',
     }
 
     # Rolls that ``MOCK_SEEDGEN`` leaves alone. DK64R mocks one layer down (see
@@ -190,10 +179,14 @@ class SeedGenerationService(DK64RBackend):
     # task, so it gets exactly one attempt. Retrying the individual requests
     # inside it is safe and is handled within the generator.
     PROVIDER_TIMEOUTS: ClassVar[dict] = {
+        'alttprdr': DOOR_RANDO_TIMEOUT,
         'avianart': AVIANART_MAX_POLLS * AVIANART_POLL_INTERVAL + 30.0,
         'dk64r': DK64R_GENERATION_TIMEOUT + 60.0,
     }
     PROVIDER_ATTEMPTS: ClassVar[dict] = {
+        # The sidecar already retries a layout that fails to generate; a second
+        # attempt here only covers it being busy or briefly unreachable.
+        'alttprdr': 2,
         # AVIANART builds a game per generate call; its polls run inside the attempt.
         'avianart': 1,
         'dk64r': 1,
@@ -214,7 +207,10 @@ class SeedGenerationService(DK64RBackend):
         checked here as well, as are AVIANART preset names and samus.link settings.
         """
         if randomizer == 'ff1r':
-            return {'url': _ff1r_reference_url(settings)}
+            return {'url': ff1r_reference_url(settings)}
+        if randomizer == 'alttprdr':
+            inner, spoiler = door_preset_settings(settings)
+            return {'settings': inner, 'spoiler': spoiler}
         if randomizer == 'aosr':
             return {'url': local_rolls.aosr_reference_url(settings)}
         if randomizer in local_rolls.FLAG_GAMES:
@@ -265,8 +261,8 @@ class SeedGenerationService(DK64RBackend):
     @staticmethod
     def describe_ff1r_link(url: str) -> str:
         """The site version an FFR flags link pins, for the Presets tab, or ``ValueError``."""
-        host = urllib.parse.urlparse(_ff1r_reference_url({'url': url})).hostname or ''
-        prefix = host.lower()[:-len(_FF1R_HOST)].rstrip('.')
+        host = urllib.parse.urlparse(ff1r_reference_url({'url': url})).hostname or ''
+        prefix = host.lower()[:-len(FF1R_HOST)].rstrip('.')
         return prefix.replace('-', '.') if prefix and prefix != 'www' else 'latest'
 
     @staticmethod
@@ -311,7 +307,8 @@ class SeedGenerationService(DK64RBackend):
         """
         return [
             r for r in cls.AVAILABLE_RANDOMIZERS
-            if not credentials_for(r) or r in configured
+            if (not credentials_for(r) or r in configured)
+            and (r != 'alttprdr' or door_rando_configured() or is_mock_seedgen())
         ]
 
     async def _credential(self, randomizer: str, key: str) -> str:
@@ -379,6 +376,7 @@ class SeedGenerationService(DK64RBackend):
         """
         generator_map = {
             'alttpr': self._generate_alttpr,
+            'alttprdr': self._generate_alttprdr,
             'avianart': self._generate_avianart,
             'ff1r': self._generate_ff1r,
             'z1r': self._generate_z1r,
@@ -402,7 +400,11 @@ class SeedGenerationService(DK64RBackend):
         # at its HTTP session: its roll is a minutes-long task queue, and a
         # permalink returned immediately never puts the presentation layer into
         # the waiting state that is the whole point of testing this backend.
-        if is_mock_seedgen() and randomizer not in self.MOCK_EXEMPT_RANDOMIZERS:
+        # The Door Randomizer sidecar is ours, so a dev box that runs one rolls for real.
+        mock_exempt = randomizer in self.MOCK_EXEMPT_RANDOMIZERS or (
+            randomizer == 'alttprdr' and door_rando_configured()
+        )
+        if is_mock_seedgen() and not mock_exempt:
             return ProviderCall(
                 value=RolledSeed(
                     url=self._mock_seed_url(randomizer), code=seed_codes.mock_code(randomizer),
@@ -479,7 +481,7 @@ class SeedGenerationService(DK64RBackend):
         try:
             if preset is None:
                 raise ValueError('Final Fantasy needs a preset with a flags link. Add one on the Presets tab.')
-            reference = _ff1r_reference_url(preset.settings)
+            reference = ff1r_reference_url(preset.settings)
         except ValueError as e:
             raise SeedProviderInvalidRequest(str(e), provider='ff1r', operation='generate_seed') from None
         seed = ('%008x' % random.randrange(16 ** 8)).upper()

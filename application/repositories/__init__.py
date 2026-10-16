@@ -35,6 +35,7 @@ from .community_event_repository import (
 from .discord_role_mapping_repository import DiscordRoleMappingRepository
 from .discord_scheduled_event_repository import DiscordScheduledEventRepository
 from .discord_tournament_grant_repository import DiscordTournamentGrantRepository
+from .door_seed_repository import DoorSeedRepository
 from .emergency_contact_repository import EmergencyContactRepository
 from .equipment_repository import EquipmentRepository
 from .feature_flag_group_repository import FeatureFlagGroupRepository
@@ -59,6 +60,7 @@ from .racetime_bot_repository import RacetimeBotRepository
 from .racetime_room_repository import RacetimeRoomRepository
 from .randomizer_credential_repository import RandomizerCredentialRepository
 from .reschedule_request_repository import RescheduleRequestRepository
+from .rom_patch_repository import RomPatchRepository
 from .room_token_repository import RoomTokenRepository
 from .speedgaming_episode_repository import SpeedGamingEpisodeRepository
 from .speedgaming_event_link_repository import SpeedGamingEventLinkRepository
@@ -113,6 +115,7 @@ __all__ = [
     'DiscordRoleMappingRepository',
     'DiscordScheduledEventRepository',
     'DiscordTournamentGrantRepository',
+    'DoorSeedRepository',
     'EmergencyContactRepository',
     'EquipmentRepository',
     'FeatureFlagGroupRepository',
@@ -137,6 +140,7 @@ __all__ = [
     'RacetimeRoomRepository',
     'RandomizerCredentialRepository',
     'RescheduleRequestRepository',
+    'RomPatchRepository',
     'RoomTokenRepository',
     'SpeedGamingEpisodeRepository',
     'SpeedGamingEventLinkRepository',

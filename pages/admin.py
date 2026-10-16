@@ -22,6 +22,7 @@ from pages.admin_tabs.admin_check_in import admin_check_in_page
 from pages.admin_tabs.admin_community_events import admin_community_events_page
 from pages.admin_tabs.admin_equipment import admin_equipment_page
 from pages.admin_tabs.admin_feedback import admin_feedback_page
+from pages.admin_tabs.admin_patches import admin_patches_page
 from pages.admin_tabs.admin_payouts import admin_payouts_page
 from pages.admin_tabs.admin_presets import admin_presets_page
 from pages.admin_tabs.admin_qualifiers import admin_qualifiers_page
@@ -164,6 +165,7 @@ def build_admin_tabs(
         tabs.append({'label': 'Check-in Roster', 'icon': 'fact_check', 'group': 'Operations', 'aliases': ('check-in',), 'content': admin_check_in_page})
     if is_staff or access.is_preset_manager:
         tabs.append({'label': 'Seed Presets', 'icon': 'tune', 'group': 'Online play', 'aliases': ('presets',), 'content': admin_presets_page})
+        tabs.append({'label': 'Patches', 'icon': 'difference', 'group': 'Online play', 'content': admin_patches_page})
     if (is_staff or access.is_qualifier_admin or is_qa_any) and FeatureFlag.ASYNC_QUALIFIERS in live:
         # The "runs are waiting" DM lands here with a qualifier and a tab, so a
         # reviewer arrives at the queue rather than at a list to go and search.

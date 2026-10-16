@@ -31,3 +31,5 @@ profile.html
 .vscode
 .idea
 .DS_Store
+.door-seeds/
+sidecars/

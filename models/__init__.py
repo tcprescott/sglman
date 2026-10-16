@@ -114,10 +114,12 @@ from .tenant import (
     WatchLayoutVote,
 )
 from .tournament import (
+    DoorSeed,
     GeneratedSeeds,
     Preset,
     ProviderTask,
     RandomizerCredential,
+    RomPatch,
     Tournament,
     TournamentNotificationPreference,
     TournamentPayout,
@@ -212,6 +214,7 @@ __all__ = [
     # discord events
     'DiscordScheduledEvent',
     'DiscordTournamentGrant',
+    'DoorSeed',
     'EmergencyContact',
     # equipment
     'Equipment',
@@ -262,6 +265,7 @@ __all__ = [
     'RescheduleRequestStatus',
     'Role',
     'RoleSource',
+    'RomPatch',
     'RoomToken',
     # speedgaming
     'SpeedGamingEpisode',

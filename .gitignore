@@ -187,3 +187,6 @@ profile.html
 # Vendored JS bundles: only package.json, the lockfile and dist/ are committed.
 node_modules/
 !theme/markdown_editor/dist/
+
+# Door Randomizer patches written in dev (DOOR_SEED_DIR default)
+.door-seeds/

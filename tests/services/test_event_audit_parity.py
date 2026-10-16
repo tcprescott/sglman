@@ -133,6 +133,12 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.PRESET_IMPORTED,
     # A diagnostic roll by staff, not a match seed: nothing a subscriber acts on.
     AuditActions.PRESET_TEST_ROLLED,
+    # Hosted ROM patches — tenant-internal files staff manage; a player only
+    # ever reaches one by its link.
+    AuditActions.ROM_PATCH_CREATED,
+    AuditActions.ROM_PATCH_UPDATED,
+    AuditActions.ROM_PATCH_REPLACED,
+    AuditActions.ROM_PATCH_DELETED,
     # Secrets — leaking these to arbitrary receivers is a risk.
     AuditActions.APITOKEN_CREATED,
     AuditActions.APITOKEN_REVOKED,
