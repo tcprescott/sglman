@@ -210,6 +210,7 @@ hold a writing grant in one client and a reading one in another.
 |---|---|---|
 | `list_tournaments`, `get_tournament` | ACTOR | — |
 | `list_tournament_signups` | ACTOR | — |
+| `list_tournament_players` | ACTOR (staff or the tournament's admins) | — |
 | `get_tournament_payouts` | ACTOR | `PAYOUTS` |
 | `list_stages`, `get_stage` | ACTOR | — |
 | `list_matches`, `get_match`, `get_schedule` | ACTOR | — |
@@ -220,8 +221,11 @@ hold a writing grant in one client and a reading one in another.
 `get_tournament_payouts` returns one tournament's prize split with each place's
 amount computed from the pool as it stands. `PayoutService` re-gates it on staff
 or that tournament's admin, so it is a read the connection's own authority has to
-earn. There is no write tool: the MCP write surface is opt-in at consent, and
-prize money is not where to extend it first.
+earn. `set_tournament_prize_pool` and `set_tournament_payout_split` are its writes
+(see [Writes](#writes)).
+
+`list_tournament_players` is the roster Manage players shows, for staff or that
+tournament's admins.
 
 `list_tournament_signups` reports the caller's own signup state per tournament,
 including `can_sign_up` / `can_withdraw`. Those two booleans are the service's
@@ -397,23 +401,36 @@ field, whatever its size.
 
 ## Writes
 
-Thirty-two tools, served only to a connection approved for writing: twenty-one in
+Sixty-seven tools, served only to a connection approved for writing: twenty-one in
 [`mcpserver/tools/match_writes.py`](../../mcpserver/tools/match_writes.py), nine in
-[`mcpserver/tools/event_writes.py`](../../mcpserver/tools/event_writes.py), plus
-`sign_up_for_tournament` and `withdraw_from_tournament`, which live beside the
+[`mcpserver/tools/event_writes.py`](../../mcpserver/tools/event_writes.py), thirteen in
+[`mcpserver/tools/tournament_writes.py`](../../mcpserver/tools/tournament_writes.py),
+twenty-two in [`mcpserver/tools/admin_writes.py`](../../mcpserver/tools/admin_writes.py),
+plus `sign_up_for_tournament` and `withdraw_from_tournament`, which live beside the
 other tournament tools in
 [`mcpserver/tools/tournaments.py`](../../mcpserver/tools/tournaments.py).
+The super-admin `platform_*` writes are separate (see
+[Platform](#platform-super-admin)).
 
 **Scope, and the rule that fixes it.** The write surface is exactly what these
-REST routes expose, tool for tool: `api/routers/match_actions.py`, the
-self-signup pair from `api/routers/tournament_actions.py`
-(`POST`/`DELETE /tournaments/{id}/signup`), `api/routers/check_in.py`,
-`api/routers/memberships.py`, and `POST /volunteers/assignments/{id}/check-in`.
+REST routes expose, tool for tool: `api/routers/match_actions.py`,
+`api/routers/tournament_actions.py`, `api/routers/check_in.py`,
+`api/routers/memberships.py`, `api/routers/stage_actions.py`, the
+position/shift/assignment writes and `POST /volunteers/assignments/{id}/check-in`
+in `api/routers/volunteers.py`, the role and membership writes in
+`api/routers/users.py`, the asset and lending writes in `api/routers/equipment.py`,
+`api/routers/payouts.py`, and `PATCH /discord-events/tournaments/{id}`.
 The event-day set was added for SG Live 2026, where the desk, coordinators and
-staff run the floor from their phones. That is worth stating
+staff run the floor from their phones; the admin set followed so staff can set
+up and adjust tournaments, the schedule and the floor from a connected client.
+That is worth stating
 because the alternative — adding whichever writes seem useful — leaves two
 surfaces that drift and no answer for the next proposal. A write that belongs
-here belongs in the REST router too, and the reverse.
+here belongs in the REST router too, and the reverse. A tool may be friendlier
+than its route where JSON-RPC needs it: `update_tournament` names fields to
+remove in `clear` (an MCP argument can't tell "omitted" from `null`), and
+`update_equipment` changes only what it is given where `PUT /equipment/{id}`
+replaces the whole asset.
 
 | Group | Tools |
 |---|---|
@@ -424,11 +441,19 @@ here belongs in the REST router too, and the reverse.
 | Check-in desk (`EVENT_CHECK_IN`) | `check_in_attendee`, `undo_attendee_check_in`, `link_attendee`, `unlink_attendee`, `add_walk_up`, `sync_check_in_event` |
 | Volunteers (`VOLUNTEERS`) | `check_in_volunteer` |
 | Membership | `approve_join_request`, `deny_join_request` |
+| Tournaments | `create_tournament`, `update_tournament`, `delete_tournament`, `add_tournament_admin`, `remove_tournament_admin`, `add_crew_coordinator`, `remove_crew_coordinator`, `enroll_tournament_player`, `remove_tournament_player`, `update_tournament_discord_events` |
+| Challonge (`CHALLONGE`) | `link_challonge_tournament`, `unlink_challonge_tournament`, `sync_challonge_tournament` |
+| Stages | `create_stage`, `update_stage`, `delete_stage` |
+| Volunteer schedule (`VOLUNTEERS`) | `create_volunteer_position`, `update_volunteer_position`, `delete_volunteer_position`, `create_volunteer_shift`, `update_volunteer_shift`, `delete_volunteer_shift`, `assign_volunteer`, `unassign_volunteer` |
+| Members and roles | `add_community_member`, `remove_community_member`, `grant_community_role`, `revoke_community_role` |
+| Equipment (`EQUIPMENT`) | `create_equipment`, `update_equipment`, `delete_equipment`, `check_out_equipment`, `check_in_equipment` |
+| Payouts (`PAYOUTS`) | `set_tournament_prize_pool`, `set_tournament_payout_split` |
 
 Every one is registered at **ACTOR**, mirroring `require_write_actor`: holding a
 live token approved for writing is the bar at this layer, and the real check is
 the service's own (`can_crud_match`, `can_run_match`, `can_confirm_match`,
-`can_assign_match_stream`). The service check is the one that knows about
+`can_assign_match_stream`, `can_edit_tournament`, `can_manage_volunteers`,
+`can_manage_equipment` and so on). The service check is the one that knows about
 tournament admins, so duplicating it here would only give the two surfaces a way
 to disagree. A writing grant is **not a promotion** — the token still acts as its
 user.
@@ -442,10 +467,13 @@ unwatch, tournament signup and withdrawal) out of reach, though the web and a PA
 gave them the same reads and actions. Members get exactly what a member's PAT
 gets; `STAFF`/`ADMIN` gates still apply on top.
 
-`delete_match`, `withdraw_crew_signup`, `withdraw_from_tournament`,
-`withdraw_stream_offer`, `undo_attendee_check_in` and `unlink_attendee` are
-additionally annotated `destructiveHint`, which is how a client decides how hard to ask before
-proceeding.
+Every write that removes something rather than adding or amending it (the
+`delete_*`, `remove_*`, `withdraw_*`, `unassign_volunteer`, `revoke_community_role`,
+`undo_attendee_check_in`, `unlink_attendee` and `unlink_challonge_tournament`) is
+additionally annotated `destructiveHint`, which is how a client decides how hard to
+ask before proceeding. `tests/mcp/test_mcp_catalogue.py` holds the exact list.
+`delete_tournament` also needs `confirmation="permanently delete"` and an inactive
+tournament, the same two gates as the dialog.
 
 ### Hiding writes from a read-only listing
 

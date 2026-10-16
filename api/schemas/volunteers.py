@@ -102,6 +102,29 @@ class VolunteerShiftResponse(BaseModel):
     filled: int = Field(..., description="How many assignments are listed in `assignments`. Drafts count only when you can see them.")
     assignments: List[VolunteerAssignmentResponse] = Field(default_factory=list, description="Volunteers on the shift. Drafts are included only for callers who manage volunteers.")
 
+    @classmethod
+    def from_row(cls, s, *, include_drafts: bool) -> 'VolunteerShiftResponse':
+        """A shift as the caller may see it. Shared by the REST router and the MCP shift tools.
+
+        Drafts are the coordinator's unannounced sketch: only someone who can
+        manage volunteers sees them, so a volunteer never learns of one sideways.
+        """
+        assignments = list(s.assignments) if hasattr(s, 'assignments') else []
+        if not include_drafts:
+            assignments = [a for a in assignments if not a.auto_generated]
+        return cls(
+            id=s.id,
+            position_id=s.position_id,
+            position_name=(s.position.name if s.position else None),
+            starts_at=s.starts_at,
+            ends_at=s.ends_at,
+            label=s.label,
+            slots_needed=s.slots_needed,
+            notes=s.notes,
+            filled=len(assignments),
+            assignments=[VolunteerAssignmentResponse.from_row(a) for a in assignments],
+        )
+
 
 class VolunteerShiftCreate(BaseModel):
     position_id: int = Field(..., description="The position to add the shift under.")
@@ -110,6 +133,15 @@ class VolunteerShiftCreate(BaseModel):
     label: Optional[str] = Field(None, description="Optional short name for the shift, such as \"Opening\".")
     slots_needed: int = Field(1, description="How many volunteers the shift needs. At least 1.")
     notes: Optional[str] = Field(None, description="Notes for the volunteers on this shift.")
+
+
+class VolunteerShiftUpdate(BaseModel):
+    position_id: Optional[int] = Field(None, description="Move the shift under another position. Omit to leave it unchanged.")
+    starts_at: Optional[datetime] = Field(None, description="New start (UTC). Moving a shift asks everyone on it to acknowledge again. Omit to leave it unchanged.")
+    ends_at: Optional[datetime] = Field(None, description="New end (UTC). Must stay after the start. Omit to leave it unchanged.")
+    label: Optional[str] = Field(None, description="Short name for the shift. An empty string clears it. Omit to leave it unchanged.")
+    slots_needed: Optional[int] = Field(None, description="How many volunteers the shift needs. At least 1. Omit to leave it unchanged.")
+    notes: Optional[str] = Field(None, description="Notes for the volunteers. An empty string clears them. Omit to leave them unchanged.")
 
 
 # --- Availability ---------------------------------------------------------

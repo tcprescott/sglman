@@ -142,3 +142,101 @@ class TestTournamentWrites:
             # ...but an unrelated user cannot.
             blocked = await outsider.patch(f'/api/tournaments/{t.id}', json={'name': 'Nope'})
             assert blocked.status_code == 403
+
+
+class TestTournamentConfigAndRoster:
+    async def test_update_sets_and_clears_configuration(self, db, app):
+        from models import Preset
+        _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
+        preset = await Preset.create(name='sgl2026', randomizer='ffr', settings={})
+        t = await Tournament.create(name='FFR')
+        async with client_for(app, raw) as c:
+            resp = await c.patch(f'/api/tournaments/{t.id}', json={
+                'preset_id': preset.id, 'is_test': True, 'stage_reminder_minutes': 10,
+                'allow_player_match_requests': False,
+            })
+            assert resp.status_code == 200, resp.text
+            body = resp.json()
+            assert body['preset_id'] == preset.id
+            assert body['seed_generator'] == 'ffr'
+            assert body['is_test'] is True
+            assert body['stage_reminder_minutes'] == 10
+            assert body['allow_player_match_requests'] is False
+
+            cleared = await c.patch(f'/api/tournaments/{t.id}', json={'preset_id': None})
+            assert cleared.status_code == 200
+            assert cleared.json()['preset_id'] is None
+            assert cleared.json()['is_test'] is True
+
+    async def test_staff_manage_the_roster(self, db, app):
+        from tests.api_helpers import create_community_member
+        _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
+        player = await create_community_member(username='runner', dm_notifications=False)
+        t = await Tournament.create(name='Cup')
+        async with client_for(app, raw) as c:
+            added = await c.post(f'/api/tournaments/{t.id}/players', json={'user_id': player.id})
+            assert added.status_code == 200, added.text
+            again = await c.post(f'/api/tournaments/{t.id}/players', json={'user_id': player.id})
+            assert again.status_code == 400
+            roster = await c.get(f'/api/tournaments/{t.id}/players')
+            assert [u['id'] for u in roster.json()] == [player.id]
+            removed = await c.delete(f'/api/tournaments/{t.id}/players/{player.id}')
+            assert removed.status_code == 204
+            assert (await c.get(f'/api/tournaments/{t.id}/players')).json() == []
+
+    async def test_a_player_cannot_manage_the_roster(self, db, app):
+        _, raw = await create_user_token(username='plain')
+        target = await User.create(discord_id=4242, username='target')
+        t = await Tournament.create(name='Cup')
+        async with client_for(app, raw) as c:
+            assert (await c.get(f'/api/tournaments/{t.id}/players')).status_code == 403
+            resp = await c.post(f'/api/tournaments/{t.id}/players', json={'user_id': target.id})
+            assert resp.status_code == 403
+
+    async def test_another_communitys_tournament_is_not_found(self, db, app):
+        from models import Tenant
+        other = await Tenant.create(slug='elsewhere', name='Elsewhere')
+        _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
+        theirs = await Tournament.create(name='Theirs', tenant_id=other.id)
+        async with client_for(app, raw) as c:
+            assert (await c.get(f'/api/tournaments/{theirs.id}/players')).status_code == 404
+            resp = await c.patch(f'/api/tournaments/{theirs.id}', json={'is_test': True})
+            assert resp.status_code == 404
+            resp = await c.put(f'/api/tournaments/{theirs.id}/challonge', json={'challonge': 'abc'})
+            assert resp.status_code == 404
+
+
+class TestMembershipAndShiftWrites:
+    async def test_staff_add_and_remove_a_member(self, db, app):
+        from models import TenantMembership
+        _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
+        person = await User.create(discord_id=7070, username='newcomer', dm_notifications=False)
+        async with client_for(app, raw) as c:
+            added = await c.post(f'/api/users/{person.id}/membership')
+            assert added.status_code == 200, added.text
+            assert await TenantMembership.filter(user=person, tenant_id=1).exists()
+            removed = await c.delete(f'/api/users/{person.id}/membership')
+            assert removed.status_code == 204
+        assert not await TenantMembership.filter(user=person, tenant_id=1).exists()
+
+    async def test_a_player_cannot_add_members(self, db, app):
+        _, raw = await create_user_token(username='plain')
+        person = await User.create(discord_id=7071, username='newcomer')
+        async with client_for(app, raw) as c:
+            assert (await c.post(f'/api/users/{person.id}/membership')).status_code == 403
+
+    async def test_coordinator_updates_a_shift(self, db, app):
+        from datetime import datetime, timedelta, timezone
+
+        from models import VolunteerPosition, VolunteerShift
+        _, raw = await create_user_token(username='coord', roles=[Role.VOLUNTEER_COORDINATOR])
+        position = await VolunteerPosition.create(name='Desk')
+        start = datetime.now(timezone.utc) + timedelta(days=1)
+        shift = await VolunteerShift.create(position=position, starts_at=start, ends_at=start + timedelta(hours=2))
+        async with client_for(app, raw) as c:
+            resp = await c.patch(f'/api/volunteers/shifts/{shift.id}', json={'slots_needed': 4, 'notes': 'Bring a jacket'})
+            assert resp.status_code == 200, resp.text
+            assert resp.json()['slots_needed'] == 4
+            assert resp.json()['notes'] == 'Bring a jacket'
+            bad = await c.patch(f'/api/volunteers/shifts/{shift.id}', json={'slots_needed': 0})
+            assert bad.status_code == 400
