@@ -4,15 +4,16 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+from api.schemas.snowflake import Snowflake
 from models import Role
 
 
 class UserCreateRequest(BaseModel):
     username: str = Field(..., description="The account's username. Can't be blank.")
-    discord_id: int = Field(
+    discord_id: Snowflake = Field(
         ...,
         description=(
-            "Discord user ID. Required, and must not already belong to another Wizzrobe account; "
+            "Discord user ID, as a string (a number is also accepted). Required, and must not already belong to another Wizzrobe account; "
             "the person signs in with it."
         ),
     )

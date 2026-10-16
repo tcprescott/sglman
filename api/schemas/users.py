@@ -5,6 +5,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from api.schemas.snowflake import Snowflake
+
 
 class UserListItem(BaseModel):
     """Lean user representation for list views."""
@@ -14,7 +16,7 @@ class UserListItem(BaseModel):
     id: int = Field(..., description="The user's ID. Accounts are shared across communities, so it is the same everywhere.")
     username: str = Field(..., description="The account's username.")
     display_name: Optional[str] = Field(None, description="The name the person chose to be shown by, if any.")
-    discord_id: Optional[int] = Field(None, description="The linked Discord user ID, or null for an account without one.")
+    discord_id: Optional[Snowflake] = Field(None, description="The linked Discord user ID as a string, or null for an account without one.")
     pronouns: Optional[str] = Field(None, description="The person's pronouns, if they gave any.")
     is_active: bool = Field(
         ..., description="False when the account is deactivated, which locks it out of every community.",

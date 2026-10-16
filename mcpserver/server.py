@@ -42,7 +42,10 @@ returned by `list_tenants`. A tool that reports `not_found` for a feature means 
 that community has not enabled it, not that you asked incorrectly.
 
 All times are returned in UTC. Each community chooses the timezone its \
-members read them in, so convert before quoting a time to a person.\
+members read them in, so convert before quoting a time to a person.
+
+Discord ids (`discord_id`) are returned as strings: they are too large for a \
+JSON number, so keep them as strings rather than converting.\
 """
 
 

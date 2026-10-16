@@ -5,6 +5,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from api.schemas.snowflake import Snowflake
 from models import Role, TournamentGrant
 
 _APP_ROLE = (
@@ -19,8 +20,8 @@ class DiscordRoleMappingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int = Field(..., description="ID of the mapping.")
-    guild_id: int = Field(..., description="ID of the Discord server the role belongs to.")
-    discord_role_id: int = Field(..., description="ID of the Discord role.")
+    guild_id: Snowflake = Field(..., description="ID of the Discord server the role belongs to, as a string.")
+    discord_role_id: Snowflake = Field(..., description="ID of the Discord role, as a string.")
     discord_role_name: str = Field(..., description="Name of the Discord role, as recorded when the mapping was made.")
     app_role: Optional[Role] = Field(None, description=f"{_APP_ROLE} Null when the mapping is a tournament grant.")
     tournament_grant: Optional[TournamentGrant] = Field(
@@ -39,8 +40,8 @@ class DiscordRoleMappingCreate(BaseModel):
     raises a 400 rather than duplicating the check here, so the REST and UI
     surfaces cannot drift."""
 
-    guild_id: int = Field(..., description="ID of the Discord server the role belongs to.")
-    discord_role_id: int = Field(..., description="ID of the Discord role.")
+    guild_id: Snowflake = Field(..., description="ID of the Discord server the role belongs to, as a string.")
+    discord_role_id: Snowflake = Field(..., description="ID of the Discord role, as a string.")
     discord_role_name: str = Field(..., description="Name of the Discord role, for display.")
     app_role: Optional[Role] = Field(
         None, description=f"{_APP_ROLE} Set this or `tournament_grant`, not both. `super_admin` is refused."

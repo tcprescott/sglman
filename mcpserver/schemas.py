@@ -21,6 +21,8 @@ from typing import Annotated, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from api.schemas.snowflake import Snowflake
+
 # Declared once and shared, so every community-scoped tool describes its tenant
 # argument identically. The description is the only place the model learns where
 # a slug comes from, so it earns its keep in the schema of all ~20 tools.
@@ -182,7 +184,7 @@ class UserSummary(BaseModel):
     id: int
     username: str
     display_name: Optional[str] = None
-    discord_id: Optional[int] = None
+    discord_id: Optional[Snowflake] = Field(None, description="Discord user ID, as a string.")
     is_active: bool = True
 
 

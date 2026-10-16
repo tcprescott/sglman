@@ -55,7 +55,7 @@ class TestReads:
             assert r.status_code == 200
             body = r.json()
             assert len(body) == 1
-            assert body[0]['discord_event_id'] == 555
+            assert body[0]['discord_event_id'] == '555'
             assert body[0]['source_type'] == 'match'
             assert body[0]['content_hash'] == 'abc123'
 
