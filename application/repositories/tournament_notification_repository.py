@@ -1,4 +1,4 @@
-from typing import List, Optional, Set
+from typing import List, Optional, Set, cast
 
 from application.repositories._tenant import current_tenant_id, scoped
 from models import MatchNotificationLevel, Tournament, TournamentNotificationPreference, User
@@ -40,9 +40,9 @@ class TournamentNotificationRepository:
 
     async def staff_alert_opt_out_user_ids(self, tournament_id: int) -> Set[int]:
         """Users who switched off match alerts for this tournament."""
-        return set(await scoped(TournamentNotificationPreference.filter(
+        return set(cast(List[int], await scoped(TournamentNotificationPreference.filter(
             tournament_id=tournament_id, staff_alerts=False,
-        )).values_list('user_id', flat=True))
+        )).values_list('user_id', flat=True)))
 
     async def get_match_notification_subscribers(self, tournament_id: int, has_stage: bool) -> List[User]:
         """

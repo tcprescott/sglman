@@ -21,9 +21,9 @@ from pages.home_tabs.api_tokens_section import render_api_tokens_section
 from pages.home_tabs.challonge_link_section import CONFIG as CHALLONGE_CONFIG
 from pages.home_tabs.emergency_contact_section import render_emergency_contact_section
 from pages.home_tabs.my_feedback_section import render_my_feedback_section
-from pages.home_tabs.staff_alerts_section import render_staff_alerts_section
 from pages.home_tabs.notification_channels_section import ChannelRows, render_test_button
 from pages.home_tabs.racetime_link_section import CONFIG as RACETIME_CONFIG
+from pages.home_tabs.staff_alerts_section import render_staff_alerts_section
 from pages.home_tabs.startgg_link_section import CONFIG as STARTGG_CONFIG
 from pages.home_tabs.twitch_link_section import CONFIG as TWITCH_CONFIG
 from pages.home_tabs.web_push_section import render_device_rows

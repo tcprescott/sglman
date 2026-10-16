@@ -97,7 +97,7 @@ class StaffAlertService:
         assignments = await VolunteerAssignmentRepository.alert_shifts_for_user(user.id, now)
         if not assignments:
             return None
-        shifts = [a.shift for a in assignments]  # type: ignore[attr-defined]
+        shifts = [a.shift for a in assignments]
         on_now = any(s.starts_at <= now for s in shifts)
         upcoming = [s.starts_at for s in shifts if s.starts_at > now]
         return DutySummary(

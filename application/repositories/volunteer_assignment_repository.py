@@ -138,7 +138,7 @@ class VolunteerAssignmentRepository:
         )).prefetch_related('user')
         users: dict = {}
         for a in assignments:
-            users.setdefault(a.user_id, a.user)  # type: ignore[attr-defined]
+            users.setdefault(a.user_id, a.user)
         return list(users.values())
 
     @staticmethod
