@@ -11,6 +11,7 @@ Tournaments for randomized games need a freshly rolled game ("seed") for every m
 | [`application/services/seedgen_service.py`](../../application/services/seedgen_service.py) | `SeedGenerationService`: `AVAILABLE_RANDOMIZERS`, `generate_seed()` dispatch, per-randomizer generators |
 | [`application/services/match/match_schedule_service.py`](../../application/services/match/match_schedule_service.py) | `MatchScheduleService.generate_seed()` — the production entry point: locking, validation, persistence, DMs, audit |
 | [`application/services/preset_service.py`](../../application/services/preset_service.py) | `PresetService`: CRUD (gated by `AuthService.can_manage_presets`), `import_builtins` from the `presets/` files, and `import_remote_presets` from a randomizer's own API |
+| [`application/services/_seedgen_alttprdr.py`](../../application/services/_seedgen_alttprdr.py) | `DoorRandoBackend`: rolls through the Door Randomizer sidecar and hosts the patch ([alttprdr](#alttprdr)) |
 | [`application/services/_seedgen_dk64r.py`](../../application/services/_seedgen_dk64r.py) | `DK64RBackend`: every DK64R call — settings conversion, submit/poll, and the published preset catalogue |
 | [`application/services/_seedgen_types.py`](../../application/services/_seedgen_types.py) | `RolledSeed`, `RemotePreset`, `AsyncRollSubmission`, `AsyncRollPoll` |
 | [`presets/`](../../presets) | Built-in settings files (`alttpr/`, `dk64r/`, `ootr/`, `smdash/`, `smmap/`) — starting rows imported into the `Preset` table |
@@ -62,14 +63,14 @@ The seed is displayed on the home Schedule and Player tabs and in the admin matc
 `SeedGenerationService` ([`seedgen_service.py`](../../application/services/seedgen_service.py)) is stateless — instantiate it freely; `MatchScheduleService` creates one in its constructor. See [services.md](services.md) for the surrounding service layer.
 
 ```python
-AVAILABLE_RANDOMIZERS = ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'smdash', 'dk64r', 'wwr', 'test']
+AVAILABLE_RANDOMIZERS = ['alttpr', 'alttprdr', 'ff1r', 'z1r', 'smmap', 'ootr', 'smdash', 'dk64r', 'wwr', 'test']
 STUB_RANDOMIZERS = set()                                # registered but not wired (none today)
-PRESET_AWARE_RANDOMIZERS = {'alttpr', 'dk64r', 'ff1r', 'smdash', 'wwr', 'z1r'}  # use preset.settings when given
+PRESET_AWARE_RANDOMIZERS = {'alttpr', 'alttprdr', 'dk64r', 'ff1r', 'smdash', 'wwr', 'z1r'}  # use preset.settings when given
 MOCK_EXEMPT_RANDOMIZERS = {'dk64r', 'wwr', 'z1r'}       # MOCK_SEEDGEN leaves these alone
 ASYNC_RANDOMIZERS = {'dk64r'}                           # task-queue backends (submit now, collect later)
 TRIFORCE_TEXT_RANDOMIZERS = {'alttpr'}                  # can embed community triforce texts
 REMOTE_PRESET_BRANCHES = {'dk64r': ('stable', 'dev')}   # upstream preset catalogues
-PROVIDER_TIMEOUTS = {'dk64r': 660.0}; PROVIDER_ATTEMPTS = {'dk64r': 1}
+PROVIDER_TIMEOUTS = {'alttprdr': 380.0, 'dk64r': 660.0}; PROVIDER_ATTEMPTS = {'alttprdr': 2, 'dk64r': 1, 'smdash': 1}
 ```
 
 `AVAILABLE_RANDOMIZERS` is the full validity set — it drives `MatchScheduleService`'s validity check and stays whole regardless of what any tenant has configured. What a tenant may *select* is the narrower `SeedGenerationService.available_randomizers(configured)`, which drops randomizers whose credential this community has not supplied; the tournament dialog, the Presets tab, and the REST `/seeds/randomizers` catalogue all render that filtered list. See [Per-tenant credentials](#per-tenant-credentials).
@@ -228,6 +229,26 @@ The split in `SeedGenerationService` is `submit_async_roll` → `AsyncRollSubmis
 DK64R is the one randomizer that does **not** take the `MOCK_SEEDGEN` short-circuit. An instantly-returned permalink would skip the very thing that makes this backend different: upstream takes two to three minutes, and the Generate button holds a spinner for all of it. So `MOCK_SEEDGEN` instead swaps the `aiohttp` session for `MockDK64Session` ([`mock_dk64.py`](../../application/utils/mocks/mock_dk64.py)), an in-process stand-in for the queue. `_generate_dk64r` is unchanged under it — it really converts, submits, and polls on the 5 s cadence while a fake task walks `queued` → `started` → `finished` over `MOCK_DK64_SECONDS` (default 20; the suite pins it to 0). No credential is needed while mocked.
 
 `MOCK_DK64_OUTCOME` picks the ending (`finished`, `failed`, `http_error`, `stuck`) and `MOCK_DK64_BROKEN_STAGE` fails `convert` or `submit` instead, so every error branch above is reachable without a live key. `mock_dk64_presets(branch)` returns a `get_presets`-shaped list for surfaces that read the upstream preset catalogue.
+
+### alttprdr
+
+Aerinon's [ALttP Door Randomizer](https://github.com/aerinon/ALttPDoorRandomizer) has no public API, so it runs in a container of its own, [`sidecars/door_rando`](../../sidecars/door_rando) (a pinned upstream commit behind a small aiohttp server, `door-rando` in `docker-compose.yml`). Wizzrobe reaches it at `DOOR_RANDO_URL` with `DOOR_RANDO_TOKEN` as a bearer token; without `DOOR_RANDO_URL` the randomizer isn't offered (`available_randomizers`), except under `MOCK_SEEDGEN`.
+
+**No ROM is involved anywhere on the server.** The sidecar runs the randomizer with `--jsonout`, which emits the seed as byte writes on top of the randomizer's own base patch (`data/base2current.bps`). The player's browser applies both to their own Japanese 1.0 ROM on the patcher page.
+
+The sidecar's API:
+
+| Call | Does |
+|---|---|
+| `GET /health` | `{status, version, commit}` (no token needed) |
+| `GET /base-patch` | the build's base BPS, with `X-Door-Rando-Version` |
+| `POST /generate` `{"settings": {...}}` | `{version, commit, seed, patch, spoiler, attempts}`. Settings are the randomizer's own settings-file keys; unknown keys, path-like keys (`rom`, `outputpath`, `customizer`, …) and values outside the randomizer's `choices` are a 400 naming the problem. A layout that fails to generate is retried inside the sidecar (`DOOR_RANDO_ATTEMPTS`, default 6, each capped at `DOOR_RANDO_ATTEMPT_TIMEOUT`, default 60 s) and is a 422 after the last. More than `DOOR_RANDO_MAX_QUEUED` waiting rolls is a 503. `DOOR_RANDO_CONCURRENCY` (default 2) rolls run at once. |
+
+A preset's settings are `{"settings": {<randomizer settings>}, "spoiler": "public" | "staff" | "none"}` (`spoiler` defaults to `staff`), checked on save by `normalize_preset_settings`. Built-ins: [`presets/alttprdr/`](../../presets/alttprdr). There's no fallback: rolling without a preset is a `ValueError`.
+
+`_generate_alttprdr` posts the settings, fetches and stores the base patch the first time a version is seen, then stores the seed under a fresh `secrets.token_urlsafe(16)` token through `DoorSeedStore` ([`application/utils/door_seed_store.py`](../../application/utils/door_seed_store.py), a directory at `DOOR_SEED_DIR`, a volume in compose) and records a `DoorSeed` row (version, code, spoiler access). The permalink is the tenant-qualified patcher page, `/door/<token>`. The code is read from the patch exactly as ALTTPR's is (`alttpr_code`, 0x180215).
+
+The patch files are served by plain FastAPI routes in `frontend.py`: `/door-seeds/<token>/patch.json` and `/door-seeds/base/<version>.bps` (immutable, year-long cache) and `/door-seeds/<token>/spoiler.json` for a **public** spoiler only. A staff-only spoiler is downloaded from the patcher page after `DoorSeedService.spoiler_for` checks the viewer is this community's staff. `PROVIDER_ATTEMPTS['alttprdr']` is 2: the sidecar already retries layouts, so the second attempt only covers it being busy or briefly unreachable.
 
 ### wwr
 

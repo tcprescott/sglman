@@ -289,6 +289,30 @@ class GeneratedSeeds(Model):
     updated_at = fields.DatetimeField(auto_now=True)
 
 
+class DoorSeed(Model):
+    """One Door Randomizer seed, whose patch Wizzrobe hosts for the built-in patcher.
+
+    The randomizer runs in its own container with no ROM. It hands back byte
+    writes on top of its base patch, which live on disk under ``token`` (see
+    ``DoorSeedStore``); this row is what the patcher page and the spoiler gate
+    need to know about them. ``token`` is the unguessable name in the seed's
+    link, so a seed is reachable only by someone it was shared with.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='door_seeds', on_delete=fields.CASCADE)
+    token = fields.CharField(max_length=32, unique=True)
+    # The randomizer build that rolled it; its base patch must be the same build's.
+    version = fields.CharField(max_length=40)
+    seed_code = fields.JSONField(null=True)  # type: ignore[var-annotated]
+    # 'public' (anyone with the link), 'staff' (this community's staff) or 'none'.
+    spoiler_access = fields.CharField(max_length=10, default='staff')
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = 'doorseed'
+
+
 class ProviderTask(Model):
     """One long-running call to an upstream provider, tracked across restarts.
 

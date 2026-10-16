@@ -41,6 +41,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | Service | Module | Responsibility | Feature doc |
 |---|---|---|---|
 | `AccommodationService` | [accommodation_service.py](../../application/services/accommodation_service.py) | ADA accommodation requests: member self-service, STAFF queue | [ada-accommodations.md](../features/ada-accommodations.md) |
+| `DoorSeedService` | [door_seed_service.py](../../application/services/door_seed_service.py) | Hosted Door Randomizer seeds: the patcher page's lookup, patch files, and the spoiler gate | — |
 | `EmergencyContactService` | [emergency_contact_service.py](../../application/services/emergency_contact_service.py) | Members' emergency contacts: self-service, STAFF open-one-at-a-time with an audit row per look | — |
 | `CommunityEventService` | [community_event_service.py](../../application/services/community_event_service.py) | Member-submitted community events: submit, staff review, edits, cancellation, subscriptions | [community-events.md](../features/community-events.md) |
 | `AnalyticsService` | [analytics_service.py](../../application/services/analytics_service.py) | Longitudinal trends: crew participation, volunteer hours, tournament health | — |
@@ -631,6 +632,20 @@ Per-community ADA accommodation requests. Every public method is gated by `Featu
 | `update_request(actor, request_id, status, staff_notes)` | `AccommodationRequest` | STAFF. Sets status (not to/from `WITHDRAWN`) and notes in one save; `NotFoundError` for an unknown or other-tenant id. Saving a `changed_since_arranged` request clears the flag even with nothing else edited. Audits `accommodation.status_changed`, `.notes_updated` and/or `.change_reviewed`. |
 
 Collaborators: `AccommodationRepository`, `AuthService`, `AuditService`, `TenantMembershipService`.
+
+### door_seed_service.py — DoorSeedService
+
+Reads the Door Randomizer seeds `SeedGenerationService` hosts ([seed-generation.md](seed-generation.md#alttprdr)). No writes, so no audit.
+
+| Method | Returns | Description |
+|---|---|---|
+| `get_seed(token)` | `DoorSeed` | This community's seed, or `NotFoundError`. |
+| `can_read_spoiler(seed, user)` | `bool` | `public`: anyone. `staff`: `AuthService.is_staff`. `none`: nobody. |
+| `spoiler_for(seed, user)` | `bytes` | The spoiler JSON, or `NotFoundError` when the viewer may not read it. |
+| `public_spoiler(token)` | `bytes \| None` | Cross-tenant by token, for the signed-out download route; only a `public` spoiler. |
+| `patch(token)` / `base_patch(version)` | `bytes \| None` | The stored files; a malformed name is `None`, never a path. |
+
+Collaborators: `DoorSeedRepository`, `DoorSeedStore`, `AuthService`.
 
 ### emergency_contact_service.py — EmergencyContactService
 

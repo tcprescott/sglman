@@ -2,7 +2,7 @@
 Seed Generation Service - Business Logic Layer
 
 Handles random seed generation for various randomizers.
-Supports: ALTTPR, FF1R, Z1R, SMMAP, OOTR, DK64R, DASH, WWR, and Test.
+Supports: ALTTPR, ALTTPR Door Randomizer, FF1R, Z1R, SMMAP, OOTR, DK64R, DASH, WWR, and Test.
 """
 
 import asyncio
@@ -23,6 +23,12 @@ import application.services._seedgen_codes as seed_codes
 import application.services._seedgen_wwr as wwr_permalinks
 from application.errors import MissingCredentialError
 from application.randomizer_credentials import credentials_for, spec_for
+from application.services._seedgen_alttprdr import (
+    DOOR_RANDO_TIMEOUT,
+    DoorRandoBackend,
+    door_preset_settings,
+    door_rando_configured,
+)
 from application.services._seedgen_dk64r import (
     DK64R_GENERATION_TIMEOUT,
     DK64R_SITE_HOSTS,
@@ -107,12 +113,13 @@ def _z1r_flags(settings: Optional[dict]) -> str:
 _DASH_BASE_URL = 'https://www.dashrando.net'
 
 
-class SeedGenerationService(DK64RBackend):
+class SeedGenerationService(DK64RBackend, DoorRandoBackend):
     """Service for generating seeds for various randomizers."""
 
     # Available randomizers
     AVAILABLE_RANDOMIZERS: ClassVar[List[str]] = [
         'alttpr',
+        'alttprdr',
         'ff1r',
         'z1r',
         'smmap',
@@ -126,6 +133,7 @@ class SeedGenerationService(DK64RBackend):
     # What a person calls each one; the slug above is what the data stores.
     RANDOMIZER_NAMES: ClassVar[Dict[str, str]] = {
         'alttpr': 'A Link to the Past',
+        'alttprdr': 'ALttP Door Randomizer',
         'ff1r': 'Final Fantasy',
         'z1r': 'Zelda 1',
         'smmap': 'Super Metroid Map Rando',
@@ -142,7 +150,7 @@ class SeedGenerationService(DK64RBackend):
 
     # Randomizers whose generator resolves a ``Preset`` (its settings feed the
     # roll). Anything else ignores the preset and rolls hard-coded settings.
-    PRESET_AWARE_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr', 'dk64r', 'ff1r', 'smdash', 'wwr', 'z1r'}
+    PRESET_AWARE_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr', 'alttprdr', 'dk64r', 'ff1r', 'smdash', 'wwr', 'z1r'}
 
     # Rolls that ``MOCK_SEEDGEN`` leaves alone. DK64R mocks one layer down (see
     # ``generate_seed_call``); WWR and Z1R are built locally with no upstream to
@@ -178,9 +186,13 @@ class SeedGenerationService(DK64RBackend):
     # task, so it gets exactly one attempt. Retrying the individual requests
     # inside it is safe and is handled within the generator.
     PROVIDER_TIMEOUTS: ClassVar[dict] = {
+        'alttprdr': DOOR_RANDO_TIMEOUT,
         'dk64r': DK64R_GENERATION_TIMEOUT + 60.0,
     }
     PROVIDER_ATTEMPTS: ClassVar[dict] = {
+        # The sidecar already retries a layout that fails to generate; a second
+        # attempt here only covers it being busy or briefly unreachable.
+        'alttprdr': 2,
         'dk64r': 1,
         # DASH saves the seed upstream before answering, so a retry after a
         # timeout mints a second seed and orphans the first.
@@ -199,6 +211,9 @@ class SeedGenerationService(DK64RBackend):
         """
         if randomizer == 'ff1r':
             return {'url': _ff1r_reference_url(settings)}
+        if randomizer == 'alttprdr':
+            inner, spoiler = door_preset_settings(settings)
+            return {'settings': inner, 'spoiler': spoiler}
         if randomizer == 'z1r':
             return {'flags': _z1r_flags(settings)}
         if randomizer != 'wwr':
@@ -283,7 +298,8 @@ class SeedGenerationService(DK64RBackend):
         """
         return [
             r for r in cls.AVAILABLE_RANDOMIZERS
-            if not credentials_for(r) or r in configured
+            if (not credentials_for(r) or r in configured)
+            and (r != 'alttprdr' or door_rando_configured() or is_mock_seedgen())
         ]
 
     async def _credential(self, randomizer: str, key: str) -> str:
@@ -351,6 +367,7 @@ class SeedGenerationService(DK64RBackend):
         """
         generator_map = {
             'alttpr': self._generate_alttpr,
+            'alttprdr': self._generate_alttprdr,
             'ff1r': self._generate_ff1r,
             'z1r': self._generate_z1r,
             'smmap': self._generate_smmap,
@@ -368,7 +385,11 @@ class SeedGenerationService(DK64RBackend):
         # at its HTTP session: its roll is a minutes-long task queue, and a
         # permalink returned immediately never puts the presentation layer into
         # the waiting state that is the whole point of testing this backend.
-        if is_mock_seedgen() and randomizer not in self.MOCK_EXEMPT_RANDOMIZERS:
+        # The Door Randomizer sidecar is ours, so a dev box that runs one rolls for real.
+        mock_exempt = randomizer in self.MOCK_EXEMPT_RANDOMIZERS or (
+            randomizer == 'alttprdr' and door_rando_configured()
+        )
+        if is_mock_seedgen() and not mock_exempt:
             return ProviderCall(
                 value=RolledSeed(
                     url=self._mock_seed_url(randomizer), code=seed_codes.mock_code(randomizer),

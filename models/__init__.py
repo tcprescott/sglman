@@ -114,6 +114,7 @@ from .tenant import (
     WatchLayoutVote,
 )
 from .tournament import (
+    DoorSeed,
     GeneratedSeeds,
     Preset,
     ProviderTask,
@@ -226,6 +227,7 @@ __all__ = [
     # column guards
     'FieldValueError',
     # tournament
+    'DoorSeed',
     'GeneratedSeeds',
     'JoinRequestStatus',
     'LogLevelOverride',

@@ -28,14 +28,17 @@ What they cover:
 - **Async qualifiers** (PR 9/10) live in ``seed_qualifiers.py``, called from here
   so they stay part of the same online fixture set.
 """
+import json
 from datetime import datetime, timedelta, timezone
 
 from application.randomizer_credentials import all_specs, credentials_for
 from application.services.preset_service import PresetService
+from application.utils.door_seed_store import DoorSeedStore
 from application.utils.timezone import now_local
 from models import (
     BotStatus,
     DiscordEventSource,
+    DoorSeed,
     DiscordScheduledEvent,
     Match,
     MatchHardPresetOptIn,
@@ -246,8 +249,28 @@ async def seed_online_for_tenant(
     await _seed_speedgaming(tenant, tournament, scheduled)
     await _seed_discord_events(tenant, tournament, scheduled)
     await seed_qualifiers_for_tenant(tenant, preset)
+    await _seed_door_seed(tenant)
     print(f"    [{tenant.slug}] online tournament ok")
     return tournament
+
+
+async def _seed_door_seed(tenant: Tenant) -> DoorSeed:
+    """One hosted Door Randomizer seed, so ``/door/<token>`` opens in dev.
+
+    The patch is a stand-in carrying a believable file-select code, not a
+    playable seed: dev has no sidecar, and no base patch, unless one is run.
+    """
+    token = f"dev-door-{tenant.slug}"
+    code = ["Bow", "Hookshot", "Bombs", "Mushroom", "Lamp"]
+    seed, _ = await DoorSeed.get_or_create(
+        token=token,
+        defaults={"tenant": tenant, "version": "dev", "seed_code": code, "spoiler_access": "staff"},
+    )
+    store = DoorSeedStore()
+    if await store.get_patch(token) is None:
+        await store.put_patch(token, json.dumps({"version": "dev", "patch": {str(0x180215): [0, 2, 3, 4, 11]}}).encode())
+        await store.put_spoiler(token, json.dumps({"meta": {"seed": 1, "version": "dev"}}).encode())
+    return seed
 
 
 async def _seed_presets(tenant: Tenant, staff: User) -> Preset:

@@ -224,6 +224,43 @@ def _register_root_routes(fastapi_app: FastAPI) -> None:
     async def _brand_logo_svg(tenant_id: int, sha256: str, request: Request) -> Response:
         return await _brand_logo_response(tenant_id, sha256, 'svg', request)
 
+    # Door Randomizer patches for the patcher page (DoorSeedService). The token
+    # in the path is the unguessable name the seed's link carries, and neither
+    # file ever changes once written, so both cache for a year. No ROM is ever
+    # here: these are byte writes the player's browser applies to their own.
+    _immutable = {'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff'}
+    _missing = {'Cache-Control': 'no-store'}
+
+    @fastapi_app.get('/door-seeds/{token}/patch.json', include_in_schema=False)
+    async def _door_seed_patch(token: str) -> Response:
+        from application.services import DoorSeedService
+
+        content = await DoorSeedService().patch(token)
+        if content is None:
+            return Response(status_code=404, headers=_missing)
+        return Response(content, media_type='application/json', headers=_immutable)
+
+    @fastapi_app.get('/door-seeds/base/{version}.bps', include_in_schema=False)
+    async def _door_seed_base(version: str) -> Response:
+        from application.services import DoorSeedService
+
+        content = await DoorSeedService().base_patch(version)
+        if content is None:
+            return Response(status_code=404, headers=_missing)
+        return Response(content, media_type='application/octet-stream', headers=_immutable)
+
+    @fastapi_app.get('/door-seeds/{token}/spoiler.json', include_in_schema=False)
+    async def _door_seed_spoiler(token: str) -> Response:
+        from application.services import DoorSeedService
+
+        content = await DoorSeedService().public_spoiler(token)
+        if content is None:
+            return Response(status_code=404, headers=_missing)
+        return Response(content, media_type='application/json', headers={
+            'Cache-Control': 'private, max-age=300', 'X-Content-Type-Options': 'nosniff',
+            'Content-Disposition': f'attachment; filename="DR_{token}_spoiler.json"',
+        })
+
 
 def init(fastapi_app: FastAPI) -> None:
     """

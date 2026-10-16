@@ -60,6 +60,7 @@ from .discord import (
     discord_event_worker,
     discord_queue,
 )
+from .door_seed_service import DoorSeedService
 from .emergency_contact_service import EmergencyContactService
 from .equipment_service import EquipmentService
 from .event_info_service import EventInfoService
@@ -168,6 +169,7 @@ __all__ = [
     'DiscordRoleMappingService',
     'DiscordService',
     'DraftPolicy',
+    'DoorSeedService',
     'EmergencyContactService',
     'EquipmentService',
     'EventDraft',

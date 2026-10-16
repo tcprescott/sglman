@@ -1059,6 +1059,19 @@ Carries the seed's **provenance**: a `Preset` is an editable row, so without a s
 | `provider_meta` | `JSONField` | null | `{provider, operation, attempts, latency_ms, surface}` from the seed-provider envelope |
 | `seed_code` | `JSONField` | null | The file-select code players compare before a race, as a list of names (`["Bow", "Hookshot", …]`); null when the randomizer returns none. See [seed codes](seed-generation.md#seed-codes) |
 
+#### `DoorSeed`
+
+One Door Randomizer seed whose patch Wizzrobe hosts for its built-in patcher (see [seed-generation.md](seed-generation.md#alttprdr)). Created by `DoorRandoBackend._generate_alttprdr` through `DoorSeedRepository`; read by `DoorSeedService`. The patch and spoiler themselves are files under `DOOR_SEED_DIR` (`DoorSeedStore`), named by `token`. Tenant-scoped.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='door_seeds'` |
+| `token` | `CharField(32)` | unique | The unguessable name in the seed's link (`/door/<token>`) and its files |
+| `version` | `CharField(40)` | not null | Randomizer build that rolled it; its base patch is `base/<version>.bps` |
+| `seed_code` | `JSONField` | null | The five file-select items |
+| `spoiler_access` | `CharField(10)` | `'staff'` | `public`, `staff` (this community's staff) or `none` (never kept) |
+| `created_at` | `DatetimeField` | auto | |
+
 #### `ProviderTask`
 
 One long-running call to an upstream provider, tracked across restarts. Created by `ProviderTaskService`; polled to completion by the `seed_roll_worker`. See [seed-generation.md](seed-generation.md#asynchronous-rolls).

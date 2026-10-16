@@ -24,7 +24,8 @@ ENV GIT_SHA=${GIT_SHA}
 # Run as an unprivileged user rather than root
 RUN useradd --create-home --uid 10001 appuser \
     && chmod +x start.sh \
-    && chown -R appuser:appuser /app
+    && mkdir -p /data/door-seeds \
+    && chown -R appuser:appuser /app /data/door-seeds
 USER appuser
 
 # Expose port (default: 8000)
