@@ -42,6 +42,11 @@ def emit(snapshot: Dict[str, Any]) -> None:
     g('clients.connected', clients.get('connected'))
     g('http.in_flight', snapshot.get('http_in_flight'))
 
+    online = snapshot.get('online_users') or {}
+    g('users.online', online.get('total'))
+    for slug, n in (online.get('by_community') or {}).items():
+        g('users.online_by_community', n, attributes={'community': slug})
+
     pool = snapshot.get('db_pool') or {}
     size, idle = pool.get('size'), pool.get('idle')
     g('db_pool.size', size)

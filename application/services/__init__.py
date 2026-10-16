@@ -8,6 +8,7 @@ between repositories. They should NOT know about UI components.
 from application.errors import NotFoundError, require_found
 
 from . import (
+    active_users_metrics,
     availability_windows,
     bracket_sources,
     check_in_accounts,
@@ -260,6 +261,7 @@ __all__ = [
     'WatchLayoutService',
     'WebPushService',
     'WebhookService',
+    'active_users_metrics',
     'assert_sg_fields_unchanged',
     'async_qualifier_access',
     'async_qualifier_scoring',

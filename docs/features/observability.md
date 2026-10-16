@@ -136,7 +136,7 @@ WARNING.
 
 The super-admin MCP tool `runtime_stats` reads the process without shell access:
 uptime and release, RSS, asyncio task count, NiceGUI clients (held and with a
-live socket), the DB pool, the watchdog's last minute (lag p50/p95/max, process
+live socket), distinct signed-in people online (per community too), the DB pool, the watchdog's last minute (lag p50/p95/max, process
 CPU where 100 is one core, the last 20 stalls with their culprit), every worker's
 tick count, failures and last/max tick time, in-flight HTTP requests, the depth
 of each coroutine queue (Discord DMs, event dispatch), and each community's
@@ -157,6 +157,8 @@ after a slow afternoon. Production only in practice (they need `SENTRY_DSN`);
 | `loop.stalls` | counter | | new stalls since the last sample |
 | `clients.open`, `clients.connected` | gauge | | NiceGUI tabs held / with a live socket |
 | `http.in_flight` | gauge | | requests open at sample time |
+| `users.online` / `users.online_by_community` | gauge | `community` (slug) on the second | distinct signed-in people with a live tab; a tab belongs to the `/t/<slug>` it's on |
+| `users.active_15m` / `_1h` / `_24h`, and each `…_by_community` | gauge | `community` (slug) on the per-community ones | `active_users_metrics` worker every 5 min: distinct users with any telemetry row in the window (from the DB, so restarts don't reset it; off when telemetry is) |
 | `db_pool.size`, `db_pool.in_use`, `db_pool.max` | gauge | | Tortoise pool |
 | `queue.depth` | gauge | `queue` | each `CoroutineQueue` |
 | `watch.live_viewers`, `watch.static_readers`, `watch.arrivals_per_minute` | gauge | `tenant_id` | Watch page audience |
