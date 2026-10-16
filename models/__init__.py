@@ -213,6 +213,7 @@ __all__ = [
     # discord events
     'DiscordScheduledEvent',
     'DiscordTournamentGrant',
+    'DoorSeed',
     'EmergencyContact',
     # equipment
     'Equipment',
@@ -227,7 +228,6 @@ __all__ = [
     # column guards
     'FieldValueError',
     # tournament
-    'DoorSeed',
     'GeneratedSeeds',
     'JoinRequestStatus',
     'LogLevelOverride',
