@@ -272,6 +272,12 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.WEB_PUSH_SUBSCRIBED,
     AuditActions.WEB_PUSH_UNSUBSCRIBED,
     AuditActions.WEB_PUSH_ROTATED,
+    # A person's own email / Telegram notification channel: personal contact
+    # data, never something a community webhook should carry.
+    AuditActions.NOTIFICATION_EMAIL_CONFIRMED,
+    AuditActions.NOTIFICATION_EMAIL_REMOVED,
+    AuditActions.NOTIFICATION_TELEGRAM_LINKED,
+    AuditActions.NOTIFICATION_TELEGRAM_UNLINKED,
     # Tenant ↔ Discord-server connection: admin infrastructure configuration,
     # not a tournament domain event a webhook subscriber would act on.
     AuditActions.DISCORD_SERVER_LINKED,

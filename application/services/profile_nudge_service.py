@@ -52,6 +52,7 @@ class ProfileSection(str, Enum):
     PERSONAL = 'personal'
     CONNECTED_ACCOUNTS = 'connected-accounts'
     MATCHERINO = 'matcherino'
+    NOTIFICATIONS = 'notifications'
 
 
 @dataclass(frozen=True)

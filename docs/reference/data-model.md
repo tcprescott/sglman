@@ -31,7 +31,7 @@ community owns or produces is tenant-scoped.**
 
 | Class | Models | Notes |
 |---|---|---|
-| **Global** — no `tenant` FK | `User`, `WebPushSubscription`, `UserTablePreference`, `Tenant`, `FeatureFlagGroup`, `RacetimeBot`, `McpOAuthClient`, `McpAuthorizationCode` | `User.discord_id` / `challonge_user_id` / `twitch_user_id` / `racetime_user_id` / `matcherino_user_id` uniques stay global — identity links are to the person. `RacetimeBot.category` is globally unique. An OAuth grant authenticates a user platform-wide |
+| **Global** — no `tenant` FK | `User`, `WebPushSubscription`, `ContactVerification`, `UserTablePreference`, `Tenant`, `FeatureFlagGroup`, `RacetimeBot`, `McpOAuthClient`, `McpAuthorizationCode` | `User.discord_id` / `challonge_user_id` / `twitch_user_id` / `racetime_user_id` / `matcherino_user_id` uniques stay global — identity links are to the person. `RacetimeBot.category` is globally unique. An OAuth grant authenticates a user platform-wide |
 | **Nullable `tenant`** — stamped from context, NULL = platform-level row | `AuditLog`, `TelemetryEvent` (`SET NULL` on tenant delete), `UserRole` (`CASCADE`; NULL only for the global `SUPER_ADMIN`), `ApiToken` (`CASCADE`; NULL only for platform-wide OAuth tokens) | |
 | **Has a `tenant` FK but is never auto-scoped** | `TenantMembership`, `TenantJoinRequest`, `TenantMemberBlock`, `RacetimeBotTenant` | All answer "which tenants?" and so are queried across tenants with explicit ids |
 | **Tenant-scoped** — `tenant` FK, NOT NULL, `CASCADE` | every other model | The default (see conventions above) |
@@ -79,6 +79,7 @@ erDiagram
     User |o--o{ AuditLog : "user"
     User |o--o{ TelemetryEvent : "user"
     User ||--o{ WebPushSubscription : "user"
+    User ||--o{ ContactVerification : "user"
     User ||--o{ UserTablePreference : "user"
 
     Tournament }o--o{ User : "admins (TournamentAdmins)"
@@ -591,6 +592,13 @@ Discord-authenticated account. Created/updated during OAuth login; access contro
 | `is_system` | `BooleanField` | default `False` | Marks the single reserved automation actor (sentinel `discord_id` = `SYSTEM_USER_DISCORD_ID` = `0`). Workers/bots pass this row as `actor`; resolve it via `UserService.get_system_user()`. `AuthService.is_system()` treats it as authorized for automation actions |
 | `dm_notifications` | `BooleanField` | default `True` | The **Discord DMs** switch. Enforced inside `DiscordService.send_dm`, after the web-push mirror, so device notifications don't depend on it |
 | `dm_match_comments` | `BooleanField` | default `True` | DM when staff send a message to the players of one of the user's matches (`MatchCommentKind.STAFF_TO_PLAYERS`). Profile → "Staff comments on your matches" |
+| `email` | `CharField(254)` | null | Confirmed notification address (code or verified Discord email). Only ever set confirmed — see `NotificationChannelService` |
+| `email_verified_at` | `DatetimeField` | null | When `email` was confirmed |
+| `email_notifications` | `BooleanField` | default `False` | Copy DMs to `email` (needs `NOTIFICATION_CHANNELS` on in the community) |
+| `telegram_chat_id` | `BigIntField` | null, `unique=True` | Private chat with the Telegram bot, bound by `/start <token>` |
+| `telegram_username` | `CharField(64)` | null | Cached Telegram handle for the settings row |
+| `telegram_linked_at` | `DatetimeField` | null | When the chat was bound |
+| `telegram_notifications` | `BooleanField` | default `False` | Copy DMs to Telegram; `/stop` turns it off |
 | `timezone` | `CharField(64)` | null | The person's own display zone (IANA name), used when their community follows each viewer; NULL falls back to the browser's zone. Global, like the rest of identity — see [timezone-handling.md](../timezone-handling.md) |
 | `challonge_user_id` | `CharField(64)` | null, `unique=True` | Verified Challonge identity, captured via one-time OAuth (scope `me`). Unique so bracket sync resolves to exactly one user (Postgres allows multiple NULLs) |
 | `challonge_username` | `CharField(255)` | null | Cached Challonge username |
@@ -1283,6 +1291,22 @@ to the owner's subscriptions as a native device notification. See
 | `auth` | `CharField(64)` | not null | Client auth secret (RFC 8291) |
 | `user_agent` | `CharField(255)` | null | Captured at subscribe time to label the device in settings |
 | `last_used_at` | `DatetimeField` | null | Set on each successful delivery |
+
+#### `ContactVerification`
+
+A pending email code or Telegram link token. Global (identity), one row per
+`(user, channel)`; a new request replaces the old one. Only an HMAC of the
+secret is stored. See [notification-channels.md](../features/notification-channels.md).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='contact_verifications'` |
+| `channel` | `CharField(16)` | not null | `email` or `telegram` |
+| `target` | `CharField(254)` | null | The address being confirmed (email only) |
+| `secret_hash` | `CharField(64)` | not null, `unique=True` | HMAC-SHA256 of the code/token keyed by `STORAGE_SECRET` |
+| `attempts` | `IntField` | default `0` | Wrong codes so far; 5 locks the code |
+| `expires_at` | `DatetimeField` | not null | 15 minutes after issue |
+| `created_at` | `DatetimeField` | `auto_now_add` | |
 
 #### `UserTablePreference`
 
@@ -2121,6 +2145,7 @@ Consult the source for full signatures.
 | `PlayerAvailabilityRepository` | [`player_availability_repository.py`](../../application/repositories/player_availability_repository.py) | `PlayerAvailability` | `get_by_id`, `list_for_user`, `for_users_overlapping`, `create`, `delete`, `delete_for_user` |
 | `ChallongeRepository` | [`challonge_repository.py`](../../application/repositories/challonge_repository.py) | `ChallongeConnection`, `ChallongeParticipant`, `ChallongeMatch`, `ChallongeApiUsage` | connection: `get_connection`, `list_all_connections`, `save_connection`, `update_connection_tokens`, `clear_connection`; mirror teardown: `delete_mirror` (drops a tournament's participants + matches, leaving the scheduled `Match` rows) and `prune_mirror` (each sync drops the rows Challonge no longer has, same rule); participants: `upsert_participant`, `resolve_users_by_challonge_ids`, `get_participant`, `list_participants`, `participant_tournament_ids_for_user`; matches: `upsert_match`, `get_match`, `get_challonge_match_for_match`, `link_match`, `unscheduled_open_matches_for_user`; counts/sync: `count_participants`, `count_matches`, `set_last_synced_at`; usage metering: `increment_api_usage`, `get_monthly_usage` |
 | `WebPushRepository` | [`web_push_repository.py`](../../application/repositories/web_push_repository.py) | `WebPushSubscription` | `get_by_endpoint`, `get_by_id`, `list_for_user`, `list_for_discord_id`, `upsert` (re-binds an existing endpoint), `rotate`, `delete`, `delete_by_endpoint`, `touch_last_used` |
+| `NotificationChannelRepository` | [`notification_channel_repository.py`](../../application/repositories/notification_channel_repository.py) | `User` (channel columns), `ContactVerification` | `replace_verification`, `get_verification`, `get_verification_by_hash`, `count_attempt`, `delete_verification`, `delete_expired`, `set_email`, `set_email_notifications`, `get_by_telegram_chat`, `set_telegram`, `set_telegram_notifications`, `get_user`, `get_by_discord_id` |
 | `TablePreferenceRepository` | [`table_preference_repository.py`](../../application/repositories/table_preference_repository.py) | `UserTablePreference` | **Global — never tenant-scoped** (the model has no tenant column). `all_for_user` (one query; the only read a page build makes), `get`, `upsert`, `delete`, `delete_all_for_user` |
 | `WebhookRepository` | [`webhook_repository.py`](../../application/repositories/webhook_repository.py) | `Webhook` | `get_by_id`, `list_all`, `list_active`, `create`, `update`, `delete` |
 | `WebhookDeliveryRepository` | [`webhook_delivery_repository.py`](../../application/repositories/webhook_delivery_repository.py) | `WebhookDelivery` | `create`, `list_for_webhook`, `outcome_counts_since`, `prune_older_than` |

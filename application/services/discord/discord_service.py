@@ -83,6 +83,39 @@ def _mirror_dm_to_web_push(
     )
 
 
+def _mirror_dm_to_channels(
+    user_id: int, message: str, link: Optional[DMLink] = None,
+) -> None:
+    """Fan every outgoing DM out to the recipient's email and Telegram too.
+
+    The same chokepoint as :func:`_mirror_dm_to_web_push`. The community the DM
+    is sent from decides whether its ``notification_channels`` flag is on, so
+    its id is captured here: the dispatch worker runs outside any request.
+    """
+    from application.services.notification_channel_service import (
+        NotificationChannelService,
+        email_available,
+        telegram_available,
+    )
+    from application.tenant_context import get_current_tenant_id, tenant_scope
+
+    if not (email_available() or telegram_available()):
+        return
+    tenant_id = get_current_tenant_id()
+    if tenant_id is None:
+        return
+
+    async def _run() -> None:
+        with tenant_scope(tenant_id):
+            await NotificationChannelService().mirror_dm(
+                user_id, message,
+                navigate=link.url if link else None,
+                label=link.label if link else None,
+            )
+
+    event_dispatch_queue.enqueue(_run())
+
+
 def _with_link_button(
     view: Optional[discord.ui.View], link: Optional[DMLink],
 ) -> Optional[discord.ui.View]:
@@ -268,6 +301,7 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
         embed: Optional[discord.Embed] = None,
         link: Optional[DMLink] = None,
         on_sent: Optional[DMSentHook] = None,
+        mirror: bool = True,
     ) -> Tuple[bool, str]:
         """
         Send a direct message to a Discord user, optionally with attached buttons.
@@ -292,6 +326,8 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
             on_sent: Optional :data:`DMSentHook`, awaited only when Discord
                 accepted the message. A failure inside it is logged, never
                 reported as a failed send.
+            mirror: ``False`` sends to Discord alone, skipping the copies to
+                devices, email and Telegram (a per-channel test).
 
         Returns:
             Tuple of (success: bool, message: str)
@@ -306,7 +342,9 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
         # a (False, ...) return means the *Discord* send failed — subscribed
         # devices may already have been notified, so don't blindly re-send. The
         # mirror always uses the plain text, even when an embed carries the DM.
-        _mirror_dm_to_web_push(user_id, message, navigate=link.url if link else None)
+        if mirror:
+            _mirror_dm_to_web_push(user_id, message, navigate=link.url if link else None)
+            _mirror_dm_to_channels(user_id, message, link)
         try:
             if self._bot is None:
                 logger.error('Discord DM to %s not sent: bot not initialized', user_id)
@@ -491,7 +529,12 @@ class MockDiscordService(MockGuildOpsMixin, MockScheduledEventsMixin):
         embed: Optional["discord.Embed"] = None,
         link: Optional[DMLink] = None,
         on_sent: Optional[DMSentHook] = None,
+        mirror: bool = True,
     ) -> Tuple[bool, str]:
+        # Email and Telegram mirror in mock mode too: their transports print
+        # instead of sending, so there's no external side effect to fear.
+        if mirror:
+            _mirror_dm_to_channels(user_id, message, link)
         # Deliberately no web-push mirror: mock mode must have no external side
         # effects (a dev with a prod DB snapshot + prod VAPID keys would push
         # to real users' phones). Real delivery requires the real service.

@@ -230,6 +230,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # and skips tenants with EVENT_CHECK_IN off.
         from application.services import check_in_sync_worker
         check_in_sync_worker.start()
+        # Telegram bot: binds chats from profile Connect links and answers /stop.
+        # Only with a bot token, and never against a mocked Discord.
+        from application.services import telegram_bot_worker
+        from application.utils.clients import telegram_client
+        from application.utils.mocks.mock_discord import is_mock_discord
+        if telegram_client.is_configured() and not is_mock_discord():
+            telegram_bot_worker.start()
         discord_queue.start()
         volunteer_reminder.start()
         # Pre-match stage reminder: DMs a stage match's players and approved crew
@@ -263,6 +270,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await race_room_worker.stop()
         await seed_roll_worker.stop()
         await check_in_sync_worker.stop()
+        await telegram_bot_worker.stop()
         await speedgaming_sync_worker.stop()
         await discord_event_worker.stop()
         await service_health_worker.stop()

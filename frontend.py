@@ -33,6 +33,8 @@ from pages import (
     changelog,
     check_in,
     community_events,
+    discord_email_oauth,
+    email_unsubscribe,
     equipment,
     equipment_labels,
     event_info,
@@ -267,12 +269,14 @@ def init(fastapi_app: FastAPI) -> None:
     fastapi_app.mount("/static", VersionedStaticFiles(directory="static"), name="static")
 
     _register_root_routes(fastapi_app)
+    email_unsubscribe.create(fastapi_app)
 
     auth.create()
     password_login.create()
     challonge_oauth.create()
     twitch_oauth.create()
     racetime_oauth.create()
+    discord_email_oauth.create()
     # Tenant-less like the provider callbacks above: an MCP grant authenticates
     # a person across the platform, not within one community.
     mcp_consent.create()

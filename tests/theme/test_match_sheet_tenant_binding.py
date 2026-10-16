@@ -24,6 +24,17 @@ from theme.dialog.match_sheet import MatchSheet
 from theme.tables.admin_crud import scoped_background
 
 
+@pytest.fixture(autouse=True)
+def own_slot_stacks(monkeypatch):
+    """Start from empty slot stacks.
+
+    A sync test shares NiceGUI's task-id-0 stack with every other sync test in
+    the worker, so a slot another test left behind became the fallback the
+    dead-slot walk found, and the stash read back that test's tenant.
+    """
+    monkeypatch.setattr(Slot, 'stacks', {})
+
+
 class _Row:
     """Stands in for the sheet's row element: a slot parent with a client."""
 

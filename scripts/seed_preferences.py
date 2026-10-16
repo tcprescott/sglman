@@ -43,3 +43,30 @@ async def seed_table_preferences(users: dict[str, User]) -> None:
                 user=user, table_key=table_key, defaults={'config': config},
             )
     print('  table preferences ok (global)')
+
+
+async def seed_notification_channels(users: dict[str, User]) -> None:
+    """player_one gets email and Telegram on; player_two has a confirmed email turned off.
+
+    ``.invalid`` addresses and a negative (never real) chat id, so nothing can
+    reach a person even with real SendGrid or Telegram keys in the env.
+    """
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    specs = {
+        'player_one': {
+            'email': 'player_one@example.invalid', 'email_verified_at': now, 'email_notifications': True,
+            'telegram_chat_id': -900001, 'telegram_username': 'player_one_tg',
+            'telegram_linked_at': now, 'telegram_notifications': True,
+        },
+        'player_two': {
+            'email': 'player_two@example.invalid', 'email_verified_at': now, 'email_notifications': False,
+        },
+    }
+    for username, fields in specs.items():
+        user = users.get(username)
+        if user is None or user.email:
+            continue
+        await User.filter(id=user.id).update(**fields)
+    print('  notification channels ok (global)')

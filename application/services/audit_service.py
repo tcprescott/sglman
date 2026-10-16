@@ -314,6 +314,10 @@ class AuditActions:
     WEB_PUSH_SUBSCRIBED = 'web_push.subscribed'
     WEB_PUSH_UNSUBSCRIBED = 'web_push.unsubscribed'
     WEB_PUSH_ROTATED = 'web_push.rotated'
+    NOTIFICATION_EMAIL_CONFIRMED = 'notification_email.confirmed'
+    NOTIFICATION_EMAIL_REMOVED = 'notification_email.removed'
+    NOTIFICATION_TELEGRAM_LINKED = 'notification_telegram.linked'
+    NOTIFICATION_TELEGRAM_UNLINKED = 'notification_telegram.unlinked'
 
     # Presets (seed-rolling settings)
     PRESET_CREATED = 'preset.created'

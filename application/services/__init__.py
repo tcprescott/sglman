@@ -24,6 +24,7 @@ from . import (
     service_health_worker,
     speedgaming_sync_worker,
     staff_request_dms,
+    telegram_bot_worker,
 )
 from .accommodation_service import AccommodationService
 from .analytics_service import AnalyticsService
@@ -49,6 +50,7 @@ from .check_in_service import CheckInService
 from .community_event_service import CommunityEventService, EventDraft
 from .crew_service import CrewService
 from .discord import (
+    DiscordEmailService,
     DiscordEventReconcilerService,
     DiscordEventSyncService,
     DiscordLinkService,
@@ -83,6 +85,7 @@ from .match import (
 from .match_reschedule_service import MatchRescheduleService
 from .matcherino_login_service import MatcherinoLoginService, MatcherinoLoginStatus
 from .mcp_auth_service import McpAuthService
+from .notification_channel_service import NotificationChannelService
 from .password_auth_service import PasswordAuthService
 from .payout_service import PayoutService
 from .player_availability_service import PlayerAvailabilityService
@@ -157,6 +160,7 @@ __all__ = [
     'CheckInService',
     'CommunityEventService',
     'CrewService',
+    'DiscordEmailService',
     'DiscordEventReconcilerService',
     'DiscordEventSyncService',
     'DiscordLinkService',
@@ -191,6 +195,7 @@ __all__ = [
     'MatcherinoLoginStatus',
     'McpAuthService',
     'NotFoundError',
+    'NotificationChannelService',
     'PasswordAuthService',
     'PayoutService',
     'PlayerAvailabilityService',
@@ -268,6 +273,7 @@ __all__ = [
     'service_health_worker',
     'speedgaming_sync_worker',
     'staff_request_dms',
+    'telegram_bot_worker',
     'validate_async_qualifier_config',
     'validate_bracket_config',
     'validate_counts',

@@ -105,6 +105,7 @@ class FeatureFlag(str, Enum):
     EVENT_CHECK_IN = 'event_check_in'
     COMMUNITY_EVENTS = 'community_events'
     EMERGENCY_CONTACTS = 'emergency_contacts'
+    NOTIFICATION_CHANNELS = 'notification_channels'
 
 
 class BracketFormat(str, Enum):

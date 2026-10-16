@@ -126,6 +126,7 @@ from .tournament import (
 )
 from .user import (
     ApiToken,
+    ContactVerification,
     DiscordRoleMapping,
     DiscordTournamentGrant,
     User,
@@ -205,6 +206,7 @@ __all__ = [
     'CommunityEventSeen',
     'CommunityEventStatus',
     'CommunityEventSubscription',
+    'ContactVerification',
     'DiscordEventSource',
     'DiscordRoleMapping',
     # discord events
