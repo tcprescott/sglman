@@ -90,18 +90,45 @@ def _match_embed_kwargs(match: Match, community: str) -> dict:
     }
 
 
-def _checked_in_notification(
-    match: Match, community: str, bracket_line: str = '',
-) -> tuple:
-    """(text, embed) for the check-in DM."""
-    return (
-        checked_in_dm(match.tournament.name, **_match_descriptor(match, bracket_line)),
-        match_embed(
-            title='✅ Match checked in', color=COLOR_CHECKED_IN,
-            description='The match is about to begin — good luck!',
-            **_match_embed_kwargs(match, community),
-        ),
+def _seats_line(match: Match) -> str:
+    """"Alice: A1 · Bob: A2" for the players who have a seat, '' for none."""
+    return ' · '.join(
+        f'{p.user.preferred_name}: {p.assigned_station}'
+        for p in match.players if p.assigned_station
     )
+
+
+def _checked_in_notification(
+    match: Match, community: str, bracket_line: str = '', your_seat: str = '',
+) -> tuple:
+    """(text, embed) for the check-in DM; ``your_seat`` makes it one player's copy."""
+    seats = _seats_line(match)
+    embed = match_embed(
+        title='✅ Match checked in', color=COLOR_CHECKED_IN,
+        description='The match is about to begin — good luck!',
+        **_match_embed_kwargs(match, community),
+    )
+    if seats:
+        embed.add_field(name='Seats', value=seats, inline=False)
+    if your_seat:
+        embed.insert_field_at(0, name='Your seat', value=f'**{your_seat}**', inline=False)
+    return (
+        checked_in_dm(
+            match.tournament.name, **_match_descriptor(match, bracket_line),
+            seats=seats, your_seat=your_seat,
+        ),
+        embed,
+    )
+
+
+def _checked_in_player_copies(match: Match, community: str, bracket_line: str = '') -> dict:
+    """Each seated player's own check-in DM, keyed by Discord id."""
+    return {
+        p.user.discord_id: _checked_in_notification(
+            match, community, bracket_line, your_seat=p.assigned_station,
+        )
+        for p in match.players if p.assigned_station and p.user.discord_id
+    }
 
 
 def _state_notification(
@@ -149,6 +176,7 @@ class MatchScheduleService(MatchNotificationMixin):
         authorize: Optional[Callable] = None,
         silent: bool = False,
         notify_players: bool = True,
+        build_player_copies: Optional[Callable[[Match, str, str], dict]] = None,
     ) -> None:
         """Shared match lifecycle transition: authorize, validate, stamp, audit, notify.
 
@@ -164,6 +192,9 @@ class MatchScheduleService(MatchNotificationMixin):
 
         ``silent`` sends the DM without a ping, for a transition nobody has to
         act on; ``notify_players=False`` leaves the players out of it.
+        ``build_player_copies`` takes the same arguments as ``build_message``
+        and returns ``{discord_id: (text, embed)}`` for players who get their
+        own version.
         """
         gate = authorize or AuthService.can_run_match
         await AuthService.ensure(
@@ -192,9 +223,14 @@ class MatchScheduleService(MatchNotificationMixin):
         # Resolve the community name here (request context) rather than in the
         # queue worker, and pass the pre-built embed down with the text.
         community = await _community_name()
-        message, embed = build_message(match, community, await bracket_line_for(match.id))
+        bracket_line = await bracket_line_for(match.id)
+        message, embed = build_message(match, community, bracket_line)
+        player_copies = (
+            build_player_copies(match, community, bracket_line) if build_player_copies else None
+        )
         discord_queue.enqueue(self.notify_match_participants(
             match, message, embed, silent=silent, players=notify_players,
+            player_copies=player_copies,
         ))
         match_live.publish(match.id)
 
@@ -223,6 +259,7 @@ class MatchScheduleService(MatchNotificationMixin):
             audit_action=AuditActions.MATCH_SEATED,
             event_type=EventType.MATCH_SEATED,
             build_message=lambda m, c, b: _checked_in_notification(m, c, b),
+            build_player_copies=_checked_in_player_copies,
         )
 
     async def start_match(self, match: Match, actor: Optional[User] = None) -> None:

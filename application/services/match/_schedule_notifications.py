@@ -84,6 +84,7 @@ class MatchNotificationMixin:
     async def notify_match_participants(
         self, match: Match, message: str, embed: Optional[discord.Embed] = None,
         *, silent: bool = False, players: bool = True,
+        player_copies: Optional[dict] = None,
     ) -> None:
         """
         Send a DM to all opted-in players, approved crew, and watchers for a match.
@@ -94,6 +95,8 @@ class MatchNotificationMixin:
         colour-coded card rendered on Discord; the ``message`` text still feeds
         the web-push mirror. ``silent`` sends every copy without a ping;
         ``players=False`` leaves the players out (crew and watchers still hear).
+        ``player_copies`` maps a player's Discord id to their own ``(text,
+        embed)``, used in place of the shared one.
 
         Never raises; partial DM failures are logged and swallowed so the
         calling lifecycle operation is never blocked.
@@ -103,7 +106,10 @@ class MatchNotificationMixin:
             for discord_id, recipient in recipients.items():
                 if not players and recipient.audience == AUDIENCE_PLAYER:
                     continue
-                text, card = _for_crew(recipient.crew_roles, message, embed)
+                if player_copies and recipient.audience == AUDIENCE_PLAYER and discord_id in player_copies:
+                    text, card = player_copies[discord_id]
+                else:
+                    text, card = _for_crew(recipient.crew_roles, message, embed)
                 await self._send_one(
                     match, discord_id, recipient, text, embed=card, link=None,
                     log_label='notify_match_participants', silent=silent,

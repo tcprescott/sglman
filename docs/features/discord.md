@@ -15,7 +15,7 @@ DMs fire on match lifecycle transitions:
 | Players changed, time unchanged | players only — a fresh Acknowledge request |
 | Race room opened (players) | Join the race room | the racetime.gg room itself — off-site, like the seed link, because that is where the race is. Safe to link only because the room's slug is the one racetime returned from `startrace` |
 | Harder preset offered | players, when the tournament has a `hard_preset` and the seed is not yet rolled |
-| Checked in / confirmed | players, approved crew and watchers — one DM each via `notify_match_participants` |
+| Checked in / confirmed | players, approved crew and watchers — one DM each via `notify_match_participants`. The check-in DM lists every assigned seat, and a seated player's copy leads with **Your seat** (`player_copies`) |
 | Started / finished | approved crew and watchers only, sent **silent** (no ping or phone buzz, Discord's `@silent`): the players are at the station and already know |
 | Cancelled | players, approved crew and watchers, resolved before the row is deleted |
 | Stage assigned / cleared | players, approved crew, watchers |

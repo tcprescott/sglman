@@ -86,18 +86,23 @@ class MockMatch:
         self.refresh_from_db = AsyncMock()
 
 
-def mock_players(*names, ranks=None):
+def mock_players(*names, ranks=None, stations=None):
     """MatchPlayers stand-ins.
 
-    The DM builders read ``user.preferred_name``; ``confirm_match`` reads
-    ``finish_rank`` to decide whether a result was ever recorded, so both are
-    present. ``ranks=None`` means no result recorded yet.
+    The DM builders read ``user.preferred_name`` and ``assigned_station``;
+    ``confirm_match`` reads ``finish_rank`` to decide whether a result was ever
+    recorded. ``ranks=None`` means no result recorded yet, ``stations=None`` no
+    seats assigned. Discord ids run 101, 102, ...
     """
     names = names or ("Alice", "Bob")
     ranks = ranks if ranks is not None else [None] * len(names)
+    stations = stations if stations is not None else [None] * len(names)
     return [
-        SimpleNamespace(user=SimpleNamespace(preferred_name=n), finish_rank=r)
-        for n, r in zip(names, ranks, strict=False)
+        SimpleNamespace(
+            user=SimpleNamespace(preferred_name=n, discord_id=101 + i),
+            finish_rank=r, assigned_station=st,
+        )
+        for i, (n, r, st) in enumerate(zip(names, ranks, stations, strict=False))
     ]
 
 
@@ -118,6 +123,44 @@ def service():
 
 
 class TestSeatMatch:
+    async def test_dm_carries_seats_and_each_players_own(self, service):
+        match = MockMatch(players=mock_players(stations=["A1", "A2"]))
+        with patch(
+            'application.services.match.match_schedule_service.bracket_line_for',
+            AsyncMock(return_value=''),
+        ), patch(
+            'application.services.match.match_schedule_service._community_name',
+            AsyncMock(return_value='SGL'),
+        ):
+            await service.seat_match(match)
+
+        args = service.notify_match_participants.call_args
+        text, embed = args.args[1], args.args[2]
+        assert "Seats: Alice: A1 · Bob: A2" in text
+        assert "Your seat" not in text
+        assert [f.name for f in embed.fields][-1] == 'Seats'
+
+        copies = args.kwargs['player_copies']
+        alice_text, alice_embed = copies[101]
+        assert "Your seat: **A1**" in alice_text
+        assert (alice_embed.fields[0].name, alice_embed.fields[0].value) == ('Your seat', '**A1**')
+        assert "**A2**" in copies[102][0]
+
+    async def test_no_seats_no_seat_lines(self, service):
+        match = MockMatch(players=mock_players())
+        with patch(
+            'application.services.match.match_schedule_service.bracket_line_for',
+            AsyncMock(return_value=''),
+        ), patch(
+            'application.services.match.match_schedule_service._community_name',
+            AsyncMock(return_value='SGL'),
+        ):
+            await service.seat_match(match)
+
+        args = service.notify_match_participants.call_args
+        assert "Seat" not in args.args[1]
+        assert args.kwargs['player_copies'] == {}
+
     async def test_sets_seated_at(self, service):
         match = MockMatch(players=mock_players())
         await service.seat_match(match)
@@ -198,7 +241,7 @@ class TestStartMatch:
     async def test_dm_skips_players_and_goes_out_silent(self, service):
         await service.start_match(MockMatch(seated_at=datetime.now()))
         kwargs = service.notify_match_participants.call_args.kwargs
-        assert kwargs == {'silent': True, 'players': False}
+        assert kwargs == {'silent': True, 'players': False, 'player_copies': None}
 
 
 class TestFinishMatch:
@@ -218,7 +261,7 @@ class TestFinishMatch:
         now = datetime.now()
         await service.finish_match(MockMatch(seated_at=now, started_at=now))
         kwargs = service.notify_match_participants.call_args.kwargs
-        assert kwargs == {'silent': True, 'players': False}
+        assert kwargs == {'silent': True, 'players': False, 'player_copies': None}
 
     async def test_raises_if_not_started(self, service):
         match = MockMatch()
@@ -656,6 +699,22 @@ class TestNotifyMatchParticipants:
 
         real_notify_service.discord_service.send_dm.assert_not_awaited()
         real_notify_service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "hello", match.id, embed=None, link=None, silent=True)
+
+    async def test_a_player_copy_replaces_the_shared_dm_for_that_player(self, real_notify_service):
+        match = MockMatch()
+        player = SimpleNamespace(user=SimpleNamespace(discord_id=111, dm_notifications=True))
+        watcher = SimpleNamespace(user=SimpleNamespace(discord_id=222, dm_notifications=True))
+
+        with self._patch_query('application.services.match._match_recipients.MatchPlayers.filter', [player]), \
+             self._patch_query('application.services.match._match_recipients.Commentator.filter', []), \
+             self._patch_query('application.services.match._match_recipients.Tracker.filter', []), \
+             self._patch_query('application.services.match._match_recipients.MatchWatcher.filter', [watcher]):
+            await real_notify_service.notify_match_participants(
+                match, "hello", player_copies={111: ("your seat A1", None)},
+            )
+
+        real_notify_service.discord_service.send_dm.assert_awaited_once_with(111, "your seat A1", embed=None, link=None, silent=False)
+        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "hello", match.id, embed=None, link=None, silent=False)
 
     async def test_discord_off_still_reaches_send_dm(self, real_notify_service):
         match = MockMatch()
