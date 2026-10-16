@@ -19,9 +19,9 @@ from application.services import MatchRescheduleService
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import format_local_time, to_local, today_local
 from models import Match, RescheduleRequestKind
-from theme.help import help_icon
+from theme.help import ResolvedHelp, help_button, resolve_help
 from theme.notify import notify_error
-from theme.tables.admin_crud import current_actor
+from theme.tables.admin_crud import capture_render_context, current_actor, scoped_background
 from theme.tables.match_access import MatchBoardAccess
 
 #: Items a group shows before "Show N more".
@@ -73,9 +73,24 @@ class MatchInbox:
         self.tournament_ids = tournament_ids
         self.view: Any = None
         self._expanded: set[str] = set()
+        self._generation = 0
+        self._help: list[ResolvedHelp] = []
+        self._render_context = capture_render_context()
 
     def refresh(self) -> None:
-        self.render.refresh()
+        scoped_background(self._render_context, self._reload())
+
+    async def _reload(self) -> None:
+        # Query first, then clear and rebuild in one step. A refreshable that
+        # awaits after clearing leaves the inbox empty for the length of the
+        # query, and the CSS hides an empty inbox, so the board beside it
+        # jumped to full width and back on every refresh (several per confirm).
+        self._generation += 1
+        generation = self._generation
+        requests = await self._requests()
+        if generation != self._generation:
+            return  # a newer refresh started meanwhile and will draw instead
+        self._build.refresh(requests)
 
     async def _requests(self) -> list:
         if not self.access.edit:
@@ -87,10 +102,13 @@ class MatchInbox:
             actor, tournament_ids=self.tournament_ids,
         )
 
-    @ui.refreshable
     async def render(self) -> None:
+        self._help = await resolve_help(('staff-queues',))
+        self._build(await self._requests())
+
+    @ui.refreshable
+    def _build(self, requests: list) -> None:
         rows: list = self.view.table.rows if self.view else []
-        requests = await self._requests()
         finished = [r for r in rows if r.get('state') == 'Finished'] if self.access.confirm else []
         late = [
             r for r in rows
@@ -107,7 +125,7 @@ class MatchInbox:
                 if total:
                     with ui.element('span').classes('wiz-chip wiz-chip--pending'):
                         ui.label(str(total))
-                await help_icon('staff-queues')
+                help_button(self._help)
             if not total:
                 ui.label('Nothing is waiting on you.').classes('text-muted')
                 return
