@@ -59,27 +59,22 @@ only with sign-off from an on-call admin or SGL staff.
 
 ## On-site tournaments
 
-Played at the event, 22–25 October. Where sign-ups are still open, the
-deadline is in the table; a tournament marked closed is no longer taking entries.
+Played at the event, 22–25 October. Each tournament's rules have its settings
+and the details it sets for itself, and **Sign up** shows while a tournament is
+still taking entries.
 
-| Tournament | Format | Sign-ups |
-|---|---|---|
-| [A Link to the Past Randomizer](https://docs.google.com/document/d/e/2PACX-1vTGzoAV6Wq4fKGCf3oNEGQeFll465AD-TXQ0lceNe8ImqjSM9uniswGk9grm-sykz-QlzxHdNI3sXdz/pub) (Open Boots) | Groups into single elimination | [Challonge](https://speedgaming.challonge.com/sgl26alttpr) by Tue 20 Oct, 11:59 PM |
-| [A Link to the Past](https://docs.google.com/document/d/1XSQ0HPfSJWTEUzwKfN25H_FKTnTi7C3t68ajEfnLFnw/edit?tab=t.0#heading=h.1k1k9zd70j92) (any%) | Qualifier into a top 8 bracket | Open; qualifier race times are in the rules |
-| A Link to the Past Randomizer Glitched (HMG) | Single elimination | Open; async qualifier from Fri 16 Oct to noon Thu 22 Oct. Rules coming soon |
-| Best of NES High Score Challenge | High score, then a final run | Open; check in at the Best of NES room. Rules coming soon |
-| [Donkey Kong 64 Randomizer](https://docs.google.com/document/d/1jA8xQCu7oTghBM835hz_RLVQAkeelt_JAT8IlX8pxwk/edit?tab=t.0#heading=h.2vytphmpub1a) (Season 5) | Groups into single elimination | Open |
-| [Final Fantasy Randomizer](https://wiki.finalfantasyrandomizer.com/en/Tournaments/SGLive) | Double elimination | [Challonge](https://speedgaming.challonge.com/sgl2025ffrlive) by Tue 20 Oct, 11:59 PM |
-| [Majora's Mask Randomizer](https://docs.google.com/document/d/1ueEI88AH61-9HuKykDT7QNDyQvKfCa6u3tfn_Sr11-Y/edit?tab=t.0#heading=h.fz5ims3xc4hd) (SGL) | Double elimination | Closed |
-| [Ocarina of Time Randomizer](https://docs.google.com/document/d/1hugknE6Kh1r0H6CjZ00PSUVEJ1ljAcv8Mv87TJRxSYY/edit?tab=t.0#heading=h.fzxq1d6e60mw) (SGL 2026 preset) | Groups into single elimination | Closed |
-| [Super Metroid Map Randomizer](https://docs.google.com/document/d/e/2PACX-1vSYer8bSMCYlw6AlXlo1xJkAN_lvq78_3jZ8t24cGry0IAaoIpsq_MrdvlXU44wjmnBZOVJrvTeaCYR/pub) (Community Race Season 4) | Single elimination | [Challonge](https://speedgaming.challonge.com/sgl26smmap) by Wed 21 Oct, 5:59 PM |
-| [Super Metroid any%](https://docs.google.com/document/d/e/2PACX-1vSDOoNHQl6JZg-qBqdfHUlxECGYywrtSztpS9wssPGqw4aDS4pBIzNf9hCawAs2Ufl2NpSEYAUfYC18/pub) | Double elimination | [Challonge](https://speedgaming.challonge.com/sgl26smany) by Wed 21 Oct, 11:59 PM |
-| [Super Metroid DASH Randomizer](https://www.dashrando.net/events/sgl26/info) (Community Race Season 4) | Groups into single elimination | Closed |
-| [Zelda 1 Randomizer](https://docs.google.com/document/d/1EkDp28BFVwYnHXOuwzDBmAUKu539FXK98ia6cZQUcy8/edit?tab=t.0#heading=h.aaawpooguda5) | Groups into single elimination | [Challonge](https://speedgaming.challonge.com/sgl26z1r) by Wed 21 Oct, 5:59 PM |
-| [The Wind Waker Randomizer](https://docs.google.com/document/d/11Al-gHqIfEvlGIO883XKNklIOyFLeRc0pCmRRSfyIFA/edit?tab=t.0#heading=h.tmpcms1hs4cy) | Qualifiers into double elimination, depending on entrants | Open; play an async qualifier by Sun 18 Oct, 10:59 PM |
+:::tournaments
 
-The tournament name links to its rules, which have the settings and the
-details each one sets for itself.
+A few tournaments have a qualifier or check-in of their own first:
+
+- **A Link to the Past Randomizer Glitched (HMG):** async qualifier from Friday
+  16 October until noon on Thursday 22 October.
+- **A Link to the Past any%:** on-site qualifier races; the times are in its
+  rules.
+- **Wind Waker Randomizer:** play an async qualifier by 10:59 PM on Sunday
+  18 October.
+- **Best of NES High Score Challenge:** check in at the Best of NES room, part of
+  the casual room, to play.
 
 **Most tournaments run groups on Thursday and Friday, then a bracket on Saturday
 and Sunday.** That split is what decides how your matches get scheduled, and it

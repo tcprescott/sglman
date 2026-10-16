@@ -340,6 +340,12 @@ async def seed_for_tenant(
             name="Wizzrobe Archive Cup", tenant=tenant,
             defaults={"is_active": False, "players_per_match": 2},
         )
+        # A test tournament: the Tournaments board shows its Test chip, and the
+        # event-info tournament list leaves it out.
+        await Tournament.get_or_create(
+            name="Challonge Integration Test", tenant=tenant,
+            defaults={"is_active": True, "is_test": True, "players_per_match": 2},
+        )
         await tournament.admins.add(staff)
         await tournament.crew_coordinators.add(staff)
         await tournament.crew_coordinators.add(users["cc_user"])

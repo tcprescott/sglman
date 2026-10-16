@@ -4420,6 +4420,55 @@ ol.wiz-help-list { list-style-type: decimal; }
 /* Prose tables carry chips and icons, so they are hand-built rather than
    ui.table. Wide ones scroll inside their own container — the page body must
    never scroll sideways. */
+/* Event handbook tournament list (the :::tournaments embed): one row per
+   tournament, name and format on the left, links and Sign up on the right.
+   Below 600px the actions drop under the text and Sign up sits at the end. */
+.wiz-event-tournaments {
+    margin: 0 0 1rem;
+    border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.wiz-event-tournament {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.wiz-event-tournament__text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.wiz-event-tournament__name { font-weight: 700; }
+
+.wiz-event-tournament__meta {
+    color: var(--fg-muted);
+    font-size: 0.9rem;
+}
+
+.wiz-event-tournament__actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.wiz-event-tournament__signup { min-height: 2.5rem; }
+
+@media (max-width: 599px) {
+    .wiz-event-tournament {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .wiz-event-tournament__signup { margin-left: auto; }
+}
+
 .wiz-help-table-wrap {
     overflow-x: auto;
     margin: 0 0 1rem;

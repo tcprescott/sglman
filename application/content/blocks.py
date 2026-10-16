@@ -24,6 +24,7 @@ from dataclasses import dataclass, field, replace
 from typing import Callable
 
 __all__ = [
+    'EMBED_NAMES',
     'IMAGE_SRC_RE',
     'Block',
     'Span',
@@ -69,6 +70,12 @@ _IMAGE_RE = re.compile(r'^!\[(?P<alt>[^\]]*)\]\((?P<src>[^)\s]+)(?:\s+"(?P<capti
 # Images come only from the committed screenshot tree, one directory per article
 # and nothing that can climb out of it. Off-site images would let an article
 # phone home on every page view, and a ``data:`` URI is the XSS shape again.
+#: Blocks whose content the page supplies from live data rather than the article
+#: text, written as a line on its own: ``:::tournaments``. A closed set, so a
+#: typo is shown to the author as text instead of rendering nothing.
+EMBED_NAMES = frozenset({'tournaments'})
+_EMBED_RE = re.compile(r'^:::(?P<name>[a-z][a-z0-9-]*)\s*$')
+
 IMAGE_SRC_RE = re.compile(r'^/static/help/[a-z0-9-]+/[a-z0-9-]+\.(?:webp|png)$')
 
 # The six chip tones static/css/styles.css defines. An article naming any other
@@ -108,8 +115,9 @@ class Block:
     """One block-level element.
 
     ``kind`` is one of ``heading``, ``para``, ``bullets``, ``numbers``,
-    ``table``, ``note``, ``image``. An image carries ``src`` (already known to be
-    a committed screenshot) and ``alt``; its optional caption is ``spans``.
+    ``table``, ``note``, ``image``, ``embed``. An image carries ``src`` (already
+    known to be a committed screenshot) and ``alt``; its optional caption is
+    ``spans``. An embed carries only ``name``, one of ``EMBED_NAMES``.
     """
 
     kind: str
@@ -121,6 +129,7 @@ class Block:
     anchor: str = ''
     src: str = ''
     alt: str = ''
+    name: str = ''
 
 
 @dataclass
@@ -318,6 +327,18 @@ def _take_image(cursor: _Cursor, line: str) -> bool:
     return True
 
 
+def _take_embed(cursor: _Cursor, line: str) -> bool:
+    match = _EMBED_RE.match(line)
+    if not match:
+        return False
+    cursor.index += 1
+    if match.group('name') in EMBED_NAMES:
+        cursor.blocks.append(Block('embed', name=match.group('name')))
+    else:
+        cursor.blocks.append(Block('para', spans=(Span('text', line),)))
+    return True
+
+
 def _take_paragraph(cursor: _Cursor) -> None:
     parts: list[str] = []
     while (current := cursor.peek()) is not None:
@@ -351,6 +372,8 @@ def parse_blocks(text: str) -> list[Block]:
         if _take_note(cursor, stripped):
             continue
         if _take_image(cursor, stripped):
+            continue
+        if _take_embed(cursor, stripped):
             continue
         before = cursor.index
         _take_paragraph(cursor)

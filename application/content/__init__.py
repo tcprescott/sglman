@@ -12,6 +12,7 @@ everywhere) and ``application/event_info`` (one community's own event handbook).
 
 from application.content.blocks import (
     CHIP_TONES,
+    EMBED_NAMES,
     IMAGE_SRC_RE,
     STATE_STYLES,
     Block,
@@ -40,6 +41,7 @@ __all__ = [
     'AUDIENCE_EVERYONE',
     'AUDIENCE_STAFF',
     'CHIP_TONES',
+    'EMBED_NAMES',
     'IMAGE_SRC_RE',
     'STATE_STYLES',
     'Block',

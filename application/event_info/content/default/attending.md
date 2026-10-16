@@ -17,6 +17,13 @@ A fixture that used different names would leave the Player tab's icons blank in
 every dev run, which is exactly the regression the icons-resolve test exists to
 catch.
 
+## Tournaments
+
+The list below is drawn from Admin → Tournaments, leaving out anything marked as a
+test tournament.
+
+:::tournaments
+
 ## Check-in and stations
 
 :::snippet check-in

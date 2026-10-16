@@ -139,6 +139,17 @@ summary: One line for the index card.
 
 Roles are an **OR**: a reader holding any one of them qualifies.
 
+### Live tournament list
+
+A line holding only `:::tournaments` draws the community's tournament list in
+place, from Admin → Tournaments rather than the article text
+(`EventInfoService.list_tournaments` → `theme/event_info_tournaments.py`): every
+active tournament not marked **Test tournament**, with its format, rules and
+bracket links, its signup close time on the community's clock, and a **Sign up**
+button to the player Tournaments tab while the window is open. Keeping the list
+in the database means the handbook can't drift from the tournaments staff
+actually run. An unknown `:::name` line renders as plain text so a typo shows.
+
 ## Gating
 
 Three gates, resolved in `EventInfoService`:
