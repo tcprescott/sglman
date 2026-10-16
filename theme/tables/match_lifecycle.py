@@ -168,6 +168,17 @@ class MatchLifecycleHandlers:
         player_names = ', '.join(
             [p.user.preferred_name for p in match.players])
 
+        # Stations are optional at check-in, so starting asks again for any
+        # still missing. A stage match is played where the stage is.
+        if match.stage_id is None and any(not p.assigned_station for p in match.players):  # type: ignore[attr-defined]
+            async def handle_seated(_):
+                await self.confirm_starting(match)
+            with self.page_container:
+                await StationAssignmentDialog(
+                    match=match, on_submit=handle_seated, purpose='start',
+                ).open()
+            return
+
         async def handle_confirm(_):
             await self.confirm_starting(match)
         with self.page_container:

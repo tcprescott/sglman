@@ -12,14 +12,20 @@ from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.help import resolve_help
 from theme.notify import notify_error
 
-# Copy for the dialog's two jobs. 'checkin' is the proctor's combined
-# step 1 + 2 (seat the players, then check the match in); 'stations' is
-# correcting the seating of a match that is already checked in.
+# Copy for the dialog's jobs. 'checkin' is the proctor's combined
+# step 1 + 2 (seat the players, then check the match in); 'start' asks again
+# for stations skipped at check-in, then starts; 'stations' is correcting the
+# seating of a match that is already checked in.
 _PURPOSE_COPY = {
     'checkin': {
         'title': 'Check in — {match}',
         'lead': 'Seat each player at a station, then check the match in.',
         'submit': 'Check in & seat',
+    },
+    'start': {
+        'title': 'Start — {match}',
+        'lead': 'Not everyone has a station yet. Seat them now, or leave a blank and start anyway.',
+        'submit': 'Start match',
     },
     'stations': {
         'title': 'Assign stations — {match}',
@@ -45,9 +51,9 @@ class StationAssignmentDialog:
         Args:
             match: The match with players to assign stations to
             on_submit: Optional callback when stations are assigned
-            purpose: Which job the dialog is doing — ``'checkin'`` when the
-                caller seats the match afterwards (and therefore owns the
-                success toast), ``'stations'`` when this dialog is the whole
+            purpose: Which job the dialog is doing — ``'checkin'`` or
+                ``'start'`` when the caller seats or starts the match
+                afterwards (and therefore owns the success toast), ``'stations'`` when this dialog is the whole
                 job.
         """
         self.match = match

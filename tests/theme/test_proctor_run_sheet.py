@@ -13,6 +13,7 @@ from theme.tables.match_run_sheet import (
     next_step,
     proctor_group,
     seat_line,
+    seed_pending,
 )
 
 PLAYERS = [{'name': 'Player One', 'station': None}, {'name': 'Player Two', 'station': None}]
@@ -80,6 +81,42 @@ class TestNextStep:
     def test_nothing_to_press_without_players_or_on_racetime(self):
         assert next_step(dict(_row(1, 'Scheduled'), players=[])) is None
         assert next_step(_row(1, 'Checked In', is_racetime=True)) is None
+
+
+class TestSeedStep:
+    """A tournament that rolls seeds puts Roll seed between check-in and Start."""
+
+    def test_roll_comes_before_start(self):
+        row = _row(1, 'Checked In', tournament_seed_generator='alttpr')
+        assert next_step(row)['event'] == 'roll'
+        assert next_step(row)['primary'] is True
+        assert next_step(dict(row, generated_seed='https://x/h/abc'))['event'] == 'start'
+
+    def test_a_roll_in_flight_holds_the_button(self):
+        row = _row(1, 'Checked In', tournament_seed_generator='alttpr', seed_rolling_since='t')
+        step = next_step(row)
+        assert step['event'] is None and step['rolling'] is True
+
+    def test_a_failed_roll_offers_the_roll_again(self):
+        row = _row(1, 'Checked In', tournament_seed_generator='alttpr', seed_roll_error='boom')
+        assert next_step(row)['event'] == 'roll'
+
+    def test_no_generator_goes_straight_to_start(self):
+        assert next_step(_row(1, 'Checked In'))['event'] == 'start'
+
+    def test_check_in_still_comes_first(self):
+        assert next_step(_row(1, 'Scheduled', tournament_seed_generator='alttpr'))['event'] == 'seat'
+
+    def test_pending_only_while_unplayed(self):
+        assert seed_pending(_row(1, 'Scheduled', tournament_seed_generator='alttpr'))
+        assert not seed_pending(_row(1, 'Started', tournament_seed_generator='alttpr'))
+        assert not seed_pending(_row(1, 'Checked In', tournament_seed_generator='alttpr', is_racetime=True))
+
+    def test_the_seed_line_is_proctor_only_and_outside_the_phone_button(self):
+        assert 'run-sheet__seed' in _body_slot(True) and 'run-sheet__seed' not in _body_slot(False)
+        slot = _item_slot(True, can_run=True)
+        opener = slot.index('run-sheet__card-open')
+        assert slot.index('</button>', opener) < slot.index('run-sheet__seed-strip')
 
 
 class TestSeatLine:

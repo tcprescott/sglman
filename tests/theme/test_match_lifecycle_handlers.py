@@ -211,3 +211,69 @@ async def test_a_refused_write_still_refreshes_the_row(monkeypatch):
     await handlers.on_set_stage(7, 3)
     assert handlers.table_view.refreshed == [7]
     assert [str(e) for e in handlers.notified] == ['nope']
+
+
+# --- Start asks again for stations skipped at check-in ------------------------
+
+def _start_handlers(monkeypatch, *, stage_id=None, stations=(None, None)):
+    """Handlers whose one match is checked in with the given stations."""
+    players = [
+        SimpleNamespace(assigned_station=s, user=SimpleNamespace(preferred_name=f'P{i}'))
+        for i, s in enumerate(stations)
+    ]
+    match = SimpleNamespace(id=7, stage_id=stage_id, players=players)
+
+    class _Query:
+        def prefetch_related(self, *_args):
+            return self
+
+        def __await__(self):
+            async def _m():
+                return match
+            return _m().__await__()
+
+    class _Model:
+        @staticmethod
+        def get(**_kwargs):
+            return _Query()
+
+    opened = []
+
+    class _Dialog:
+        def __init__(self, *, match, purpose, **_kwargs):
+            self.purpose = purpose
+
+        async def open(self):
+            opened.append(('stations', self.purpose))
+
+    class _Confirm:
+        def __init__(self, **_kwargs):
+            pass
+
+        def open(self):
+            opened.append(('confirm', None))
+
+    monkeypatch.setattr(match_lifecycle, 'Match', _Model)
+    monkeypatch.setattr(match_lifecycle, 'require_tenant_id', lambda: 1)
+    monkeypatch.setattr(match_lifecycle, 'StationAssignmentDialog', _Dialog)
+    monkeypatch.setattr(match_lifecycle, 'ConfirmationDialog', _Confirm)
+    handlers = MatchLifecycleHandlers(nullcontext(), access=MatchBoardAccess(run=True))
+    return handlers, opened
+
+
+async def test_starting_without_stations_asks_for_them(monkeypatch):
+    handlers, opened = _start_handlers(monkeypatch, stations=('4', None))
+    await handlers.on_start(7)
+    assert opened == [('stations', 'start')]
+
+
+async def test_starting_a_seated_match_just_confirms(monkeypatch):
+    handlers, opened = _start_handlers(monkeypatch, stations=('4', '5'))
+    await handlers.on_start(7)
+    assert opened == [('confirm', None)]
+
+
+async def test_a_stage_match_is_never_asked_for_stations(monkeypatch):
+    handlers, opened = _start_handlers(monkeypatch, stage_id=2)
+    await handlers.on_start(7)
+    assert opened == [('confirm', None)]
