@@ -2,8 +2,9 @@
 
 Each channel is a row with a switch once it is set up, and an Add/Connect
 button until then. Setting one up happens in a sheet (a bottom sheet on a
-phone, a dialog on desktop). Only rendered when the community has
-``FeatureFlag.NOTIFICATION_CHANNELS`` on; the caller checks that.
+phone, a dialog on desktop). The rows only render when the community has
+``FeatureFlag.NOTIFICATION_CHANNELS`` on; the caller checks that. "Send a test…"
+shows everywhere, offering email and Telegram only alongside the rows.
 """
 
 from typing import Callable, Optional
@@ -271,28 +272,31 @@ class ChannelRows:
         dialog.open()
 
 
-async def render_test_button(user: User, rows: ChannelRows, device_count: Callable[[], int]) -> None:
+async def render_test_button(
+    user: User, rows: Optional[ChannelRows], device_count: Callable[[], int],
+) -> None:
     """The "Send a test…" line under the channels, opening a pick-where sheet."""
     with ui.row().classes('wiz-notify-item items-center no-wrap'):
         ui.label('Check it works: we send a test to the places you pick.') \
             .classes('text-muted text-caption col')
-        ui.button('Send a test…', icon='send', on_click=lambda: _open_test_sheet(rows, device_count())) \
+        ui.button('Send a test…', icon='send', on_click=lambda: _open_test_sheet(user, rows, device_count())) \
             .props('outline no-caps')
 
 
-def _open_test_sheet(rows: ChannelRows, devices: int) -> None:
-    user = rows.user
+def _open_test_sheet(user: User, rows: Optional[ChannelRows], devices: int) -> None:
+    if rows is not None:
+        user = rows.user
     options: list[tuple[Channel, str, bool, bool]] = []
     if user.discord_id:
         options.append((Channel.DISCORD, 'Discord DMs', True, user.dm_notifications))
     if WebPushService().is_configured():
         label = 'Your devices' if devices else 'Your devices (none turned on)'
         options.append((Channel.DEVICES, label, devices > 0, devices > 0))
-    if rows.show_email:
+    if rows is not None and rows.show_email:
         ready = bool(user.email)
         options.append((Channel.EMAIL, 'Email' if ready else 'Email (not set up)', ready,
                         ready and user.email_notifications))
-    if rows.show_telegram:
+    if rows is not None and rows.show_telegram:
         ready = user.telegram_chat_id is not None
         options.append((Channel.TELEGRAM, 'Telegram' if ready else 'Telegram (not connected)', ready,
                         ready and user.telegram_notifications))
