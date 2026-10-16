@@ -24,6 +24,9 @@ normally in the tournament room; if they step out briefly they tell the proctor
 first. So the room always has a proctor or an admin in it, and you are never
 left with nobody to ask.
 
+**SGLive 2026 staff** are adirondackrick, clifford, darkmoonex, dani3883,
+Felix_TC, hurfydurfy, jamevil, synack and tsigma6.
+
 **If you genuinely cannot find anyone**, ping the **@Staff** role in the
 [event Discord](https://discord.com/invite/T6qzxNJ). That is the backstop, not the
 first move: someone in the room will almost always be quicker.
@@ -85,5 +88,10 @@ hand in and where you go looking, for the whole event. Anything the hotel picks
 up outside the event space goes to the hotel's own lost and found at the front
 desk, so it is worth asking both.
 
-> **TODO:** accessibility provision, quiet space, first aid. Nothing on any of
-> these has been published or settled.
+## Medical help
+
+The nearest hospital and urgent care are listed under
+[Medical](/event-info/attending#medical).
+
+> **TODO:** accessibility provision, quiet space, first aid on site. Nothing on
+> any of these has been published or settled.

@@ -92,6 +92,15 @@ class TournamentDialog:
                     'Active',
                     value=self.tournament.is_active if self.tournament else True,
                 )
+                with ui.column().classes('gap-0'):
+                    is_test_checkbox = ui.checkbox(
+                        'Test tournament',
+                        value=self.tournament.is_test if self.tournament else False,
+                    )
+                    ui.label(
+                        "Left out of the event info tournament list. Use it for a "
+                        "rehearsal, like a Challonge integration check."
+                    ).classes('text-caption text-grey q-ml-xl')
 
                 # Everything below is optional and defaulted. Collapsed on create
                 # so the cheapest correct action — type a name, save — stops
@@ -519,6 +528,7 @@ class TournamentDialog:
                                 average_match_duration=average_match_duration_input.value,
                                 max_match_duration=max_match_duration_input.value,
                                 is_active=is_active_checkbox.value,
+                                is_test=is_test_checkbox.value,
                                 players_per_match=players_per_match_input.value,
                                 required_commentators=required_commentators_input.value,
                                 required_trackers=required_trackers_input.value,
@@ -547,6 +557,7 @@ class TournamentDialog:
                             average_match_duration=average_match_duration_input.value,
                             max_match_duration=max_match_duration_input.value,
                             is_active=is_active_checkbox.value,
+                            is_test=is_test_checkbox.value,
                             players_per_match=players_per_match_input.value,
                             required_commentators=required_commentators_input.value,
                             required_trackers=required_trackers_input.value,

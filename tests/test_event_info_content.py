@@ -201,3 +201,24 @@ def test_content_lives_inside_the_package():
     context, so a handbook filed anywhere else would not reach the image."""
     assert CONTENT_ROOT == Path(__file__).resolve().parent.parent / \
         'application' / 'event_info' / 'content'
+
+
+def test_an_embed_line_parses_to_an_embed_block():
+    from application.content import parse_blocks
+
+    blocks = parse_blocks('Intro.\n\n:::tournaments\n\nAfter.')
+    assert [b.kind for b in blocks] == ['para', 'embed', 'para']
+    assert blocks[1].name == 'tournaments'
+
+
+def test_an_unknown_embed_shows_as_text_rather_than_vanishing():
+    from application.content import parse_blocks
+
+    blocks = parse_blocks(':::tournamnets')
+    assert blocks[0].kind == 'para'
+    assert blocks[0].spans[0].text == ':::tournamnets'
+
+
+def test_the_sgl_schedule_embeds_the_live_tournament_list():
+    article = article_for_tenant('sgl26', 'schedule')
+    assert any(b.kind == 'embed' and b.name == 'tournaments' for b in article.blocks)

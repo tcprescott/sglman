@@ -82,7 +82,14 @@ What came from where, in case any of it needs re-checking:
 | Lost property goes to the check-in desk | consistent across `#lost-and-found` and prior years |
 | Dani is the volunteer coordinator, and owns shifts and swaps | the maintainer |
 
-> **Still `TODO:`, and nowhere to look it up.** The **venue map** is the big one
+A third pass (2026-10-15) took the organisers' **SGLive 2026 Event Guide**
+(a Google Doc Thomas shared) as the source: room names and floors, every room's
+hours (Sunday now closes at 6 PM, the stages open at 9 AM), check-in desk hours
+and location, the per-tournament format and sign-up table, travel directions,
+breakfast, food nearby, medical, prize pools, the safety policy and the staff
+list. That closed the venue-map and per-tournament TODOs below.
+
+> **Previously `TODO:` (venue map and per-tournament details now filled).** The **venue map** is the big one
 > and four notes wait on it: the tournament room, the stage, the admin desk and
 > the board game room all need a room name and a floor. Beyond that,
 > per-tournament **bracket size and entry requirements** (each tournament sets
@@ -131,6 +138,17 @@ summary: One line for the index card.
   authoring bug. Falling open would be an invisible leak.
 
 Roles are an **OR**: a reader holding any one of them qualifies.
+
+### Live tournament list
+
+A line holding only `:::tournaments` draws the community's tournament list in
+place, from Admin → Tournaments rather than the article text
+(`EventInfoService.list_tournaments` → `theme/event_info_tournaments.py`): every
+active tournament not marked **Test tournament**, with its format, rules and
+bracket links, its signup close time on the community's clock, and a **Sign up**
+button to the player Tournaments tab while the window is open. Keeping the list
+in the database means the handbook can't drift from the tournaments staff
+actually run. An unknown `:::name` line renders as plain text so a typo shows.
 
 ## Gating
 

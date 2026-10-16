@@ -11,7 +11,7 @@ from theme.tables.tournament import (
 
 def _tournament(**overrides):
     base = dict(
-        id=1, name='Cup', description=None, seed_generator=None, is_active=True,
+        id=1, name='Cup', description=None, seed_generator=None, is_active=True, is_test=False,
         players_per_match=2, player_count=0, average_match_duration=None,
         max_match_duration=None, signups_open_at=None, signups_close_at=None,
         tournament_format=None, bracket_url=None, rules_url=None,

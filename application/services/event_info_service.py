@@ -22,7 +22,8 @@ database this interface is the seam it lands on — the surfaces above call
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
+from datetime import datetime
 from typing import Optional
 
 from application.content import ContentArticle, ContentSnippet
@@ -32,9 +33,24 @@ from application.repositories import TenantRepository
 from application.services.auth_service import AuthService
 from application.services.feature_flag_service import FeatureFlagService
 from application.tenant_context import require_tenant_id
+from application.utils.safe_url import http_url_or_empty
+from application.utils.tournament_signup import SignupWindow, signup_window_state
 from models import FeatureFlag, Role, User
 
-__all__ = ['EventInfoService']
+__all__ = ['EventInfoService', 'HandbookTournament']
+
+
+@dataclass(frozen=True)
+class HandbookTournament:
+    """One row of the handbook's tournament list, read from Admin → Tournaments."""
+
+    id: int
+    name: str
+    format: str
+    rules_url: str
+    bracket_url: str
+    signups: SignupWindow
+    signups_close_at: Optional[datetime]
 
 
 class EventInfoService:
@@ -93,6 +109,41 @@ class EventInfoService:
         from application.services.help_service import HelpService
 
         return await HelpService.prune_links(blocks, user)
+
+    @staticmethod
+    @requires_feature(FeatureFlag.EVENT_INFO)
+    async def list_tournaments() -> list[HandbookTournament]:
+        """The community's active tournaments, minus those staff marked as tests.
+
+        What the ``:::tournaments`` embed draws, so the handbook's list is the
+        one staff already keep up to date rather than a second copy in prose.
+        A published Wizzrobe bracket wins over an external bracket link, the
+        same order the Watch page uses.
+        """
+        from application.services.bracket_service import BracketService
+        from application.services.tournament_service import TournamentService
+
+        published: set[int] = set()
+        if await FeatureFlagService().is_enabled(FeatureFlag.BRACKETS):
+            published = {b.tournament_id for b in await BracketService().list_all_visible_brackets(None)}
+        rows = []
+        for t in await TournamentService().get_all_tournaments(active_only=True):
+            if t.is_test:
+                continue
+            if t.id in published:
+                bracket = f'/live/tournament/{t.id}/brackets'
+            else:
+                bracket = http_url_or_empty(t.bracket_url) or http_url_or_empty(t.challonge_tournament_url)
+            rows.append(HandbookTournament(
+                id=t.id,
+                name=t.name,
+                format=t.tournament_format or '',
+                rules_url=http_url_or_empty(t.rules_url),
+                bracket_url=bracket,
+                signups=signup_window_state(t.signups_open_at, t.signups_close_at),
+                signups_close_at=t.signups_close_at,
+            ))
+        return sorted(rows, key=lambda r: r.name.lower())
 
     @staticmethod
     @requires_feature(FeatureFlag.EVENT_INFO)

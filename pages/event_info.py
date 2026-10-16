@@ -23,14 +23,17 @@ from application.content import ContentArticle
 from application.services import (
     EventInfoService,
     TenantService,
+    TimezoneService,
     get_user_from_session,
 )
+from application.tenant_context import require_tenant_id
 from application.utils.tenant_urls import login_path
 from middleware.auth import public_page
 from models import FeatureFlag
 from theme.a11y import make_activatable
 from theme.base import BaseLayout, current_local_url
 from theme.error_page import render_not_found
+from theme.event_info_tournaments import render_tournament_list
 from theme.help.article import render_article
 from theme.page_header import page_header
 
@@ -61,6 +64,17 @@ async def _title(*parts: str) -> str:
     """A tab title that says which community's handbook this is."""
     community = await TenantService.current_community_name() or 'Wizzrobe'
     return ' — '.join((*parts, community))
+
+
+async def _embeds(article: ContentArticle) -> dict:
+    """Builders for the live-data blocks ``article`` uses, loaded up front."""
+    if not any(block.kind == 'embed' and block.name == 'tournaments' for block in article.blocks):
+        return {}
+    rows = await EventInfoService.list_tournaments()
+    # The prose around the list states times on the venue's clock, so the
+    # close times use it too rather than each reader's own zone.
+    tz = await TimezoneService.tenant_timezone_name(require_tenant_id())
+    return {'tournaments': lambda: render_tournament_list(rows, tz=tz)}
 
 
 def _nothing_published() -> None:
@@ -129,8 +143,9 @@ def create() -> None:
             return
 
         ui.page_title(await _title(article.title, 'Event Information'))
+        embeds = await _embeds(article)
         await _render_chrome(user)
         render_article(
             article, await EventInfoService.list_articles(user),
-            base='/event-info', back_label='All event information',
+            base='/event-info', back_label='All event information', embeds=embeds,
         )

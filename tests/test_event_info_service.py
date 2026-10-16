@@ -16,9 +16,13 @@ import pytest
 from application.errors import FeatureDisabledError
 from application.services import EventInfoService
 from application.tenant_context import tenant_scope
-from models import Role, Tenant, UserRole
+from models import Role, Tenant, Tournament, UserRole
 from tests.conftest import enable_all_flags
 from tests.factories import make_user
+
+
+async def make_tournament(**kwargs) -> Tournament:
+    return await Tournament.create(tenant_id=1, **kwargs)
 
 
 @pytest.fixture
@@ -134,3 +138,26 @@ class TestSnippets:
 
     async def test_an_unknown_snippet_is_none(self, db):
         assert await EventInfoService.get_snippet('no-such-snippet') is None
+
+
+class TestTheTournamentList:
+    async def test_it_lists_active_tournaments_and_leaves_out_tests(self, db):
+        await make_tournament(name='Real Cup', rules_url='https://example.com/rules')
+        await make_tournament(name='Integration Check', is_test=True)
+        await make_tournament(name='Old Cup', is_active=False)
+        rows = await EventInfoService.list_tournaments()
+        names = [r.name for r in rows]
+        assert 'Real Cup' in names
+        assert 'Integration Check' not in names
+        assert 'Old Cup' not in names
+        assert next(r for r in rows if r.name == 'Real Cup').rules_url == 'https://example.com/rules'
+
+    async def test_it_is_refused_where_the_feature_is_off(self, bare_tenant):
+        with tenant_scope(bare_tenant.id):
+            with pytest.raises(FeatureDisabledError):
+                await EventInfoService.list_tournaments()
+
+    async def test_another_communitys_tournaments_never_appear(self, handbookless_tenant):
+        await make_tournament(name='Default Cup')
+        with tenant_scope(handbookless_tenant.id):
+            assert await EventInfoService.list_tournaments() == []

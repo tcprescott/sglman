@@ -97,6 +97,7 @@ def _tournament_row(t) -> dict:
         'description': _description_preview(t.description),
         'seed_generator': t.seed_generator or '',
         'is_active': t.is_active,
+        'is_test': t.is_test,
         'players_per_match': t.players_per_match,
         'player_count': t.player_count,
         'average_match_duration': t.average_match_duration,
@@ -114,6 +115,7 @@ def _tournament_row(t) -> dict:
 _NAME_CELL = '''
     <a href="#" class="table-link" @click.prevent="$parent.$emit('edit_tournament', props.row)">{{ props.row.name }}</a>
     <span v-if="!props.row.is_active" class="wiz-chip wiz-chip--neutral q-ml-sm">Inactive</span>
+    <span v-if="props.row.is_test" class="wiz-chip wiz-chip--pending q-ml-sm">Test</span>
     <div class="tournament-table__sub">{{ props.row.tournament_format || 'No format set' }}</div>
 '''
 

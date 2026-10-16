@@ -9,7 +9,7 @@ compact strip above the body, and the stacked sidebar keeps only the article
 list as a "more" footer. ``static/css/styles.css`` owns which copy shows where.
 """
 
-from typing import Callable, Optional
+from typing import Callable, Mapping, Optional
 
 from nicegui import ui
 
@@ -32,6 +32,7 @@ def render_article(
     base: str,
     back_label: str,
     for_staff: Optional[Callable[[ContentArticle], bool]] = None,
+    embeds: Optional[Mapping[str, Callable[[], None]]] = None,
 ) -> None:
     """Render ``article`` with its sidebar; ``articles`` is the reader's list.
 
@@ -74,4 +75,4 @@ def render_article(
             # Block flow rather than the enclosing flex column, so the blocks'
             # own margins set the rhythm instead of a uniform flex gap.
             with ui.element('div').classes('wiz-help-prose'):
-                render_blocks(article.blocks)
+                render_blocks(article.blocks, embeds=embeds)

@@ -11,6 +11,9 @@ class Tournament(Model):
     description = fields.TextField(null=True)
     seed_generator = fields.CharField(max_length=255, null=True)
     is_active = fields.BooleanField(default=True)
+    # A staff-only rehearsal (e.g. a Challonge integration check): left out of
+    # the event handbook's tournament list, which is written for attendees.
+    is_test = fields.BooleanField(default=False)
     players_per_match = fields.IntField(default=2)
     bracket_url = fields.CharField(max_length=255, null=True)
     rules_url = fields.CharField(max_length=255, null=True)

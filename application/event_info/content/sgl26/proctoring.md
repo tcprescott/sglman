@@ -66,7 +66,7 @@ the rules for *your* room: the streaming rooms and stages run to their own, set
 by the people producing them.
 
 **The room is for the matches on the board, not for casual or practice play.**
-Point anyone asking to the dedicated Casual Gaming Room. A station genuinely not
+Point anyone asking to the casual room (Corcoran / Veritas / Chrysalis, lower level). A station genuinely not
 in use can be an exception, but only with explicit sign-off from an on-call admin
 or SGL staff, so it is worth checking with them rather than deciding it looks free.
 

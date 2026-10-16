@@ -6,9 +6,13 @@ creates — the article text reaches the page as element *content*, never as
 markup. That is what makes shipping editable prose through the UI safe, and it is
 the same reason ``check_markdown_xss`` exists.
 
-The vocabulary is closed: seven block kinds, seven span kinds. Anything the parser
+The vocabulary is closed: seven block kinds, seven span kinds, plus ``embed``,
+whose content the page hands in as a builder (an embed with no builder renders
+nothing). Anything the parser
 could not classify arrived here as plain text and renders as plain text.
 """
+
+from typing import Callable, Mapping, Optional
 
 from nicegui import ui
 
@@ -122,12 +126,18 @@ def _render_image(block: Block) -> None:
                 render_spans(block.spans)
 
 
-def render_blocks(blocks, *, heading_offset: int = 0) -> None:
+def render_blocks(
+    blocks,
+    *,
+    heading_offset: int = 0,
+    embeds: Optional[Mapping[str, Callable[[], None]]] = None,
+) -> None:
     """Render a block list into the current slot.
 
     ``heading_offset`` demotes every heading by that many levels — a popup
     quoting a snippet renders its headings smaller than the article does, so a
-    two-line popup does not open with a page title.
+    two-line popup does not open with a page title. ``embeds`` maps an embed's
+    name to the builder that draws it in place.
     """
     for block in blocks:
         if block.kind == 'heading':
@@ -148,6 +158,8 @@ def render_blocks(blocks, *, heading_offset: int = 0) -> None:
             _render_table(block)
         elif block.kind == 'image':
             _render_image(block)
+        elif block.kind == 'embed' and embeds and block.name in embeds:
+            embeds[block.name]()
         elif block.kind == 'note':
             with ui.element('aside').classes('wiz-help-note'):
                 ui.icon('info').props('size=xs').classes('wiz-help-note-icon')
