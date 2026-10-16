@@ -336,12 +336,17 @@ class NotificationChannelService:
 
     # ------------------------------------------------------------ tests
 
-    @requires_feature(FeatureFlag.NOTIFICATION_CHANNELS)
+    # feature-gate: exempt — Discord and device tests work in every community;
+    # email and Telegram are refused below unless the flag is on.
     async def send_test(self, user: User, channels: Iterable[Channel]) -> Dict[Channel, bool]:
         """Send a test to each chosen channel. Maps each to whether it went out."""
         chosen = list(dict.fromkeys(Channel(c) for c in channels))
         if not chosen:
             raise ValueError('Pick at least one place to send the test.')
+        if any(c in (Channel.EMAIL, Channel.TELEGRAM) for c in chosen):
+            from application.services.feature_flag_service import FeatureFlagService
+            if not await FeatureFlagService().is_enabled(FeatureFlag.NOTIFICATION_CHANNELS):
+                raise ValueError("Email and Telegram aren't turned on for this community.")
         if not _take_slot('test', user.id, TESTS_PER_WINDOW, TEST_WINDOW_SECONDS):
             raise ValueError('You can send 3 tests every 10 minutes. Try again in a few minutes.')
         from application.services.discord.discord_service import DiscordService

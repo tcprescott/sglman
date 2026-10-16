@@ -367,7 +367,7 @@ async def render_edit_info_tab(focus: str | None = None):
 
                     if channel_rows:
                         channel_rows.render()
-                        await render_test_button(user, channel_rows, lambda: device_count['n'])
+                    await render_test_button(user, channel_rows, lambda: device_count['n'])
 
                 all_off_note()
 
