@@ -72,6 +72,8 @@ def heading_fallback(title: str) -> Iterator[None]:
     try:
         yield
     finally:
-        if _titled.get():
+        # A build cancelled because its page went away has already taken the
+        # label with it, and deleting it again raises over the cancellation.
+        if _titled.get() and not fallback.is_deleted:
             fallback.delete()
         _titled.reset(token)
