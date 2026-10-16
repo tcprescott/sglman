@@ -32,13 +32,13 @@ class TestStageActions:
         assert [a.key for a in stage_actions(state, group)] == expected
 
     def test_error_detail_from_a_live_scope_refusal(self):
-        from application.services._challonge_stages import challonge_error_detail
+        from application.services._challonge_stages import _challonge_error_detail
         from application.utils.clients.challonge_client import ChallongeAPIError
         e = ChallongeAPIError(
             'Challonge API error (403): {"errors":{"detail":"Request requires one of '
             'the following scopes: tournaments:write","status":"403"}}', status=403,
         )
-        assert challonge_error_detail(e) == (
+        assert _challonge_error_detail(e) == (
             'Request requires one of the following scopes: tournaments:write.'
         )
 

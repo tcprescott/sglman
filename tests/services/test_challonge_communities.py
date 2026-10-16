@@ -44,7 +44,7 @@ async def test_connecting_with_a_community_remembers_it(challonge, staff):
 async def test_the_list_survives_a_disconnect(challonge, staff):
     await challonge.save_service_connection({'access_token': 'a'}, staff, community='speedgaming')
     await challonge.disconnect(staff)
-    assert await challonge.communities_to_grant() == ['speedgaming', '']
+    assert await challonge.communities_to_grant() == ['speedgaming']
 
 
 async def test_tournament_communities_join_the_list_with_counts(challonge, staff):
@@ -61,8 +61,8 @@ async def test_tournament_communities_join_the_list_with_counts(challonge, staff
 
 async def test_communities_to_grant_appends_a_typed_one(challonge, staff):
     await challonge.save_service_connection({'access_token': 'a'}, staff, community='speedgaming')
-    assert await challonge.communities_to_grant(' https://zsr.challonge.com/x ') == ['speedgaming', 'zsr', '']
-    assert await challonge.communities_to_grant('speedgaming') == ['speedgaming', '']
+    assert await challonge.communities_to_grant(' https://zsr.challonge.com/x ') == ['speedgaming', 'zsr']
+    assert await challonge.communities_to_grant('speedgaming') == ['speedgaming']
     with pytest.raises(ValueError, match='subdomain'):
         await challonge.communities_to_grant('not a community!')
 

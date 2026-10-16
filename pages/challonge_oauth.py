@@ -265,7 +265,6 @@ class _ServiceGrant:
 
 
 def _connected_notice(communities: List[str]) -> str:
-    communities = [c for c in communities if c]
     if not communities:
         return 'Challonge account connected.'
     if len(communities) == 1:
@@ -276,9 +275,8 @@ def _connected_notice(communities: List[str]) -> str:
 def _next_service_grant(queue: List[str]) -> str:
     """Pin the next community's state in the session and return Challonge's consent URL.
 
-    Each grant names one community (``''`` for none), so a reconnect asks once per
-    remembered community and once more without one. The rest of the queue rides
-    the session to the callback.
+    Each grant names one community, so a reconnect asks once per remembered
+    community. The rest of the queue rides the session to the callback.
     """
     community, rest = (queue[0], queue[1:]) if queue else (None, [])
     state = secrets.token_urlsafe(32)
@@ -294,7 +292,7 @@ async def _finish_service_connect(user, code: str | None, return_path: str, gran
         if granted:
             stash_notice(
                 f'{_connected_notice(granted)} Challonge access for '
-                f'{grant.community or "brackets outside a community"} was cancelled.',
+                f'{grant.community or "the next community"} was cancelled.',
                 color='warning',
             )
         else:

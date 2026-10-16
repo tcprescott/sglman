@@ -29,9 +29,7 @@ Without it, Challonge refuses to show Wizzrobe the community's tournaments.
 Wizzrobe remembers every community you've connected with, plus any community a
 linked tournament lives on, and lists them on the card. **Reconnect** asks
 Challonge for each of them again, one approval screen per community, so you only
-type a community once. The last screen names no community: it's the one that
-lets Wizzrobe see brackets hosted outside any community, so approve that too.
-Remove one with its ×. A community that linked
+type a community once. Remove one with its ×. A community that linked
 tournaments still use can't be removed.
 
 If the stage changes in a linked tournament's ⋮ menu are greyed out, press
@@ -45,6 +43,10 @@ Open the tournament on **Admin → Tournaments** and find **Challonge** under
 Integrations. Paste the Challonge tournament's URL or ID and press **Link &
 Sync**. The tournament has to be saved first, so this section doesn't appear while
 you're creating one.
+
+The bracket has to belong to the connected Challonge account or live in one of
+its communities. Being an admin on someone else's bracket isn't enough: Challonge
+won't show it to Wizzrobe, so ask its owner to move it into your community.
 
 Linking does three things:
 

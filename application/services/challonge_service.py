@@ -21,11 +21,10 @@ from urllib.parse import urlparse
 from application.errors import require_found
 from application.feature_flags import requires_feature
 from application.repositories import ChallongeRepository, TournamentRepository, UserRepository
-from application.services._challonge_communities import ChallongeCommunitiesMixin
-from application.services._challonge_grants import ChallongeGrantsMixin, _as_aware_utc
+from application.services._challonge_communities import ChallongeCommunitiesMixin, not_found_message
 from application.services._challonge_participants import ChallongeParticipantAssignmentMixin
 from application.services._challonge_signup import ChallongeSignupMixin, misc_user_id
-from application.services._challonge_stages import ChallongeStageMixin, challonge_error_detail
+from application.services._challonge_stages import ChallongeStageMixin
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.feature_flag_service import FeatureFlagService
@@ -49,6 +48,9 @@ from models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Refresh the service token slightly before it actually expires.
+_TOKEN_REFRESH_BUFFER = timedelta(minutes=5)
 
 # Collapse rapid repeat syncs (double-clicks, webhook bursts) — a non-forced
 # sync within this window of the last one is treated as a no-op.
@@ -74,9 +76,16 @@ def _service_scopes() -> str:
     return os.getenv('CHALLONGE_SCOPES') or _DEFAULT_SERVICE_SCOPES
 
 
+def _as_aware_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """Treat naive datetimes (e.g. from a non-tz DB) as UTC so comparisons are safe."""
+    if dt is None:
+        return None
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
+
 class ChallongeService(
     ChallongeParticipantAssignmentMixin, ChallongeStageMixin, ChallongeSignupMixin,
-    ChallongeCommunitiesMixin, ChallongeGrantsMixin,
+    ChallongeCommunitiesMixin,
 ):
     """Business logic for the Challonge integration."""
 
@@ -147,6 +156,48 @@ class ChallongeService(
         )
 
     # ------------------------------------------------------------------
+    # Service-account token management
+    # ------------------------------------------------------------------
+    async def get_valid_access_token(self, force_refresh: bool = False) -> str:
+        """Return a live service access token, refreshing if expired/forced."""
+        connection = await self.repository.get_connection()
+        if connection is None:
+            raise ValueError("Challonge is not connected. A staff member must connect the Wizzrobe account.")
+
+        if not force_refresh and not self._token_expiring(connection):
+            return connection.access_token
+
+        if not connection.refresh_token:
+            if force_refresh:
+                raise ValueError("Challonge token expired and no refresh token is available; reconnect required.")
+            return connection.access_token
+
+        payload = await self._oauth_client().refresh(connection.refresh_token)
+        access, refresh, expires_at = self._unpack_token(payload)
+        await self.repository.update_connection_tokens(connection, access, refresh, expires_at)
+        return access
+
+    @staticmethod
+    def _token_expiring(connection: ChallongeConnection) -> bool:
+        if connection.token_expires_at is None:
+            return False
+        expires = _as_aware_utc(connection.token_expires_at)
+        return datetime.now(timezone.utc) >= (expires - _TOKEN_REFRESH_BUFFER)
+
+    @staticmethod
+    def _unpack_token(payload: Dict[str, Any]) -> Tuple[str, Optional[str], Optional[datetime]]:
+        access = payload.get('access_token')
+        if not access:
+            raise ChallongeAPIError(f"Challonge token response missing access_token: {payload}")
+        refresh = payload.get('refresh_token')
+        expires_in = payload.get('expires_in')
+        expires_at = (
+            datetime.now(timezone.utc) + timedelta(seconds=int(expires_in))
+            if expires_in else None
+        )
+        return access, refresh, expires_at
+
+    # ------------------------------------------------------------------
     # Connection lifecycle (called by OAuth middleware)
     # ------------------------------------------------------------------
     @requires_feature(FeatureFlag.CHALLONGE)
@@ -171,7 +222,6 @@ class ChallongeService(
             scopes=scopes,
             challonge_username=username,
             connected_by=actor,
-            community=self.normalize_community(community),
         )
         await self._remember_community(community)
         await self.audit_service.write_log(
@@ -418,16 +468,13 @@ class ChallongeService(
         except ChallongeAPIError as e:
             if community and e.status == 403:
                 raise ValueError(
-                    f"Challonge won't let the connected account read tournaments in the "
-                    f"'{community}' community. In Admin → Challonge, enter "
-                    f"'{community}' as the community and reconnect, signing in as one "
-                    f"of its admins."
+                    f"Challonge won't let the connected account read tournaments in the '{community}' "
+                    f"community. In Admin → Challonge, enter '{community}' as the community and "
+                    f"reconnect, signing in as one of its admins."
                 ) from e
             if e.status == 404:
-                raise ValueError(await self._not_found_message(identifier, community)) from e
-            raise ValueError(
-                f"Could not find that Challonge tournament: {challonge_error_detail(e)}"
-            ) from e
+                raise ValueError(not_found_message(identifier)) from e
+            raise ValueError(f"Could not find that Challonge tournament: {e}") from e
 
         remote = full['tournament']
         tournament.challonge_tournament_id = remote.get('id') or identifier

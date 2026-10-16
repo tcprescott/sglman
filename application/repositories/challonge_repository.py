@@ -28,28 +28,17 @@ class ChallongeRepository:
     """Repository for Challonge connection and bracket-mirror data.
 
     Every Challonge model is tenant-scoped: each tenant links its own service
-    account, mirrors its own brackets, and tracks its own API quota. A tenant
-    keeps one connection row per Challonge community it granted; usage is
-    tallied per ``(tenant, period)``.
+    account, mirrors its own brackets, and tracks its own API quota. The
+    connection is "newest row per tenant is authoritative"; usage is tallied per
+    ``(tenant, period)``.
     """
 
     # ------------------------------------------------------------------
-    # Service-account connection (one grant per community; newest is the fallback)
+    # Service-account connection (newest row per tenant is authoritative)
     # ------------------------------------------------------------------
     @staticmethod
     async def get_connection() -> Optional[ChallongeConnection]:
         return await scoped(ChallongeConnection.all()).order_by('-id').first()
-
-    @staticmethod
-    async def granted_communities() -> Set[Optional[str]]:
-        """Each community this tenant holds a grant for ('' = no community, None = pre-split row)."""
-        return set(await scoped(ChallongeConnection.all()).values_list('community', flat=True))
-
-    @staticmethod
-    async def get_connection_for(community: Optional[str]) -> Optional[ChallongeConnection]:
-        """The grant made for ``community`` (None = no community), else the newest grant."""
-        exact = await scoped(ChallongeConnection.filter(community=community or '')).order_by('-id').first()
-        return exact or await ChallongeRepository.get_connection()
 
     @staticmethod
     async def list_all_connections() -> List[ChallongeConnection]:
@@ -76,16 +65,8 @@ class ChallongeRepository:
         scopes: Optional[str],
         challonge_username: Optional[str],
         connected_by: Optional[User],
-        community: Optional[str] = None,
     ) -> ChallongeConnection:
-        """Store the grant for ``community`` (None = no community), replacing any earlier one.
-
-        A row from before grants were split (``community`` NULL) is dropped: the
-        reconnect that saves this one is walking every grant it stood in for.
-        """
-        key = community or ''
-        await scoped(ChallongeConnection.filter(community__isnull=True)).delete()
-        existing = await scoped(ChallongeConnection.filter(community=key)).order_by('-id').first()
+        existing = await ChallongeRepository.get_connection()
         if existing:
             existing.access_token = access_token
             existing.refresh_token = refresh_token
@@ -102,7 +83,6 @@ class ChallongeRepository:
             token_expires_at=token_expires_at,
             scopes=scopes,
             challonge_username=challonge_username,
-            community=key,
             connected_by=connected_by,
         )
 
