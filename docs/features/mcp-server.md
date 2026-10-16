@@ -464,7 +464,7 @@ words.
 All datetimes are UTC as stored. Each community chooses the zone its members read them in; the model is told once in
 the server instructions rather than per field.
 
-Discord ids are strings (`api/schemas/snowflake.py`'s `Snowflake` type): a
+Discord ids are strings (`mcpserver/snowflake.py`'s `Snowflake` type; the REST API still sends numbers): a
 snowflake is past 2**53, so a JSON number is rounded by any JavaScript client.
 
 ## Errors

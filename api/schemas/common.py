@@ -5,7 +5,6 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from api.schemas.snowflake import Snowflake
 from models import VolunteerAvailabilityStatus
 
 
@@ -17,7 +16,7 @@ class UserBase(BaseModel):
     id: int
     username: str
     display_name: Optional[str] = None
-    discord_id: Optional[Snowflake] = Field(None, description="The linked Discord user ID as a string, or null.")
+    discord_id: Optional[int] = None
     pronouns: Optional[str] = None
 
 

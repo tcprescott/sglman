@@ -21,7 +21,7 @@ from typing import Annotated, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from api.schemas.snowflake import Snowflake
+from mcpserver.snowflake import Snowflake
 
 # Declared once and shared, so every community-scoped tool describes its tenant
 # argument identically. The description is the only place the model learns where

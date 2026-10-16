@@ -15,8 +15,6 @@ _Reference for Wizzrobe's REST API: the router package in [`api/`](../../api/) a
 
 The API is served by the same Uvicorn process as the NiceGUI frontend. The interactive Swagger UI at `/api/docs` is the authoritative, always-current catalogue (every endpoint, schema, and example); this page summarises the model.
 
-**Discord ids are strings.** `discord_id`, `guild_id`, `discord_role_id` and `discord_event_id` are sent as decimal strings, the way Discord's own API sends them: a snowflake is past 2**53, so a JSON number loses its last digits in any JavaScript client. Request bodies accept a string or a number. Declare a new snowflake field with `Snowflake` from [`api/schemas/snowflake.py`](../../api/schemas/snowflake.py), never `int`.
-
 ### Documenting an endpoint
 
 `/api/docs` is public and is the only documentation an API user sees, so it carries what a caller needs and nothing internal. The document is built by [`api/openapi_docs.py`](../../api/openapi_docs.py), which splits the work in two:

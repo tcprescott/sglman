@@ -5,8 +5,6 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from api.schemas.snowflake import Snowflake
-
 _TEMPLATE_KEYS = "Placeholders: `{tournament}`, `{match}` and `{players}`."
 
 
@@ -35,7 +33,7 @@ class DiscordScheduledEventResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int = Field(..., description="Link row id.")
-    discord_event_id: Snowflake = Field(..., description="Discord's id for the scheduled event, as a string.")
+    discord_event_id: int = Field(..., description="Discord's id for the scheduled event.")
     source_type: str = Field(..., description="What the event mirrors. Always `match` today.")
     source_id: int = Field(..., description="Id of the mirrored row, a match id when `source_type` is `match`.")
     title: str = Field(..., description="Title the event was last written with.")

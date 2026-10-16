@@ -1,4 +1,4 @@
-"""Discord snowflake ids as they cross the API and MCP boundary.
+"""Discord snowflake ids as MCP returns them.
 
 A snowflake is a 64-bit integer, past the 2**53 that a JSON number survives in
 JavaScript: `JSON.parse` rounds `320395696098377729` to `320395696098377700`.
