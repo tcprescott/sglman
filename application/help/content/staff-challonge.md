@@ -46,6 +46,10 @@ Integrations. Paste the Challonge tournament's URL or ID and press **Link &
 Sync**. The tournament has to be saved first, so this section doesn't appear while
 you're creating one.
 
+The bracket has to belong to the connected Challonge account or live in one of
+its communities. Being an admin on someone else's bracket isn't enough: Challonge
+won't show it to Wizzrobe, so ask its owner to move it into your community.
+
 Linking does three things:
 
 - imports every entrant and match from the bracket

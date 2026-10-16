@@ -213,7 +213,7 @@ class TestLinkTournament:
         await ChallongeConnection.create(access_token='t', community='', challonge_username='syn')
         api = MagicMock()
         api.get_tournament_full = AsyncMock(side_effect=ChallongeAPIError('404', status=404))
-        with pytest.raises(ValueError, match="that syn is an admin of the bracket"):
+        with pytest.raises(ValueError, match="brackets syn created or that live in a connected community"):
             await make_service(api=api).link_tournament(tournament.id, 'sglmmr26', actor)
 
     async def test_community_403_explains_how_to_reconnect(self, db):

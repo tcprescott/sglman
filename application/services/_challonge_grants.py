@@ -84,4 +84,8 @@ class ChallongeGrantsMixin:
                 f"{message} Wizzrobe hasn't been granted {where} yet. Reconnect in "
                 f"Admin → Challonge, approve every Challonge prompt, then try again."
             )
-        return f"{message} Check the URL, and that {account} is an admin of the bracket on Challonge."
+        return (
+            f"{message} Check the URL. Challonge only lets Wizzrobe read brackets {account} "
+            f"created or that live in a connected community; being an admin on someone "
+            f"else's bracket isn't enough, so its owner needs to move it into a community."
+        )
