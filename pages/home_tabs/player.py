@@ -1,5 +1,8 @@
 
 
+from dataclasses import dataclass
+from typing import Callable
+
 from nicegui import app, ui
 
 from application.services import (
@@ -129,36 +132,51 @@ async def count_waiting_on_you(user) -> int:
     return _bookable_count(*await _waiting_on_you(user))
 
 
-def _pick_row(
-    tournament_name: str, opponent_name: str, round_label: str,
-    button_label: str, on_click, *, source: str | None = None,
-    blocked: str | None = None,
-) -> None:
-    """One matchup in the Waiting-on-you card.
+@dataclass
+class _Pick:
+    """One matchup waiting on the player, before it is grouped by tournament."""
+    tournament_id: int
+    tournament_name: str
+    source: str | None
+    opponent_name: str
+    round_label: str
+    on_click: Callable
+    blocked: str | None = None
 
-    The tournament takes its own line across the tile: beside the button it
-    was cut to "Bracket De…" on a 360px phone, and it is what tells two
-    matchups against the same opponent apart. ``blocked`` disables the button
-    and says why on the row itself, because a tooltip never shows on a phone.
+
+def _render_picks(picks: list[_Pick]) -> None:
+    """The Waiting-on-you matchups, one group per tournament.
+
+    The tournament and its bracket-site tag are said once in the group's
+    header: during a group stage a player has several matchups in the same
+    tournament, and repeating its name on each row cut it to "Wizzrobe Dev
+    Tourna…" on a phone. A row that can't be booked yet shows why instead of a
+    greyed-out button, because a tooltip never shows on a phone.
     """
-    with ui.element('div').classes('wiz-pick-row column gap-1'):
-        with ui.row().classes('items-center gap-2 no-wrap full-width'):
-            ui.label(tournament_name).classes('text-bold ellipsis').style('min-width: 0')
-            if source:
-                ui.label(source).classes('wiz-chip wiz-chip--neutral')
-        with ui.row().classes('items-center no-wrap gap-2 full-width'):
-            with ui.column().classes('col min-w-0 gap-0 items-stretch'):
-                ui.label(f'vs {opponent_name}').classes('ellipsis')
-                if round_label:
-                    ui.label(round_label).classes('text-caption text-grey-7 ellipsis')
-            button = ui.button(button_label, icon='event', on_click=on_click) \
-                .props('color=primary flat')
-            if blocked:
-                button.disable()
-        if blocked:
-            with ui.row().classes('wiz-pick-row__note no-wrap items-start gap-2'):
-                ui.icon('info_outline', size='16px')
-                ui.label(blocked)
+    groups: dict[tuple, list[_Pick]] = {}
+    for pick in picks:
+        groups.setdefault((pick.tournament_id, pick.source), []).append(pick)
+    with ui.element('div').classes('wiz-pick-groups'):
+        for rows in groups.values():
+            with ui.element('div').classes('wiz-pick-group'):
+                with ui.row().classes('wiz-pick-group__head items-center no-wrap gap-2'):
+                    ui.label(rows[0].tournament_name).classes('col min-w-0')
+                    if rows[0].source:
+                        ui.label(rows[0].source).classes('wiz-chip wiz-chip--neutral')
+                for pick in rows:
+                    with ui.element('div').classes('wiz-pick-row'):
+                        with ui.row().classes('items-center no-wrap gap-3 full-width'):
+                            with ui.column().classes('col min-w-0 gap-0'):
+                                ui.label(f'vs {pick.opponent_name}').classes('wiz-pick-row__opponent')
+                                if pick.round_label:
+                                    ui.label(pick.round_label).classes('text-caption text-grey-7')
+                            if not pick.blocked:
+                                ui.button('Pick a time', on_click=pick.on_click) \
+                                    .props('color=primary outline no-caps')
+                        if pick.blocked:
+                            with ui.row().classes('wiz-pick-row__note no-wrap items-start gap-2'):
+                                ui.icon('info_outline', size='16px')
+                                ui.label(pick.blocked)
 
 
 def _notify_stale_hard_preset_link() -> None:
@@ -402,83 +420,87 @@ async def render_player_dashboard(
             openers: dict = {}
             challonge_openers: dict = {}
             external_openers: dict = {}
+            bookable = _bookable_count(challonge_rows, matchups, external)
             with ui.card().classes('wiz-subcard'):
-                ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
+                with ui.row().classes('items-center no-wrap gap-2'):
+                    ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
+                    if bookable:
+                        ui.badge(str(bookable), color=None).classes('wiz-nav-count')
                 ui.label(_booking_caption(
                     [cm.tournament for cm in challonge_rows]
                     + [bm.bracket.tournament for bm in matchups]
                     + [x.tournament for x in external],
                 )).classes('text-caption text-grey-7')
-                with ui.element('div').classes('wiz-pick-grid'):
-                    for cm in challonge_rows:
-                        me_is_p1 = cm.participant1 is not None and cm.participant1.user_id == user.id
-                        opponent = cm.participant2 if me_is_p1 else cm.participant1
-                        opponent_name = opponent.name if opponent else 'TBD'
-                        opponent_linked = opponent is not None and opponent.user_id is not None
+                picks: list[_Pick] = []
+                for cm in challonge_rows:
+                    me_is_p1 = cm.participant1 is not None and cm.participant1.user_id == user.id
+                    opponent = cm.participant2 if me_is_p1 else cm.participant1
+                    opponent_name = opponent.name if opponent else 'TBD'
+                    opponent_linked = opponent is not None and opponent.user_id is not None
 
-                        async def do_challonge(_=None, m=cm, oname=opponent_name):
-                            actor = await get_user_from_session(app.storage.user)
-                            await ChallongeScheduleDialog(
-                                m, actor=actor, opponent_name=oname, on_submit=after,
-                            ).open()
+                    async def do_challonge(_=None, m=cm, oname=opponent_name):
+                        actor = await get_user_from_session(app.storage.user)
+                        await ChallongeScheduleDialog(
+                            m, actor=actor, opponent_name=oname, on_submit=after,
+                        ).open()
 
-                        if opponent_linked:
-                            challonge_openers[cm.id] = do_challonge
-                        _pick_row(
-                            cm.tournament.name, opponent_name, challonge_round_label(cm.round),
-                            'Schedule', do_challonge, source='Challonge',
-                            blocked=None if opponent_linked else (
-                                f"Can't book yet: {opponent_name} isn't matched to a "
-                                "Wizzrobe account. Staff can match them."
+                    if opponent_linked:
+                        challonge_openers[cm.id] = do_challonge
+                    picks.append(_Pick(
+                        cm.tournament.id, cm.tournament.name, 'Challonge', opponent_name,
+                        challonge_round_label(cm.round), do_challonge,
+                        blocked=None if opponent_linked else (
+                            f"Can't book yet: {opponent_name} isn't matched to a "
+                            "Wizzrobe account. Staff can match them."
+                        ),
+                    ))
+
+                for x in external:
+                    async def do_external(_=None, item=x):
+                        actor = await get_user_from_session(app.storage.user)
+                        await BracketSourceScheduleDialog(item, actor, on_submit=after).open()
+
+                    external_openers[(x.source, x.key)] = do_external
+                    picks.append(_Pick(
+                        x.tournament.id, x.tournament.name, x.source_label,
+                        x.opponent_name, x.round_label, do_external,
+                    ))
+
+                for bm in matchups:
+                    me_is_e1 = bm.entry1.entrant.user_id == user.id
+                    opponent = bm.entry2 if me_is_e1 else bm.entry1
+                    opponent_name = opponent.entrant.display_name
+                    best_of = bracket_service.resolve_best_of(bm.bracket, bm)
+                    number = _next_game_number(bm, best_of)
+
+                    async def do_schedule(_=None, m=bm, oname=opponent_name,
+                                          n=number, bo=best_of):
+                        actor = await get_user_from_session(app.storage.user)
+                        await BracketScheduleDialog(
+                            m.id, actor,
+                            opponent_name=oname,
+                            game_number=n,
+                            best_of=bo,
+                            opponent_can_ask=bool(
+                                m.bracket.tournament.allow_reschedule_requests
                             ),
-                        )
+                            tournament_name=m.bracket.tournament.name,
+                            round_label=_round_label(m, bo, n),
+                            tournament_id=m.bracket.tournament_id,
+                            player_ids=[
+                                m.entry1.entrant.user_id,
+                                m.entry2.entrant.user_id,
+                            ],
+                            on_submit=after,
+                        ).open()
 
-                    for x in external:
-                        async def do_external(_=None, item=x):
-                            actor = await get_user_from_session(app.storage.user)
-                            await BracketSourceScheduleDialog(item, actor, on_submit=after).open()
+                    openers[bm.id] = do_schedule
+                    picks.append(_Pick(
+                        bm.bracket.tournament_id, bm.bracket.tournament.name, None,
+                        opponent_name, _round_label(bm, best_of, number), do_schedule,
+                    ))
 
-                        external_openers[(x.source, x.key)] = do_external
-                        _pick_row(
-                            x.tournament.name, x.opponent_name, x.round_label,
-                            'Schedule', do_external, source=x.source_label,
-                        )
-
-                    for bm in matchups:
-                        me_is_e1 = bm.entry1.entrant.user_id == user.id
-                        opponent = bm.entry2 if me_is_e1 else bm.entry1
-                        opponent_name = opponent.entrant.display_name
-                        best_of = bracket_service.resolve_best_of(bm.bracket, bm)
-                        number = _next_game_number(bm, best_of)
-
-                        async def do_schedule(_=None, m=bm, oname=opponent_name,
-                                              n=number, bo=best_of):
-                            actor = await get_user_from_session(app.storage.user)
-                            await BracketScheduleDialog(
-                                m.id, actor,
-                                opponent_name=oname,
-                                game_number=n,
-                                best_of=bo,
-                                opponent_can_ask=bool(
-                                    m.bracket.tournament.allow_reschedule_requests
-                                ),
-                                tournament_name=m.bracket.tournament.name,
-                                round_label=_round_label(m, bo, n),
-                                tournament_id=m.bracket.tournament_id,
-                                player_ids=[
-                                    m.entry1.entrant.user_id,
-                                    m.entry2.entrant.user_id,
-                                ],
-                                on_submit=after,
-                            ).open()
-
-                        openers[bm.id] = do_schedule
-                        _pick_row(
-                            bm.bracket.tournament.name, opponent_name,
-                            _round_label(bm, best_of, number),
-                            f'Schedule game {number}' if best_of > 1 else 'Schedule',
-                            do_schedule,
-                        )
+                _render_picks(picks)
 
             # The openers only hold this viewer's own open matchups — the
             # listings are already scoped to them — so an id from a forwarded
