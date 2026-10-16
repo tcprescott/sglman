@@ -7,7 +7,8 @@ summary: What the bot DMs you, what each button does, and what to do when nothin
 ---
 
 Wizzrobe tells you things by Discord DM, and on any phone or browser you turn
-on under **Profile → Notifications**. There is no email and no SMS.
+on under **Profile → Notifications**. If your community has turned them on,
+email and Telegram can get a copy of every DM too. There is no SMS.
 
 ## What you get DMed
 
@@ -68,6 +69,17 @@ Everything is on the **Profile** tab, under *Notifications*.
 - **This phone**, **This tablet** or **This browser** turns on pop-up notifications on the device
   you're holding. Other devices you've turned on are listed below it, each with
   **Remove**.
+- **Email**, where your community offers it, sends a copy of every DM to your
+  inbox. **Add email** lets you use the address on your Discord account in one
+  tap, or type a different one and confirm it with a 6-digit code. Every email
+  has a one-click unsubscribe link.
+- **Telegram**, where your community offers it, sends the same copy as a
+  Telegram message. **Connect** opens a chat with the Wizzrobe bot: press
+  Start and you're done, no phone number needed. Send /stop in that chat to
+  turn it off.
+
+**Send a test…** sends a test message to the places you pick, so you can check
+each one actually reaches you. You can send 3 tests every 10 minutes.
 
 They're independent: you can turn Discord DMs off and keep getting
 notifications on your phone. If everything is off, the page warns you, because

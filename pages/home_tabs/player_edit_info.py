@@ -21,6 +21,7 @@ from pages.home_tabs.api_tokens_section import render_api_tokens_section
 from pages.home_tabs.challonge_link_section import CONFIG as CHALLONGE_CONFIG
 from pages.home_tabs.emergency_contact_section import render_emergency_contact_section
 from pages.home_tabs.my_feedback_section import render_my_feedback_section
+from pages.home_tabs.notification_channels_section import ChannelRows, render_test_button
 from pages.home_tabs.racetime_link_section import CONFIG as RACETIME_CONFIG
 from pages.home_tabs.twitch_link_section import CONFIG as TWITCH_CONFIG
 from pages.home_tabs.web_push_section import render_device_rows
@@ -126,6 +127,7 @@ async def render_edit_info_tab(focus: str | None = None):
         payouts_live = FeatureFlag.PAYOUTS in live_flags
         accommodations_live = FeatureFlag.ADA_ACCOMMODATIONS in live_flags
         emergency_contacts_live = FeatureFlag.EMERGENCY_CONTACTS in live_flags
+        channels_live = FeatureFlag.NOTIFICATION_CHANNELS in live_flags
 
         notification_service = TournamentNotificationService()
         active_tournaments = await notification_service.get_active_tournaments()
@@ -324,20 +326,24 @@ async def render_edit_info_tab(focus: str | None = None):
             # a message goes (each channel is its own switch) and what they'll hear
             # about. The Discord switch is enforced inside send_dm, so turning it
             # off leaves device notifications running.
-            with ui.card().classes('card-full-width'):
+            with ui.card().classes('card-full-width') \
+                    .props(f'id={section_anchor(ProfileSection.NOTIFICATIONS)}'):
                 with ui.row().classes('items-center gap-1 no-wrap wiz-help-row'):
                     ui.label('Notifications').classes('section-title')
                     await help_icon('notification-settings')
 
                 device_count = {'n': 0}
+                channel_rows = ChannelRows(user, on_change=lambda: all_off_note.refresh()) \
+                    if channels_live else None
 
                 @ui.refreshable
                 def all_off_note() -> None:
-                    if dm_switch.value or device_count['n']:
+                    if dm_switch.value or device_count['n'] or (channel_rows and channel_rows.any_on()):
                         return
                     with banner(
                         "Everything's off, so Wizzrobe can't reach you. Turn on "
-                        'Discord DMs or a device to hear about your matches.',
+                        + ('Discord DMs, a device, email or Telegram' if channel_rows else 'Discord DMs or a device')
+                        + ' to hear about your matches.',
                         tone='warning', icon='notifications_off',
                     ):
                         pass
@@ -358,6 +364,10 @@ async def render_edit_info_tab(focus: str | None = None):
                         all_off_note.refresh()
 
                     await render_device_rows(user, on_count_change=on_device_count)
+
+                    if channel_rows:
+                        channel_rows.render()
+                        await render_test_button(user, channel_rows, lambda: device_count['n'])
 
                 all_off_note()
 

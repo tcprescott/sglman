@@ -44,7 +44,6 @@ class ProfileCheck(str, Enum):
     PRONOUNS = 'pronouns'
     TIMEZONE = 'timezone'
     MATCHERINO = 'matcherino'
-    NOTIFICATIONS = 'notifications'
 
 
 class ProfileSection(str, Enum):
@@ -53,6 +52,7 @@ class ProfileSection(str, Enum):
     PERSONAL = 'personal'
     CONNECTED_ACCOUNTS = 'connected-accounts'
     MATCHERINO = 'matcherino'
+    NOTIFICATIONS = 'notifications'
 
 
 @dataclass(frozen=True)

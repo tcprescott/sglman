@@ -6563,6 +6563,8 @@ ol.wiz-help-list { list-style-type: decimal; }
 .wiz-notify-item + .wiz-notify-item { border-top: 1px solid var(--border-subtle); }
 .wiz-notify-item__name { font-weight: 700; color: var(--fg); }
 .wiz-notify-item__icon { color: var(--fg-muted); flex: none; }
+.wiz-notify-item__link { color: var(--wiz-link); text-decoration: underline; min-height: 0; padding: 0 2px; font-size: 0.8125rem; flex: none; }
+.wiz-notify-item__addr { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wiz-notify-follow__select { width: 14rem; max-width: 100%; }
 
 @media (max-width: 599.98px) {
