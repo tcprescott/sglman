@@ -62,7 +62,7 @@ from .discord import (
 )
 from .emergency_contact_service import EmergencyContactService
 from .equipment_service import EquipmentService
-from .event_info_service import EventInfoService
+from .event_info_service import EventGuide, EventInfoService
 from .feature_flag_service import FeatureFlagService
 from .feedback_service import FeedbackService
 from .help_service import HelpService
@@ -174,6 +174,7 @@ __all__ = [
     'EmergencyContactService',
     'EquipmentService',
     'EventDraft',
+    'EventGuide',
     'EventInfoService',
     'FeatureFlagService',
     'FeedbackService',

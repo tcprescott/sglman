@@ -99,6 +99,32 @@ list. That closed the venue-map and per-tournament TODOs below.
 > The flag is dark, so none of this reaches a reader until the gaps are filled and
 > a super-admin grants it.
 
+A fourth pass (2026-10-16) took the **official PDF** of the guide as the source
+of truth and cut the three public articles to cliff notes, because the PDF now
+ships beside them (below). Thomas chose topic by topic what stays as text: the
+room hours table, check-in and badges (guide facts only, no ticket tiers), a
+what-to-bring checklist, short tournament room and stage procedure (keeping the
+trouble table and turnover, which the guide lacks), breakfast and nearby food,
+medical, a one-line prize pool note, and trimmed app-only topics (Ask to
+change, who to ask, volunteering, crew, lost property). Travel directions and
+the hotel room block are **PDF only**.
+
+### The organisers' guide (PDF)
+
+A community can ship the organisers' own guide as a PDF in its content
+directory: `guide_pdf_for_tenant` takes the first `*.pdf` by name, and the file
+name is what a reader's download is saved as (`SGLive-2026-Event-Guide.pdf` for
+`sgl26`; the dev fixture has a one-line placeholder). It is served at
+`/event-info/guide.pdf` (a fixed path, so a printed link survives a new
+revision) through `EventInfoService.get_guide`, behind the same `EVENT_INFO`
+gate and public like the articles. The route is registered before
+`/event-info/{slug}` so `guide.pdf` is never read as an article slug.
+
+Where one exists, the index shows a `banner()` with **Open guide** and each
+article shows a "Full details in the event guide (PDF)" link under its summary
+(`render_article(..., intro_extra=...)`). Both open in a new tab. To replace the
+guide, swap the file in a PR.
+
 There was a `broadcast` article (role-gated to `STREAM_MANAGER`/`STAFF`); it was
 dropped because everything event-specific in it — the stage list, technical
 requirements, the broadcast lead's contact — was still `TODO:`, and the rest
@@ -228,10 +254,11 @@ re-exported unchanged, so nothing outside these packages moved.
 
 ## Surfaces
 
-- `/event-info` — index cards, and a line pointing at `/help` for anyone who
+- `/event-info` — the guide banner when a PDF ships, index cards, and a line pointing at `/help` for anyone who
   arrived looking for app mechanics.
 - `/event-info/{slug}` — sidebar (article list + this article's `##` headings)
   and the body, reusing the help section's renderer and `wiz-help-*` styling.
+- `/event-info/guide.pdf` — the community's guide PDF, inline, or 404.
 - **The drawer**, immediately above Help, ungated on `self.user` — the handbook
   answers the questions people have before they sign in.
 
