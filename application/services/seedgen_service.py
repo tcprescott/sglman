@@ -2,7 +2,8 @@
 Seed Generation Service - Business Logic Layer
 
 Handles random seed generation for various randomizers.
-Supports: ALTTPR, ALTTPR Door Randomizer, FF1R, Z1R, SMMAP, OOTR, DK64R, DASH, WWR, and Test.
+Supports: ALTTPR, ALTTPR Door Randomizer, AVIANART, FF1R, Z1R, Z2R, SMB3R, AoSR,
+SM, SMZ3, SMMAP, OOTR, DK64R, DASH, WWR, and Test.
 """
 
 import asyncio
@@ -20,6 +21,7 @@ import yaml
 from pyz3r import ALTTPR
 
 import application.services._seedgen_codes as seed_codes
+import application.services._seedgen_local as local_rolls
 import application.services._seedgen_wwr as wwr_permalinks
 from application.errors import MissingCredentialError
 from application.randomizer_credentials import credentials_for, spec_for
@@ -29,11 +31,19 @@ from application.services._seedgen_alttprdr import (
     door_preset_settings,
     door_rando_configured,
 )
+from application.services._seedgen_avianart import (
+    AVIANART_MAX_POLLS,
+    AVIANART_POLL_INTERVAL,
+    avianart_preset_name,
+    avianart_presets,
+    generate_avianart,
+)
 from application.services._seedgen_dk64r import (
     DK64R_GENERATION_TIMEOUT,
     DK64R_SITE_HOSTS,
     DK64RBackend,
 )
+from application.services._seedgen_samus import generate_samus, samus_settings
 from application.services._seedgen_types import (
     AsyncRollPoll,
     AsyncRollSubmission,
@@ -94,20 +104,6 @@ def _ff1r_reference_url(settings: Optional[dict]) -> str:
     return url
 
 
-def _z1r_flags(settings: Optional[dict]) -> str:
-    """The Z1R flag string a preset holds, checked, or ``ValueError`` naming what's wrong."""
-    flags = settings.get('flags') if isinstance(settings, dict) else None
-    if not isinstance(flags, str) or not flags.strip():
-        raise ValueError('A Zelda 1 preset needs "flags": the flag string from the randomizer.')
-    unknown = set(settings) - {'flags'}
-    if unknown:
-        raise ValueError(f"A Zelda 1 preset holds only flags, not {', '.join(sorted(unknown))}.")
-    flags = flags.strip()
-    if re.search(r'\s', flags):
-        raise ValueError('Zelda 1 flags are one string with no spaces.')
-    return flags
-
-
 # The bare domain 308s to www, and the generate call is read without following
 # redirects, so it has to start on the host that answers it.
 _DASH_BASE_URL = 'https://www.dashrando.net'
@@ -120,8 +116,14 @@ class SeedGenerationService(DK64RBackend, DoorRandoBackend):
     AVAILABLE_RANDOMIZERS: ClassVar[List[str]] = [
         'alttpr',
         'alttprdr',
+        'avianart',
         'ff1r',
         'z1r',
+        'z2r',
+        'smb3r',
+        'aosr',
+        'sm',
+        'smz3',
         'smmap',
         'ootr',
         'smdash',
@@ -134,8 +136,14 @@ class SeedGenerationService(DK64RBackend, DoorRandoBackend):
     RANDOMIZER_NAMES: ClassVar[Dict[str, str]] = {
         'alttpr': 'A Link to the Past',
         'alttprdr': 'ALttP Door Randomizer',
+        'avianart': 'A Link to the Past (AVIANART)',
         'ff1r': 'Final Fantasy',
         'z1r': 'Zelda 1',
+        'z2r': 'Zelda 2',
+        'smb3r': 'Super Mario Bros. 3',
+        'aosr': 'Aria of Sorrow',
+        'sm': 'Super Metroid',
+        'smz3': 'SMZ3 (Super Metroid + A Link to the Past)',
         'smmap': 'Super Metroid Map Rando',
         'ootr': 'Ocarina of Time',
         'smdash': 'Super Metroid DASH',
@@ -150,13 +158,17 @@ class SeedGenerationService(DK64RBackend, DoorRandoBackend):
 
     # Randomizers whose generator resolves a ``Preset`` (its settings feed the
     # roll). Anything else ignores the preset and rolls hard-coded settings.
-    PRESET_AWARE_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr', 'alttprdr', 'dk64r', 'ff1r', 'smdash', 'wwr', 'z1r'}
+    PRESET_AWARE_RANDOMIZERS: ClassVar[Set[str]] = {
+        'alttpr', 'alttprdr', 'aosr', 'avianart', 'dk64r', 'ff1r', 'sm', 'smb3r', 'smdash', 'smz3', 'wwr', 'z1r',
+        'z2r',
+    }
 
     # Rolls that ``MOCK_SEEDGEN`` leaves alone. DK64R mocks one layer down (see
-    # ``generate_seed_call``); WWR and Z1R are built locally with no upstream to
-    # stand in for, and their seeds are plain strings rather than URLs, which is
-    # exactly what the dev environment needs to show for the copy card to be seen.
-    MOCK_EXEMPT_RANDOMIZERS: ClassVar[Set[str]] = {'dk64r', 'wwr', 'z1r'}
+    # ``generate_seed_call``); WWR, Z1R, Z2R, SMB3R and AoSR are built locally
+    # with no upstream to stand in for, and most of their seeds are plain strings
+    # rather than URLs, which is exactly what the dev environment needs to show
+    # for the copy card to be seen.
+    MOCK_EXEMPT_RANDOMIZERS: ClassVar[Set[str]] = {'aosr', 'dk64r', 'smb3r', 'wwr', 'z1r', 'z2r'}
 
     # Backends whose roll is a task queue rather than a request: submit now,
     # collect minutes later. These do not return a seed from one call, so every
@@ -173,6 +185,7 @@ class SeedGenerationService(DK64RBackend, DoorRandoBackend):
     # settings blob. The value is the catalogue's variants — DK64R publishes a
     # separate list per branch — or an empty tuple where there is only one list.
     REMOTE_PRESET_BRANCHES: ClassVar[dict] = {
+        'avianart': (),
         'dk64r': ('stable', 'dev'),
     }
 
@@ -187,12 +200,15 @@ class SeedGenerationService(DK64RBackend, DoorRandoBackend):
     # inside it is safe and is handled within the generator.
     PROVIDER_TIMEOUTS: ClassVar[dict] = {
         'alttprdr': DOOR_RANDO_TIMEOUT,
+        'avianart': AVIANART_MAX_POLLS * AVIANART_POLL_INTERVAL + 30.0,
         'dk64r': DK64R_GENERATION_TIMEOUT + 60.0,
     }
     PROVIDER_ATTEMPTS: ClassVar[dict] = {
         # The sidecar already retries a layout that fails to generate; a second
         # attempt here only covers it being busy or briefly unreachable.
         'alttprdr': 2,
+        # AVIANART builds a game per generate call; its polls run inside the attempt.
+        'avianart': 1,
         'dk64r': 1,
         # DASH saves the seed upstream before answering, so a retry after a
         # timeout mints a second seed and orphans the first.
@@ -207,15 +223,22 @@ class SeedGenerationService(DK64RBackend, DoorRandoBackend):
         judge them. WWR has no upstream, so a pasted permalink is decoded here,
         and one that isn't a permalink, or doesn't fit its vendored build, is
         refused with a ``ValueError`` rather than at the desk minutes before a race.
-        FFR and Z1R are built locally too, so their flags are checked here as well.
+        FFR, AoSR and the flag-string games are built locally too, so theirs are
+        checked here as well, as are AVIANART preset names and samus.link settings.
         """
         if randomizer == 'ff1r':
             return {'url': _ff1r_reference_url(settings)}
         if randomizer == 'alttprdr':
             inner, spoiler = door_preset_settings(settings)
             return {'settings': inner, 'spoiler': spoiler}
-        if randomizer == 'z1r':
-            return {'flags': _z1r_flags(settings)}
+        if randomizer == 'aosr':
+            return {'url': local_rolls.aosr_reference_url(settings)}
+        if randomizer in local_rolls.FLAG_GAMES:
+            return {'flags': local_rolls.flag_string(randomizer, settings)}
+        if randomizer == 'avianart':
+            return {'preset': avianart_preset_name(settings)}
+        if randomizer in ('sm', 'smz3'):
+            return samus_settings(randomizer, settings)
         if randomizer != 'wwr':
             return settings
         permalink = settings.get('permalink')
@@ -243,8 +266,8 @@ class SeedGenerationService(DK64RBackend, DoorRandoBackend):
                 build = wwr_permalinks.build_name(version)
                 return f'Paste this permalink into Wind Waker Randomizer build **{build}**. Other builds will reject it.'
             return 'Paste this permalink into the Wind Waker Randomizer.'
-        if randomizer == 'z1r':
-            return 'Enter this seed and these flags in the Zelda 1 Randomizer.'
+        if randomizer in local_rolls.FLAG_GAMES:
+            return f'Enter this seed and these flags in the {local_rolls.FLAG_GAMES[randomizer]} Randomizer.'
         return None
 
     @staticmethod
@@ -263,9 +286,15 @@ class SeedGenerationService(DK64RBackend, DoorRandoBackend):
         return prefix.replace('-', '.') if prefix and prefix != 'www' else 'latest'
 
     @staticmethod
-    def example_z1r_seed(flags: str) -> str:
+    def example_flag_seed(randomizer: str, flags: str) -> str:
         """What a player would be handed for these flags, for the Presets tab, or ``ValueError``."""
-        return f"{random.randint(0, 8999999999999999999)} - {_z1r_flags({'flags': flags})}"
+        seed = random.randint(*local_rolls.FLAG_SEED_RANGES[randomizer])
+        return f"{seed} - {local_rolls.flag_string(randomizer, {'flags': flags})}"
+
+    @staticmethod
+    def rolls_from_flags(randomizer: Optional[str]) -> bool:
+        """Whether a roll is a seed number beside a flag string the player types in."""
+        return randomizer in local_rolls.FLAG_GAMES
 
     @classmethod
     def supports_triforce_texts(cls, generator: Optional[str]) -> bool:
@@ -368,8 +397,14 @@ class SeedGenerationService(DK64RBackend, DoorRandoBackend):
         generator_map = {
             'alttpr': self._generate_alttpr,
             'alttprdr': self._generate_alttprdr,
+            'avianart': self._generate_avianart,
             'ff1r': self._generate_ff1r,
             'z1r': self._generate_z1r,
+            'z2r': self._generate_z2r,
+            'smb3r': self._generate_smb3r,
+            'aosr': self._generate_aosr,
+            'sm': self._generate_sm,
+            'smz3': self._generate_smz3,
             'smmap': self._generate_smmap,
             'ootr': self._generate_ootr,
             'smdash': self._generate_smdash,
@@ -478,23 +513,32 @@ class SeedGenerationService(DK64RBackend, DoorRandoBackend):
         return RolledSeed(url=newurl, settings={'seed': seed, 'flags': qs['f'][0]})
 
     async def _generate_z1r(self, preset: Optional[Preset] = None) -> RolledSeed:
-        """
-        Generate a Zelda 1 Randomizer seed.
+        """Generate a Zelda 1 Randomizer seed: a "seed - flags" string, purely local."""
+        return local_rolls.roll_flag_game('z1r', preset)
 
-        Returns a "seed - flags" string rather than a URL; purely local. The flags
-        come from the preset (``{"flags": ...}``); with no bundled fallback, a
-        tournament without a preset fails loudly.
-        """
-        try:
-            if preset is None:
-                raise ValueError('Zelda 1 needs a preset with flags. Add one on the Presets tab.')
-            flags = _z1r_flags(preset.settings)
-        except ValueError as e:
-            raise SeedProviderInvalidRequest(str(e), provider='z1r', operation='generate_seed') from None
-        seed = random.randint(0, 8999999999999999999)
-        return RolledSeed(
-            url=f"{seed} - {flags}", settings={'seed': str(seed), 'flags': flags},
-        )
+    async def _generate_z2r(self, preset: Optional[Preset] = None) -> RolledSeed:
+        """Generate a Zelda 2 Randomizer seed: a "seed - flags" string, purely local."""
+        return local_rolls.roll_flag_game('z2r', preset)
+
+    async def _generate_smb3r(self, preset: Optional[Preset] = None) -> RolledSeed:
+        """Generate a Super Mario Bros. 3 Randomizer seed: a "seed - flags" string, purely local."""
+        return local_rolls.roll_flag_game('smb3r', preset)
+
+    async def _generate_aosr(self, preset: Optional[Preset] = None) -> RolledSeed:
+        """Generate an Aria of Sorrow Randomizer link, purely local."""
+        return local_rolls.roll_aosr(preset)
+
+    async def _generate_avianart(self, preset: Optional[Preset] = None) -> RolledSeed:
+        """Generate an AVIANART seed of the preset's named AVIANART preset."""
+        return await generate_avianart(preset.settings if preset is not None else None)
+
+    async def _generate_sm(self, preset: Optional[Preset] = None) -> RolledSeed:
+        """Generate a Super Metroid Randomizer seed on sm.samus.link."""
+        return await generate_samus('sm', preset.settings if preset is not None else None)
+
+    async def _generate_smz3(self, preset: Optional[Preset] = None) -> RolledSeed:
+        """Generate an SMZ3 Combo Randomizer seed on samus.link."""
+        return await generate_samus('smz3', preset.settings if preset is not None else None)
 
     async def _generate_smmap(self) -> RolledSeed:
         """
@@ -714,6 +758,7 @@ class SeedGenerationService(DK64RBackend, DoorRandoBackend):
         generation, which fetching a catalogue does not.
         """
         catalogue_map = {
+            'avianart': lambda _branch: avianart_presets(),
             'dk64r': self._dk64r_presets,
         }
         if randomizer not in catalogue_map:

@@ -188,6 +188,23 @@ class TestLinkTournament:
         with pytest.raises(ValueError, match='Could not find that Challonge tournament'):
             await make_service(api=api).link_tournament(tournament.id, 'abc', actor)
 
+    async def test_not_found_explains_owner_or_community(self, db):
+        actor = await make_user(1, 'admin')
+        tournament = await Tournament.create(name='T')
+        api = MagicMock()
+        api.get_tournament_full = AsyncMock(side_effect=ChallongeAPIError(
+            'Challonge API error (404): {"errors":{"detail":"Tournament with ID or URL sglmmr26 '
+            'does not exist","status":404}}', status=404,
+        ))
+        with pytest.raises(ValueError) as excinfo:
+            await make_service(api=api).link_tournament(
+                tournament.id, 'https://challonge.com/sglmmr26', actor,
+            )
+        message = str(excinfo.value)
+        assert "Challonge can't find 'sglmmr26'" in message
+        assert "being an admin on someone else's bracket isn't enough" in message
+        assert '{' not in message
+
     async def test_community_403_explains_how_to_reconnect(self, db):
         actor = await make_user(1, 'admin')
         tournament = await Tournament.create(name='T')

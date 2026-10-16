@@ -1,0 +1,7 @@
+description: Casual logic and full item placement.
+settings:
+  logic: casual
+  goal: defeatmb
+  placement: full
+  gamemode: normal
+  players: '1'

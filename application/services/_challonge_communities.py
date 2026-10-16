@@ -21,6 +21,16 @@ from models import FeatureFlag, User
 COMMUNITIES_CONFIG_KEY = 'challonge_communities'
 
 
+def not_found_message(identifier: str) -> str:
+    """Why Challonge 404s a bracket that exists: it's someone else's, outside a community."""
+    return (
+        f"Challonge can't find '{identifier}'. Check the URL. Challonge only lets "
+        f"Wizzrobe read brackets the connected account created or that live in a "
+        f"connected community; being an admin on someone else's bracket isn't "
+        f"enough, so its owner needs to move it into a community."
+    )
+
+
 @dataclass(frozen=True)
 class ChallongeCommunity:
     slug: str

@@ -86,6 +86,40 @@ def smmap_code(seed_hash) -> Optional[list[str]]:
     return _words(seed_hash)
 
 
+def samus_code(seed_hash) -> Optional[list[str]]:
+    """samus.link's four enemy names (Super Metroid and SMZ3), sent as one string."""
+    return _words(seed_hash)
+
+
+# Door rando builds name some items more briefly than the game's own list.
+_AVIANART_SHORT_NAMES = {
+    'Bomb': 'Bombs', 'Powder': 'Magic Powder', 'Rod': 'Ice Rod', 'Ocarina': 'Flute',
+    'Bug Net': 'Bugnet', 'Bottle': 'Empty Bottle', 'Potion': 'Green Potion',
+    'Cane': 'Somaria', 'Pearl': 'Moon Pearl', 'Key': 'Big Key',
+}
+
+
+def avianart_code(result) -> Optional[list[str]]:
+    """AVIANART's five file-select items, a comma-separated string.
+
+    Plain ALTTPR presets send it as ``fshash``; door rando presets leave that out
+    and put it in ``spoiler.meta.hash`` with the shorter names above.
+    """
+    if not isinstance(result, dict):
+        return None
+    value = result.get('fshash')
+    if not value:
+        spoiler = result.get('spoiler')
+        meta = spoiler.get('meta') if isinstance(spoiler, dict) else None
+        value = meta.get('hash') if isinstance(meta, dict) else None
+    if not isinstance(value, str):
+        return None
+    names = [_AVIANART_SHORT_NAMES.get(n.strip(), n.strip()) for n in value.split(',')]
+    if len(names) != 5 or not all(names) or any(len(n) > 40 for n in names):
+        return None
+    return names
+
+
 def dash_code_from_page(html: str) -> Optional[list[str]]:
     """DASH has no seed API; its seed page embeds the signature in its data."""
     found = _DASH_SIGNATURE.search(html or '')
@@ -141,8 +175,8 @@ _MOCK_ENEMIES = ('GEEMER', 'RIPPER', 'VIOLA', 'WAVER', 'SOVA', 'ZOA', 'BULL', 'S
 
 def mock_code(randomizer: str) -> Optional[list[str]]:
     """A believable code for ``MOCK_SEEDGEN``, so dev shows the line."""
-    if randomizer in ('alttpr', 'alttprdr', 'ootr'):
+    if randomizer in ('alttpr', 'alttprdr', 'ootr', 'avianart'):
         return random.choices(ALTTPR_CODE_NAMES, k=5)
-    if randomizer in ('smmap', 'smdash'):
+    if randomizer in ('smmap', 'smdash', 'sm', 'smz3'):
         return random.choices(_MOCK_ENEMIES, k=4)
     return None

@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 from application.errors import require_found
 from application.feature_flags import requires_feature
 from application.repositories import ChallongeRepository, TournamentRepository, UserRepository
-from application.services._challonge_communities import ChallongeCommunitiesMixin
+from application.services._challonge_communities import ChallongeCommunitiesMixin, not_found_message
 from application.services._challonge_participants import ChallongeParticipantAssignmentMixin
 from application.services._challonge_signup import ChallongeSignupMixin, misc_user_id
 from application.services._challonge_stages import ChallongeStageMixin
@@ -468,11 +468,12 @@ class ChallongeService(
         except ChallongeAPIError as e:
             if community and e.status == 403:
                 raise ValueError(
-                    f"Challonge won't let the connected account read tournaments in the "
-                    f"'{community}' community. In Admin → Challonge, enter "
-                    f"'{community}' as the community and reconnect, signing in as one "
-                    f"of its admins."
+                    f"Challonge won't let the connected account read tournaments in the '{community}' "
+                    f"community. In Admin → Challonge, enter '{community}' as the community and "
+                    f"reconnect, signing in as one of its admins."
                 ) from e
+            if e.status == 404:
+                raise ValueError(not_found_message(identifier)) from e
             raise ValueError(f"Could not find that Challonge tournament: {e}") from e
 
         remote = full['tournament']

@@ -1,0 +1,7 @@
+description: Casual logic and a major/minor item split.
+settings:
+  logic: casual
+  goal: defeatmb
+  placement: split
+  gamemode: normal
+  players: '1'
