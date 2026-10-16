@@ -1,7 +1,7 @@
 """Volunteer My Shifts tab."""
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 
 from nicegui import app, ui
 
@@ -84,6 +84,71 @@ def shift_actions(assignment, now: datetime) -> tuple[bool, bool]:
     return can_ack, can_release
 
 
+def shift_title(shift) -> str:
+    position = shift.position.name if shift.position else 'Volunteer'
+    return position + (f' — {shift.label}' if shift.label else '')
+
+
+def render_shift_brief(assignment) -> None:
+    """What the shift actually involves — the two fields the coordinator
+    writes — and who else is on it."""
+    shift = assignment.shift
+    description = getattr(shift.position, 'description', None) if shift.position else None
+    if description:
+        ui.label(description).classes('text-body2 q-mt-sm wiz-free-text')
+    if shift.notes:
+        with ui.column().classes('q-mt-sm q-pa-sm gap-0') \
+                .style('border: 1px solid var(--q-primary); border-radius: 4px;'):
+            ui.label('For this shift').classes('text-caption text-weight-medium')
+            ui.label(shift.notes).classes('text-body2 wiz-free-text')
+    # Drafts are excluded: naming someone who has not been told would leak
+    # the draft invariant out sideways.
+    others = sorted(
+        a.user.preferred_name
+        for a in shift.assignments
+        if a.user_id != assignment.user_id and not a.auto_generated and a.user
+    )
+    ui.label(
+        f"With: {', '.join(others)}" if others
+        else 'You are the only one scheduled for this slot.'
+    ).classes('text-caption text-grey q-mt-sm')
+
+
+async def open_release_dialog(
+    assignment, user, lead_minutes: int, on_released: Callable[[], Awaitable[None]],
+) -> None:
+    """The "Give this shift back?" confirm, shared by My Shifts and My Schedule."""
+    shift = assignment.shift
+    help = await resolve_help(['shift-release'])
+    with form_dialog('Give this shift back?', card_classes='dialog-card dialog-card--sm', help=help) as dialog:
+        with ui.column().classes('q-pa-md gap-2 full-width'):
+            ui.label(shift_title(shift)).classes('text-body2 text-weight-medium')
+            ui.label(
+                f'{format_local_display(shift.starts_at)} → '
+                f'{format_local_display(shift.ends_at)}'
+            ).classes('text-caption')
+            warning = release_warning(shift.starts_at, lead_minutes)
+            if warning:
+                ui.label(warning).classes('text-caption text-warning')
+            reason_input = ui.textarea('Reason (optional)').classes('full-width')
+            reason_input.props('hint="Your coordinator sees this."')
+
+        async def do_release() -> None:
+            dialog.close()
+            try:
+                await VolunteerScheduleService().release(assignment.id, user, reason_input.value)
+            except (ValueError, PermissionError) as e:
+                notify_error(e)
+                return
+            ui.notify('Shift released. Your coordinator has been told.', color='info')
+            await on_released()
+
+        with dialog_actions().classes('justify-end'):
+            ui.button('Keep it', on_click=dialog.close).props('flat')
+            ui.button('Give it back', on_click=do_release).props('color=negative')
+    dialog.open()
+
+
 async def my_shifts_tab(release: Optional[str] = None) -> None:
     user = await get_user_from_session(app.storage.user)
     if user is None:
@@ -113,39 +178,10 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
         await hours_panel()
 
         async def confirm_release(assignment) -> None:
-            shift = assignment.shift
-            position = shift.position.name if shift.position else 'Volunteer'
-            help = await resolve_help(['shift-release'])
-            with form_dialog('Give this shift back?', card_classes='dialog-card dialog-card--sm', help=help) as dialog:
-                with ui.column().classes('q-pa-md gap-2 full-width'):
-                    ui.label(
-                        position + (f' — {shift.label}' if shift.label else '')
-                    ).classes('text-body2 text-weight-medium')
-                    ui.label(
-                        f'{format_local_display(shift.starts_at)} → '
-                        f'{format_local_display(shift.ends_at)}'
-                    ).classes('text-caption')
-                    warning = release_warning(shift.starts_at, lead_minutes)
-                    if warning:
-                        ui.label(warning).classes('text-caption text-warning')
-                    reason_input = ui.textarea('Reason (optional)').classes('full-width')
-                    reason_input.props('hint="Your coordinator sees this."')
-
-                async def do_release() -> None:
-                    dialog.close()
-                    try:
-                        await service.release(assignment.id, user, reason_input.value)
-                    except (ValueError, PermissionError) as e:
-                        notify_error(e)
-                        return
-                    ui.notify('Shift released. Your coordinator has been told.', color='info')
-                    hours_panel.refresh()
-                    shift_list.refresh()
-
-                with dialog_actions().classes('justify-end'):
-                    ui.button('Keep it', on_click=dialog.close).props('flat')
-                    ui.button('Give it back', on_click=do_release).props('color=negative')
-            dialog.open()
+            async def released() -> None:
+                hours_panel.refresh()
+                shift_list.refresh()
+            await open_release_dialog(assignment, user, lead_minutes, released)
 
         async def arrive(assignment) -> None:
             try:
@@ -164,30 +200,6 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
                 return
             ui.notify('Check-in taken back.', color='info')
             await arrival_changed()
-
-        def _render_brief(assignment) -> None:
-            """What the shift actually involves — the two fields the coordinator
-            writes and nothing used to render."""
-            shift = assignment.shift
-            description = getattr(shift.position, 'description', None) if shift.position else None
-            if description:
-                ui.label(description).classes('text-body2 q-mt-sm wiz-free-text')
-            if shift.notes:
-                with ui.column().classes('q-mt-sm q-pa-sm gap-0') \
-                        .style('border: 1px solid var(--q-primary); border-radius: 4px;'):
-                    ui.label('For this shift').classes('text-caption text-weight-medium')
-                    ui.label(shift.notes).classes('text-body2 wiz-free-text')
-            # Drafts are excluded: naming someone who has not been told would leak
-            # the draft invariant out sideways.
-            others = sorted(
-                a.user.preferred_name
-                for a in shift.assignments
-                if a.user_id != assignment.user_id and not a.auto_generated and a.user
-            )
-            ui.label(
-                f"With: {', '.join(others)}" if others
-                else 'You are the only one scheduled for this slot.'
-            ).classes('text-caption text-grey q-mt-sm')
 
         @ui.refreshable
         async def shift_list() -> None:
@@ -228,7 +240,7 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
                         ui.label(provenance).classes('text-caption text-grey')
                         if late:
                             ui.label(late).classes('text-caption st-pending')
-                        _render_brief(assignment)
+                        render_shift_brief(assignment)
                     # Negative left, positive right in every state: a status that
                     # replaces Acknowledge takes its slot rather than shifting
                     # "Can't make it" across.
