@@ -39,6 +39,7 @@ from application.services.discord import discord_queue
 from application.services.discord.discord_service import get_discord_bot
 from application.services.match import stage_reminder
 from application.services.volunteer import volunteer_reminder
+from application.utils import metrics_sampler
 from application.utils.easter_eggs import random_fact
 from application.utils.environment import loop_watchdog_enabled
 from application.utils.http_headers import header_safe
@@ -48,6 +49,7 @@ from application.utils.migration_lock import migration_lock
 from application.utils.mocks.mock_discord import is_mock_discord
 from application.utils.sentry import flush_sentry, init_sentry
 from middleware.inflight_requests import InFlightRequestLogMiddleware
+from middleware.request_metrics import RequestMetricsMiddleware
 from middleware.security_headers import SecurityHeadersMiddleware
 from migrations.tortoise_config import DB_URL, TORTOISE_ORM
 
@@ -258,6 +260,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Started after boot so migrations and the first imports don't read as stalls.
     if loop_watchdog_enabled():
         loop_watchdog.start()
+    metrics_sampler.start()
     # The MCP transport's session manager owns a task group that each per-request
     # server task is started on; entering it here (and exiting it around the
     # yield) means /mcp stops accepting calls before the workers below tear down,
@@ -285,6 +288,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await close_discord_bot()
         await close_db()
     finally:
+        await metrics_sampler.stop()
         loop_watchdog.stop()
         await flush_sentry()
 
@@ -310,6 +314,7 @@ class FunFactMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(FunFactMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestMetricsMiddleware)
 # Added last so it is outermost and sees every request the shutdown cancels.
 app.add_middleware(InFlightRequestLogMiddleware)
 

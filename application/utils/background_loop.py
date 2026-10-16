@@ -23,6 +23,7 @@ from typing import Awaitable, Callable, Dict, Iterable, List, Optional, TypeVar
 
 from application.tenant_context import tenant_scope
 from application.timezone_context import tz_scope
+from application.utils import sentry_metrics
 from application.utils.sentry import sentry_tags
 
 _default_logger = logging.getLogger(__name__)
@@ -82,6 +83,7 @@ class BackgroundLoop:
                     await self._tick()
                 except Exception as e:  # never let the loop die
                     self._failures += 1
+                    sentry_metrics.count('worker.tick_failures', attributes={'worker': self.name})
                     self._last_failed_at = time.time()
                     self._logger.exception('%s tick failed: %s', self.name, e)
                 finally:
@@ -89,6 +91,8 @@ class BackgroundLoop:
                     self._ticks += 1
                     self._last_seconds = elapsed
                     self._max_seconds = max(self._max_seconds, elapsed)
+                    sentry_metrics.distribution(
+                        'worker.tick_duration', elapsed, unit='second', attributes={'worker': self.name})
                 if elapsed >= SLOW_TICK_SECONDS:
                     self._logger.warning('%s tick took %.1fs', self.name, elapsed)
             await asyncio.sleep(self._interval)

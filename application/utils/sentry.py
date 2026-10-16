@@ -8,7 +8,7 @@ so once initialized it captures unhandled exceptions across the request path,
 the NiceGUI pages, and the Discord bot (all run in the same process), plus any
 ``logger.error``/``logger.exception`` records emitted anywhere in the codebase.
 
-Three things on top of the SDK defaults make an event diagnosable mid-event:
+Four things on top of the SDK defaults make an event diagnosable mid-event:
 
 * **Release** (``SENTRY_RELEASE``, else ``GIT_SHA`` baked into the image) so a
   regression points at the deploy that introduced it.
@@ -16,6 +16,8 @@ Three things on top of the SDK defaults make an event diagnosable mid-event:
   error are readable in Sentry without shell access to the container. DEBUG and
   TRACE, which a super-admin can switch on per module from ``/platform``, stay
   in the container log.
+* **Metrics** (``SENTRY_METRICS``, default on): process load, per-route request
+  counts and timings, and worker tick times; see :mod:`application.utils.sentry_metrics`.
 * **Ambient tags** on every event and log: the tenant in scope and, inside a
   NiceGUI websocket handler where the request-scoped user is gone, the signed-in
   user. Workers, queues and bot handlers add their own with :func:`sentry_tags`.
@@ -31,6 +33,7 @@ import sentry_sdk
 from sentry_sdk.integrations.logging import LoggingIntegration, ignore_logger_for_sentry_logs
 
 from application.tenant_context import get_current_tenant_id
+from application.utils import sentry_metrics
 from application.utils.environment import get_environment, is_production
 from application.utils.log_levels import level_number
 from application.utils.timer_teardown import is_timer_teardown_race
@@ -236,10 +239,12 @@ def init_sentry() -> None:
             ),
         ],
     )
+    sentry_metrics.configure(sentry_metrics.metrics_requested())
     logger.info(
-        'Sentry initialized (environment=%s, release=%s, traces=%s, profiles=%s, logs=%s).',
+        'Sentry initialized (environment=%s, release=%s, traces=%s, profiles=%s, logs=%s, metrics=%s).',
         get_environment(), _release() or 'unset', _traces_sample_rate(), _profiles_sample_rate(),
         logging.getLevelName(logs_level) if logs_level is not None else 'off',
+        'on' if sentry_metrics.enabled() else 'off',
     )
 
 

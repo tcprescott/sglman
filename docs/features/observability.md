@@ -18,6 +18,7 @@ SDK once, before the FastAPI app is built, and only when `SENTRY_DSN` is set.
 | **Traces** | `SENTRY_TRACES_SAMPLE_RATE`, default `0.1` in production and `0` elsewhere | Slow pages, slow DB and outbound HTTP calls. HTTP only: a NiceGUI button click arrives over the websocket and is never traced, which is what the [watchdog](#blocked-event-loop-watchdog) covers. |
 | **Profiles** | `SENTRY_PROFILES_SAMPLE_RATE`, default `1.0` (of traced requests) in production | Which functions a slow traced request spent its CPU in. |
 | **Loop stalls** | the [watchdog](#blocked-event-loop-watchdog) | WARNING from 0.5s, an ERROR issue from 2s, grouped by the blocking line. |
+| **Metrics** | [`sentry_metrics.py`](../../application/utils/sentry_metrics.py); on with Sentry unless `SENTRY_METRICS=off` | See [Metrics](#metrics). Explore > Metrics in Sentry. |
 | **Health alerts** | `ServiceHealthService._alert` → `capture_message` | Fingerprinted on probe + status, tagged `health_probe` / `health_status`, so one outage is one issue. |
 
 Every event carries `environment`, `release` (`SENTRY_RELEASE`, else
@@ -137,10 +138,38 @@ The super-admin MCP tool `runtime_stats` reads the process without shell access:
 uptime and release, RSS, asyncio task count, NiceGUI clients (held and with a
 live socket), the DB pool, the watchdog's last minute (lag p50/p95/max, process
 CPU where 100 is one core, the last 20 stalls with their culprit), every worker's
-tick count, failures and last/max tick time, and each community's Watch-page
-audience. Healthy at rest is a p95 lag of a few milliseconds and no stalls; CPU
+tick count, failures and last/max tick time, in-flight HTTP requests, the depth
+of each coroutine queue (Discord DMs, event dispatch), and each community's
+Watch-page audience. Healthy at rest is a p95 lag of a few milliseconds and no stalls; CPU
 pinned near 100 with a rising p95 is the admission ceiling the scaling roadmap
 describes. Code: [`application/utils/runtime_stats.py`](../../application/utils/runtime_stats.py).
+
+## Metrics
+
+The same load figures go to Sentry Metrics so they can be graphed and read back
+after a slow afternoon. Production only in practice (they need `SENTRY_DSN`);
+`SENTRY_METRICS=off` turns them off.
+
+| Metric | Type | Attributes | Source |
+|---|---|---|---|
+| `process.cpu` (percent, 100 = one core), `process.memory_rss` (MB), `process.asyncio_tasks` | gauge | | `metrics_sampler`, every 30s |
+| `loop.lag_p50` / `lag_p95` / `lag_max` (ms) | gauge | | watchdog's last minute |
+| `loop.stalls` | counter | | new stalls since the last sample |
+| `clients.open`, `clients.connected` | gauge | | NiceGUI tabs held / with a live socket |
+| `http.in_flight` | gauge | | requests open at sample time |
+| `db_pool.size`, `db_pool.in_use`, `db_pool.max` | gauge | | Tortoise pool |
+| `queue.depth` | gauge | `queue` | each `CoroutineQueue` |
+| `watch.live_viewers`, `watch.static_readers`, `watch.arrivals_per_minute` | gauge | `tenant_id` | Watch page audience |
+| `http.requests` | counter | `route`, `method`, `status` (`2xx`…) | `RequestMetricsMiddleware`, every request |
+| `http.request_duration` (ms) | distribution | same | same |
+| `worker.tick_duration` (s) | distribution | `worker` | `BackgroundLoop`, every tick |
+| `worker.tick_failures` | counter | `worker` | same |
+
+`route` is the route template (`/t/{slug}/admin`), never the filled-in path, and
+unmatched paths share one `unmatched` label. Requests under `/_nicegui` (assets
+and the socket.io transport) are skipped: a long-poll held open by design would
+swamp the timings, and tab concurrency is already `clients.connected`. A
+NiceGUI button click travels over the websocket, so it is not a request here.
 
 ## During the event
 
