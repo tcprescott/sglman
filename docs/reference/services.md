@@ -119,6 +119,8 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `UserService` | [user_service.py](../../application/services/user_service.py) | User CRUD, profiles, roles, enrollments | [role-based-auth.md](authentication.md#roles) |
 | `WebhookService` | [webhook_service.py](../../application/services/webhook_service.py) | Staff-managed outbound webhooks: CRUD + signed delivery | [webhooks.md](../features/webhooks.md) |
 | `WebPushService` | [web_push_service.py](../../application/services/web_push_service.py) | Per-device browser push subscriptions + encrypted delivery | [web-push.md](../features/web-push.md) |
+| `NotificationChannelService` | [notification_channel_service.py](../../application/services/notification_channel_service.py) | Email and Telegram as extra notification channels: confirm/link, the DM copy, user-chosen test notifications | `NOTIFICATION_CHANNELS` · [notification-channels.md](../features/notification-channels.md) |
+| `DiscordEmailService` | [discord_email_service.py](../../application/services/discord/discord_email_service.py) | "Use my Discord email": one extra OAuth with `identify email`, accepts only a verified address | [notification-channels.md](../features/notification-channels.md) |
 | `VolunteerAutoscheduleService` | [volunteer_autoschedule_service.py](../../application/services/volunteer/volunteer_autoschedule_service.py) | Greedy draft generator for the volunteer schedule | — |
 | `VolunteerAvailabilityService` | [volunteer_availability_service.py](../../application/services/volunteer/volunteer_availability_service.py) | Volunteer-declared availability windows | — |
 | `VolunteerExportService` | [volunteer_export_service.py](../../application/services/volunteer/volunteer_export_service.py) | Flattens roster, preferences, positions, shifts, assignments and a slot grid into spreadsheet-ready tables | — |
@@ -1820,6 +1822,29 @@ Collaborators: `VolunteerAssignmentRepository`, `SystemConfigService.get_volunte
 ### web_push_service.py — WebPushService
 
 Per-device browser push notifications ("Device Notifications"): subscription CRUD (audited `AuditActions.WEB_PUSH_*`) plus the encrypted delivery path. `mirror_dm(discord_id, message, navigate=None)` is enqueued fire-and-forget from `DiscordService.send_dm` for every outgoing DM (never raises; a no-op unless VAPID is configured and the user has subscriptions). It is the only send path: every push is a mirrored DM. Subscription management: `list_subscriptions(user)`, `subscribe(user, *, endpoint, p256dh, auth, user_agent=None)`, `rotate_subscription(*, old_endpoint, old_auth, endpoint, p256dh, auth, user_agent=None)` (the service worker's `pushsubscriptionchange`, authenticated by the old endpoint + auth secret), `unsubscribe(user, endpoint)` and `remove_subscription(user, subscription_id)`. Sends the Declarative Web Push JSON shape (`web_push: 8030`) — rendered natively on Safari/iOS 18.4+, by `static/sw.js` elsewhere — encrypted per RFC 8291 in a worker thread, with a per-origin-cached VAPID `Authorization` header, delivered concurrently per user through a shared `httpx.AsyncClient` (closed via `aclose_http_client()` in the lifespan). Prunes subscriptions the push service reports gone (404/410). Configured by `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`, resolved once per env tuple so misconfiguration warns once rather than per DM; `is_configured()` / `get_public_key()` gate the settings UI. Collaborators: `WebPushRepository`, `AuditService`, [`web_push.py`](#web_pushpy), `application.utils.environment.get_base_url`. Feature doc: [web-push.md](../features/web-push.md).
+
+### notification_channel_service.py — NotificationChannelService
+
+Email (SendGrid) and Telegram as extra places a person's notifications land, behind `FeatureFlag.NOTIFICATION_CHANNELS`. Every public entry is `@requires_feature` except the paths reached without a request (the unsubscribe link, the Telegram bot's `/start` and `/stop`, and `mirror_dm`), which are marked `# feature-gate: exempt`.
+
+| Method | Description |
+|---|---|
+| `start_email_verification(user, raw_email)` / `confirm_email(user, code)` | Mails a six-digit code (15 min, 5 tries, 5 codes/hour per account) and confirms it. The address is validated strictly so it can't carry header tricks. Audited `notification.email_confirmed`. |
+| `use_discord_email(user, discord_id, email, verified)` | Takes the address from Discord's `/users/@me` when it belongs to the signed-in Discord account and Discord marks it verified. |
+| `remove_email` / `set_email_enabled` / `unsubscribe_email(token)` | Turn email off or remove it. The unsubscribe token is signed and bound to the user and the current address, so an old link stops working after the address changes. |
+| `create_telegram_link(user)` / `handle_telegram_start` / `handle_telegram_stop` / `disconnect_telegram` / `set_telegram_enabled` | `t.me/<bot>?start=<token>` deep link (15 min); the bot binds the chat on `/start`, refuses a chat already bound to another account, and `/stop` turns Telegram off. |
+| `send_test(user, channels)` | Sends a test to the channels the person picked (Discord, devices, email, Telegram); 3 tests per 10 minutes. Returns per-channel success. |
+| `mirror_dm(discord_id, message, navigate, label)` | Enqueued by `DiscordService.send_dm` for every DM; copies it to each channel the person has on. Never raises. Resets the flag cache because it runs on the long-lived dispatch worker. |
+
+Transports: `application/utils/clients/sendgrid_client.py` and `telegram_client.py`; both print instead of sending under `MOCK_DISCORD`. Collaborators: `NotificationChannelRepository`, `AuditService`, `DiscordService`, `WebPushService`, `notification_links`. Feature doc: [notification-channels.md](../features/notification-channels.md).
+
+### telegram_bot_worker.py — Telegram bot worker
+
+A `BackgroundLoop` that long-polls Telegram's `getUpdates` (no webhook, so nothing to expose publicly). Handles private-chat commands only: `/start <token>` links, `/stop` turns notifications off, `/start` or `/help` alone replies with help. Started from `main.py` only when `TELEGRAM_BOT_TOKEN` is set and Discord isn't mocked.
+
+### discord_email_service.py — DiscordEmailService
+
+The provider half of "Use my Discord email". Sign-in keeps the `identify` scope; this runs a second authorization with `identify email` through the shared identity-link scaffolding (`pages/discord_email_oauth.py`, callback `/discord/email/callback`), rejects an account with no address or an unverified one, and hands the address to `NotificationChannelService.use_discord_email`. Discord's consent screen has no per-scope opt-out, so declining means pressing Cancel and typing an address instead.
 
 ### webhook_service.py — WebhookService
 

@@ -32,7 +32,7 @@ AREAS: tuple[AuditArea, ...] = (
     )),
     AuditArea('people', 'People', (
         'user.', 'role.', 'profile_nudge.', 'emergency_contact.', 'accommodation.', 'twitch.',
-        'racetime.', 'web_push.', 'tenant.member_', 'tenant.join_',
+        'racetime.', 'web_push.', 'notification_email.', 'notification_telegram.', 'tenant.member_', 'tenant.join_',
     )),
     AuditArea('volunteers', 'Volunteers', ('volunteer.',)),
     AuditArea('check_in', 'Check-in', (
@@ -216,6 +216,10 @@ ACTION_LABELS: dict[str, str] = {
     'web_push.subscribed': 'Turned on phone notifications',
     'web_push.unsubscribed': 'Turned off phone notifications',
     'web_push.rotated': 'Refreshed phone notifications',
+    'notification_email.confirmed': 'Confirmed a notification email',
+    'notification_email.removed': 'Removed their notification email',
+    'notification_telegram.linked': 'Connected Telegram',
+    'notification_telegram.unlinked': 'Disconnected Telegram',
     'tenant.member_added': 'Added a member to the community',
     'tenant.member_removed': 'Removed a member from the community',
     'tenant.join_requested': 'Asked to join the community',
