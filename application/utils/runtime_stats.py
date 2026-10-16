@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import resource
 import sys
 import time
@@ -63,6 +64,44 @@ def _clients() -> Dict[str, Optional[int]]:
     }
 
 
+_COMMUNITY_PATH_RE = re.compile(r'^/t/([a-z0-9][a-z0-9-]*)(?:/|$)')
+
+
+def _online_users() -> Dict[str, Any]:
+    """Distinct signed-in people with a live tab, overall and per community.
+
+    A tab's community is the ``/t/<slug>`` it was opened on; one person with
+    tabs in two communities counts once in each and once in the total.
+    """
+    try:
+        from nicegui import Client, app
+        stores = app.storage._users
+        instances = list(Client.instances.values())
+    except Exception:
+        return {'total': None, 'by_community': {}}
+    everyone: set = set()
+    by_community: Dict[str, set] = {}
+    for client in instances:
+        try:
+            if not client.has_socket_connection:
+                continue
+            request = client.request
+            store: Dict[str, Any] = stores.get(str(request.session.get('id'))) or {}
+            ident = store.get('user_id') or store.get('discord_id')
+            if not ident:
+                continue
+            everyone.add(ident)
+            match = _COMMUNITY_PATH_RE.match(request.url.path)
+            if match:
+                by_community.setdefault(match.group(1), set()).add(ident)
+        except Exception:
+            continue
+    return {
+        'total': len(everyone),
+        'by_community': {slug: len(ids) for slug, ids in sorted(by_community.items())},
+    }
+
+
 def _db_pool() -> Dict[str, Optional[int]]:
     try:
         from tortoise import Tortoise
@@ -99,6 +138,7 @@ def collect() -> Dict[str, Any]:
         'rss_mb': _rss_mb(),
         'asyncio_tasks': tasks,
         'clients': _clients(),
+        'online_users': _online_users(),
         'http_in_flight': _http_in_flight,
         'queues': queue_depths(),
         'db_pool': _db_pool(),

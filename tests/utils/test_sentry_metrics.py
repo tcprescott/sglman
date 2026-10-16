@@ -173,3 +173,36 @@ class TestWorkerAndQueue:
         q.enqueue(coro)
         assert queue_depths()['probe-queue'] == 1
         q.discard_pending()
+
+
+class TestOnlineUsers:
+    def test_online_users_gauges(self, recorder):
+        metrics_sampler.emit({'online_users': {'total': 3, 'by_community': {'sgl26': 2, 'alttpr': 1}}})
+        assert [c[2] for c in recorder.named('users.online')] == [3]
+        by = {c[4]['community']: c[2] for c in recorder.named('users.online_by_community')}
+        assert by == {'sgl26': 2, 'alttpr': 1}
+
+    def test_counts_distinct_signed_in_people_with_a_live_tab(self, monkeypatch):
+        from types import SimpleNamespace
+
+        from nicegui import Client, app
+
+        def tab(session, path, connected=True):
+            request = SimpleNamespace(session={'id': session}, url=SimpleNamespace(path=path))
+            return SimpleNamespace(has_socket_connection=connected, request=request)
+
+        monkeypatch.setattr(Client, 'instances', {
+            'a': tab('s1', '/t/sgl26/home'),
+            'b': tab('s1', '/t/alttpr/home'),
+            'c': tab('s2', '/t/sgl26/admin'),
+            'd': tab('s3', '/t/sgl26/home'),
+            'e': tab('s4', '/t/sgl26/home', connected=False),
+            'f': tab('s5', '/platform'),
+        })
+        monkeypatch.setattr(app.storage, '_users', {
+            's1': {'user_id': 1}, 's2': {'discord_id': '22'}, 's3': {},
+            's4': {'user_id': 4}, 's5': {'user_id': 5},
+        })
+        assert runtime_stats._online_users() == {
+            'total': 3, 'by_community': {'alttpr': 1, 'sgl26': 2},
+        }

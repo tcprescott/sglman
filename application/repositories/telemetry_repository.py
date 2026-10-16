@@ -8,7 +8,7 @@ full high-volume table into memory.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from tortoise.expressions import Q
 from tortoise.functions import Count
@@ -134,6 +134,25 @@ class TelemetryRepository:
             user_id__isnull=False
         ).annotate(c=Count('user_id', distinct=True)).values_list('c', flat=True)
         return rows[0] if rows else 0
+
+    @classmethod
+    async def distinct_users_since(cls, start: datetime) -> Tuple[int, Dict[int, int]]:
+        """Distinct signed-in users with any row since ``start``: overall, and per tenant id.
+
+        tenant-scope: exempt — a platform-wide head count for Sentry Metrics,
+        returning only numbers. A person active in two communities counts once
+        in each and once in the total.
+        """
+        recent = TelemetryEvent.filter(created_at__gte=start, user_id__isnull=False)
+        totals = await recent.annotate(c=Count('user_id', distinct=True)).values_list('c', flat=True)
+        rows = await (
+            TelemetryEvent.filter(created_at__gte=start, user_id__isnull=False, tenant_id__isnull=False)
+            .annotate(c=Count('user_id', distinct=True))
+            .group_by('tenant_id')
+            .values('tenant_id', 'c')
+        )
+        total = int(totals[0]) if totals else 0  # type: ignore[call-overload]
+        return total, {row['tenant_id']: row['c'] for row in rows}
 
     @classmethod
     async def count_distinct_sessions(
