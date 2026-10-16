@@ -74,7 +74,7 @@ def primary_action(assignment, now: datetime) -> Optional[str]:
 
 
 def day_heading(starts_at: datetime) -> str:
-    local = to_local(starts_at)
+    local = to_local(starts_at) or starts_at
     return f'{local:%A, %B} {local.day}'
 
 

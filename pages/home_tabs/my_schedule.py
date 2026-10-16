@@ -55,12 +55,12 @@ async def my_schedule_tab(
     # it is where a forwarded player link explains itself.
     user = await get_user_from_session(app.storage.user)
     plays = bool(user and await TournamentService().get_enrolled_players_by_user(user))
-    volunteers = user is not None and FeatureFlag.VOLUNTEERS in live
+    volunteer = user if FeatureFlag.VOLUNTEERS in live else None
 
     with ui.column().classes('page-container wiz-section-stack'):
         if not plays:
-            if volunteers:
-                await my_volunteer_shifts_section(user)
+            if volunteer:
+                await my_volunteer_shifts_section(volunteer)
             await my_crew_tab(focus_match=match)
         await render_player_dashboard(
             schedule=schedule, reschedule=reschedule, match=match, hard=hard,
@@ -68,8 +68,8 @@ async def my_schedule_tab(
         )
         if plays:
             await my_crew_tab(focus_match=match)
-            if volunteers:
-                await my_volunteer_shifts_section(user)
+            if volunteer:
+                await my_volunteer_shifts_section(volunteer)
         await availability_tab()
         if FeatureFlag.EQUIPMENT in live:
             await equipment_checkouts_section()
