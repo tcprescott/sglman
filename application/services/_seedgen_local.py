@@ -22,7 +22,7 @@ def flag_string(randomizer: str, settings: Optional[dict]) -> str:
     flags = settings.get('flags') if isinstance(settings, dict) else None
     if not isinstance(flags, str) or not flags.strip():
         raise ValueError(f'A {game} preset needs "flags": the flag string from the randomizer.')
-    unknown = set(settings) - {'flags'}
+    unknown = set(settings or {}) - {'flags'}
     if unknown:
         raise ValueError(f"A {game} preset holds only flags, not {', '.join(sorted(unknown))}.")
     flags = flags.strip()
@@ -46,7 +46,7 @@ def aosr_reference_url(settings: Optional[dict]) -> str:
     url = settings.get('url') if isinstance(settings, dict) else None
     if not isinstance(url, str) or not url.strip():
         raise ValueError('An Aria of Sorrow preset needs a "url": the randomizer link with its options.')
-    unknown = set(settings) - {'url'}
+    unknown = set(settings or {}) - {'url'}
     if unknown:
         raise ValueError(f"An Aria of Sorrow preset holds only a link, not {', '.join(sorted(unknown))}.")
     url = url.strip()

@@ -63,8 +63,10 @@ async def generate_samus(randomizer: str, settings: Optional[dict]) -> RolledSee
 
     guid = data.get('guid') if isinstance(data, dict) else None
     try:
+        if not isinstance(guid, str):
+            raise ValueError('no guid')
         slug = _slug(guid)
-    except (TypeError, ValueError, AttributeError):
+    except ValueError:
         raise SeedProviderBadResponse(
             f'{SAMUS_SITES[randomizer][1]} returned no seed id.',
             provider=randomizer, operation='generate_seed',

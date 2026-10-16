@@ -35,7 +35,7 @@ def avianart_preset_name(settings: Optional[dict]) -> str:
     name = settings.get('preset') if isinstance(settings, dict) else None
     if not isinstance(name, str) or not name.strip():
         raise ValueError('An AVIANART preset needs a "preset": the preset name from avianart.games, e.g. "crosskeys".')
-    unknown = set(settings) - {'preset'}
+    unknown = set(settings or {}) - {'preset'}
     if unknown:
         raise ValueError(f"An AVIANART preset holds only a preset name, not {', '.join(sorted(unknown))}.")
     name = name.strip()
