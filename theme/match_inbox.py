@@ -106,7 +106,7 @@ class MatchInbox:
         self._help = await resolve_help(('staff-queues',))
         self._build(await self._requests())
 
-    @ui.refreshable
+    @ui.refreshable_method
     def _build(self, requests: list) -> None:
         rows: list = self.view.table.rows if self.view else []
         finished = [r for r in rows if r.get('state') == 'Finished'] if self.access.confirm else []
