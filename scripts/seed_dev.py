@@ -75,6 +75,7 @@ from scripts.seed_equipment import seed_equipment_for_tenant
 from scripts.seed_fledgling import seed_fledgling_tenant
 from scripts.seed_match_day import seed_match_day_for_tenant
 from scripts.seed_matches import seed_matches_for_tenant
+from scripts.seed_oauth_apps import seed_oauth_apps_for_tenant
 from scripts.seed_observability import seed_observability_for_tenant
 from scripts.seed_online import (
     assert_unlinked_probe_users,
@@ -97,7 +98,6 @@ from scripts.seed_support import (
     backfill,
     fixture_discord_id,
 )
-from scripts.seed_oauth_apps import seed_oauth_apps_for_tenant
 from scripts.seed_tokens import seed_tokens_for_tenant
 from scripts.seed_venue import seed_venue_for_tenant
 from scripts.seed_volunteers import seed_volunteers_for_tenant

@@ -24,8 +24,8 @@ from datetime import datetime, timedelta, timezone
 from typing import FrozenSet, Iterable, List, Optional, Tuple, Union
 from urllib.parse import urlsplit
 
-from application.errors import NotFoundError
 from application.api_scopes import ApiScope, format_scope
+from application.errors import NotFoundError
 from application.repositories.api_token_repository import ApiTokenRepository
 from application.repositories.oauth_app_repository import OAuthAppRepository
 from application.services.audit_service import AuditActions, AuditService

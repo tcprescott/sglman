@@ -88,10 +88,10 @@ from .match import (
 from .match_reschedule_service import MatchRescheduleService
 from .matcherino_login_service import MatcherinoLoginService, MatcherinoLoginStatus
 from .mcp_auth_service import McpAuthService
-from .oauth_app_service import OAuthAppService
-from .oauth_grant_service import OAuthGrantService
 from .my_timeline_service import MyTimelineService
 from .notification_channel_service import NotificationChannelService
+from .oauth_app_service import OAuthAppService
+from .oauth_grant_service import OAuthGrantService
 from .password_auth_service import PasswordAuthService
 from .payout_service import PayoutService
 from .platform_admin_service import AccountOverview, CommunityOverview, PlatformAdminService
@@ -206,11 +206,11 @@ __all__ = [
     'MatcherinoLoginService',
     'MatcherinoLoginStatus',
     'McpAuthService',
-    'OAuthAppService',
-    'OAuthGrantService',
     'MyTimelineService',
     'NotFoundError',
     'NotificationChannelService',
+    'OAuthAppService',
+    'OAuthGrantService',
     'PasswordAuthService',
     'PayoutService',
     'PlatformAdminService',

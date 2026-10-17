@@ -33,9 +33,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, FrozenSet, Iterable, List, Optional, Set
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
+from application.api_scopes import STAFF_SCOPES, WRITE_SCOPES, ApiScope, format_scope, parse_scope
 from application.errors import FeatureDisabledError, NotFoundError
 from application.events import EventType
-from application.api_scopes import STAFF_SCOPES, WRITE_SCOPES, ApiScope, format_scope, parse_scope
 from application.repositories.api_token_repository import ApiTokenRepository
 from application.repositories.oauth_app_repository import OAuthAppRepository
 from application.repositories.tenant_membership_repository import TenantMembershipRepository
