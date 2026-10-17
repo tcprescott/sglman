@@ -1,12 +1,15 @@
 """The article page shared by ``/help/{slug}`` and ``/event-info/{slug}``.
 
-Two columns at desktop width: a sticky sidebar (back link, every article, this
-article's own headings) and the body. Below 1024px they stack with the body
-first, because the sidebar is ~550px of links and in source order it pushed the
-title below the fold. That left the reader's *own* contents — "On this page" and
-the way back — at the foot of a long article, so on a phone those two move to a
-compact strip above the body, and the stacked sidebar keeps only the article
-list as a "more" footer. ``static/css/styles.css`` owns which copy shows where.
+Three columns on a wide screen, centred so a 1920px monitor isn't two thirds
+empty: a sticky article list (back link, every article, staff ones under their
+own label), the body, and a sticky "On this page" rail. The rail needs room the
+body can't spare until 1280px, so below that the headings fold into an "On this
+page" expander above the body instead.
+
+Below 1024px the columns stack with the body first, because the list is ~550px
+of links and in source order it pushed the title below the fold. The way back
+moves above the body with the expander, and the stacked list becomes a "more"
+footer. ``static/css/styles.css`` owns which copy shows where.
 """
 
 from typing import Callable, Mapping, Optional
@@ -41,27 +44,25 @@ def render_article(
     passes it, and ``HelpService.list_articles`` orders that group last; the
     event handbook passes nothing, because its role-gated pages are not staff's.
     """
+    labelled = for_staff is not None and any(for_staff(a) for a in articles)
     with ui.row().classes('wiz-help-layout no-wrap w-full items-start'):
-        with ui.column().classes('wiz-help-nav gap-1'):
-            ui.link(f'← {back_label}', base).classes('text-caption wiz-help-wide-only')
+        with ui.column().classes('wiz-help-nav gap-0'):
+            ui.link(f'← {back_label}', base).classes('wiz-help-back-link wiz-help-wide-only')
+            if labelled:
+                ui.label('Everyone').classes('wiz-help-nav-group')
             staff_label_shown = False
             for other in articles:
-                if for_staff is not None and for_staff(other) and not staff_label_shown:
+                if labelled and for_staff(other) and not staff_label_shown:
                     staff_label_shown = True
-                    ui.label('For staff').classes('text-caption text-grey-7 q-mt-sm')
+                    ui.label('For staff').classes('wiz-help-nav-group')
                 link = ui.link(other.title, f'{base}/{other.slug}') \
                     .classes('wiz-help-nav-item')
                 if other.slug == article.slug:
-                    link.classes(add='wiz-help-nav-item--active')
-            if article.headings:
-                with ui.column().classes('gap-1 wiz-help-wide-only'):
-                    ui.separator().classes('q-my-sm')
-                    ui.label('On this page').classes('text-caption text-grey-7')
-                    _contents(article, base)
+                    link.classes(add='wiz-help-nav-item--active').props('aria-current=page')
 
         with ui.column().classes('wiz-help-body col min-w-0'):
-            with ui.column().classes('gap-1 wiz-help-narrow-only w-full'):
-                ui.link(f'← {back_label}', base).classes('text-caption')
+            with ui.column().classes('gap-1 wiz-help-toc-inline w-full'):
+                ui.link(f'← {back_label}', base).classes('wiz-help-back-link wiz-help-narrow-only')
                 if article.headings:
                     with ui.expansion('On this page').props('dense') \
                             .classes('wiz-help-toc w-full'):
@@ -79,3 +80,9 @@ def render_article(
             # own margins set the rhythm instead of a uniform flex gap.
             with ui.element('div').classes('wiz-help-prose'):
                 render_blocks(article.blocks, embeds=embeds)
+
+        if article.headings:
+            with ui.element('nav').classes('wiz-help-rail') \
+                    .props('aria-label="On this page"'):
+                ui.label('On this page').classes('wiz-help-nav-group')
+                _contents(article, base)
