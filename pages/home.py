@@ -227,7 +227,7 @@ def create() -> None:
             # retired Volunteer → My Shifts).
             {'label': 'My Schedule', 'icon': 'event_available',
              'badge': await count_waiting_on_you(user),
-             'aliases': ('player', 'my-crew', 'availability', 'equipment'),
+             'aliases': ('player', 'my-crew', 'availability'),
              'content': (my_schedule_tab, (),
                          {'schedule': ids['schedule'], 'reschedule': ids['reschedule'],
                           'match': ids['match'], 'hard': ids['hard'], 'agree': ids['agree'],
@@ -242,7 +242,9 @@ def create() -> None:
              'content': tournaments_tab},
             # `focus` is a Profile section id from the profile-nudge banner: the tab
             # scrolls to and highlights the card that fixes the item.
-            {'label': 'Profile', 'icon': 'account_circle',
+            # `equipment` is the old Home → Equipment tab; what you're holding
+            # is now the top card on Profile.
+            {'label': 'Profile', 'icon': 'account_circle', 'aliases': ('equipment',),
              'content': (render_edit_info_tab, (), {'focus': focus})},
         ]
         if malformed_link:

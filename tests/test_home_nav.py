@@ -19,7 +19,7 @@ LEGACY_PATHS = {
     'player': 'My Schedule',
     'my-crew': 'My Schedule',
     'availability': 'My Schedule',
-    'equipment': 'My Schedule',
+    'equipment': 'Profile',
     'schedule': 'Event',
     'brackets': 'Event',
     'triforce-texts': 'Tournaments',
@@ -31,9 +31,9 @@ LEGACY_PATHS = {
 # none of which this test has or needs.
 HOME_TABS = [
     {'label': 'Event', 'aliases': ('schedule', 'brackets', 'community')},
-    {'label': 'My Schedule', 'aliases': ('player', 'my-crew', 'availability', 'equipment')},
+    {'label': 'My Schedule', 'aliases': ('player', 'my-crew', 'availability')},
     {'label': 'Tournaments', 'aliases': ('triforce-texts',)},
-    {'label': 'Profile'},
+    {'label': 'Profile', 'aliases': ('equipment',)},
 ]
 
 
