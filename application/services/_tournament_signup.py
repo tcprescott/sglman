@@ -50,6 +50,8 @@ class TournamentSignupCard:
     enrolled: bool
     entrant_count: int
     entrants: List[User] = field(default_factory=list)
+    # The users holding Tournament Admin on this one tournament.
+    admins: List[User] = field(default_factory=list)
     # Roster lives on a linked Challonge bracket: signing up adds the player
     # there, under the Challonge account linked on their profile.
     challonge_managed: bool = False
@@ -203,6 +205,7 @@ class TournamentSignupMixin:
         ids = [t.id for t in tournaments]
         counts = await self.repository.enrolment_counts()
         entrants = await self.repository.entrants_by_tournament(ids)
+        admins = await self.repository.admins_by_tournament(ids)
         enrolled_ids = (
             await self.repository.enrolled_tournament_ids(user.id) if user else set()
         )
@@ -228,6 +231,7 @@ class TournamentSignupMixin:
                     enrolled=t.id in enrolled_ids,
                     entrant_count=counts.get(t.id, 0),
                     entrants=entrants.get(t.id, []),
+                    admins=admins.get(t.id, []),
                     startgg_url=(
                         event_url(t.startgg_event_slug)
                         if startgg_live and t.startgg_event_slug else None
@@ -241,6 +245,7 @@ class TournamentSignupMixin:
                 enrolled=user is not None and any(p.user_id == user.id for p in roster),
                 entrant_count=len(roster),
                 entrants=[p.user for p in roster if p.user is not None],
+                admins=admins.get(t.id, []),
                 challonge_managed=True,
                 challonge_name=challonge_name,
                 roster_locked=roster_locked(t.challonge_state),

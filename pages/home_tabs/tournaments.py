@@ -80,6 +80,59 @@ _SECTIONS = (
 )
 
 
+# Names a card shows before "Show all": two or three rows on a phone, one or
+# two on a desktop card. A 36-player field used to be a 36-row list.
+_NAME_PREVIEW = 8
+
+
+def _user_name(u) -> str:
+    return u.display_name or u.username
+
+
+def _people_heading(icon: str, text: str) -> None:
+    with ui.row().classes('wiz-people-heading items-center no-wrap'):
+        ui.icon(icon, size='16px').props('aria-hidden=true')
+        ui.label(text)
+
+
+def _name_chips(
+    people: list[tuple[str, bool]], *, label: str, admin: bool = False,
+    total: Optional[int] = None,
+) -> None:
+    """Names as wrapping pills: the viewer first with "(you)", the rest A to Z."""
+    ordered = sorted(people, key=lambda p: (not p[1], p[0].lower()))
+    box = ui.element('div').classes('wiz-name-chips').props(f'role=list aria-label="{label}"')
+    with box:
+        for i, (name, mine) in enumerate(ordered):
+            classes = 'wiz-name-chip'
+            if admin:
+                classes += ' wiz-name-chip--admin'
+            if mine:
+                classes += ' wiz-name-chip--me'
+            if i >= _NAME_PREVIEW:
+                classes += ' wiz-name-chip--more'
+            with ui.element('span').classes(classes).props('role=listitem'):
+                ui.label(name).classes('wiz-name-chip__name')
+                if mine:
+                    ui.label('(you)').classes('wiz-you')
+    if len(ordered) <= _NAME_PREVIEW:
+        return
+    show_all = f'Show all {total or len(ordered)}'
+
+    def toggle() -> None:
+        opening = 'is-open' not in box.classes
+        if opening:
+            box.classes(add='is-open')
+        else:
+            box.classes(remove='is-open')
+        button.set_text('Show fewer' if opening else show_all)
+        button.props(f'aria-expanded={str(opening).lower()}')
+
+    button = ui.button(show_all, on_click=toggle) \
+        .props('flat dense no-caps color=primary aria-expanded=false') \
+        .classes('wiz-name-chips__toggle self-start')
+
+
 def signup_status(card: TournamentSignupCard) -> tuple[str, str]:
     """``(chip class, label)`` for one tournament, from the reader's side of it.
 
@@ -276,16 +329,20 @@ async def tournaments_tab() -> None:
                         with ui.element('div').classes('wiz-help-prose'):
                             render_blocks(parse_blocks(t.randomizer_notes))
 
-                with ui.expansion(
-                    f'{card.entrant_count} signed up', icon='group',
-                ).classes('w-full').props('dense'):
-                    if not card.entrants and not card.unmapped_entrant_names:
-                        ui.label('Nobody yet — be first.').classes('text-muted text-caption')
-                    for entrant in card.entrants:
-                        ui.label(entrant.display_name or entrant.username) \
-                            .classes('text-caption')
-                    for name in card.unmapped_entrant_names:
-                        ui.label(name).classes('text-caption')
+                if card.admins:
+                    _people_heading('shield', 'Tournament admins')
+                    _name_chips([(_user_name(u), user is not None and u.id == user.id) for u in card.admins],
+                                label='Tournament admins', admin=True)
+
+                _people_heading('group', f'{card.entrant_count} signed up')
+                if not card.entrants and not card.unmapped_entrant_names:
+                    ui.label('Nobody yet — be first.').classes('text-muted text-caption')
+                else:
+                    _name_chips(
+                        [(_user_name(u), user is not None and u.id == user.id) for u in card.entrants]
+                        + [(name, False) for name in card.unmapped_entrant_names],
+                        label='Signed up', total=card.entrant_count,
+                    )
 
                 challonge_line = challonge_note(card)
                 if challonge_line:

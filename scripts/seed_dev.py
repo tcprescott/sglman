@@ -399,7 +399,11 @@ async def seed_for_tenant(
         # --- Second on-site tournament (scripts/seed_onsite.py) --------------
         # A distinct venue event with its own "tournament days" override and one
         # match per step of the proctor's workflow.
-        await seed_onsite_for_tenant(tenant, staff, players, today, now, stage1, stage3)
+        onsite = await seed_onsite_for_tenant(tenant, staff, players, today, now, stage1, stage3)
+        # A field longer than the Tournaments card's name preview, so its
+        # "Show all" is reachable in dev.
+        for name, _display, _full in RACER_SPECS:
+            await TournamentPlayers.get_or_create(tournament=onsite, user=users[name], tenant=tenant)
         print(f"    [{tenant.slug}] on-site tournament ok")
 
         # --- Prize payouts (scripts/seed_payouts.py) -------------------------
