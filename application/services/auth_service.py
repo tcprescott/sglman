@@ -338,7 +338,7 @@ class AuthService:
         """
         if await AuthService.is_staff(user) or await AuthService.is_proctor(user):
             return True
-        if match.stage_id is not None and await AuthService.is_stream_manager(user):
+        if match.stage_id is not None and await AuthService.is_stream_manager(user):  # type: ignore[attr-defined]
             return True
         return await AuthService.is_tournament_admin(user, match.tournament_id)
 
