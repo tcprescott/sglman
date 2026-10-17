@@ -138,12 +138,9 @@ class BaseLayout:
         self._show_event_info = False
         # Members only, for the same reason: /qualifiers runs the membership gate.
         self._show_qualifiers = False
-        # The check-in desk, offered to people who can work it whenever check-in
-        # is on, so they can find it before doors open (the tab says when nothing
-        # is). False on the synchronous error path, like Feedback.
+        # The desk, whenever check-in is on, and Proctor Station, which a proctor
+        # keeps with VOLUNTEERS off. False on the error path, like Feedback.
         self._show_check_in = False
-        # Proctor Station, which a proctor keeps with VOLUNTEERS off; kept apart
-        # from _show_volunteer, which also decides the shift banner.
         self._show_proctor = False
         # Whether the viewer belongs to this community (or is a super-admin).
         # Gates what only a member can use: Feedback, whose submit the service
@@ -223,8 +220,6 @@ class BaseLayout:
             self._wordmark = (await TenantService.current_community_name()) or 'Wizzrobe'
         if self._show_volunteer is None:
             self._show_volunteer = await AuthService.can_view_volunteer(self.user)
-        if self.user is not None and self._tenant_id is not None:
-            self._show_proctor = await AuthService.can_open_proctor_station(self.user)
         if self._show_admin is not True and self.user is not None and self._tenant_id is not None:
             self._show_admin = await AuthService.can_open_admin(self.user)
         if self.user is not None and self._tenant_id is not None:
@@ -242,6 +237,7 @@ class BaseLayout:
             )
         if self._is_member:
             self._show_check_in = await AuthService.can_view_check_in_desk(self.user)
+            self._show_proctor = await AuthService.can_open_proctor_station(self.user)
         await self._load_theme_colors()
         return self
 
