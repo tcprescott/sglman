@@ -44,7 +44,8 @@ def render_article(
     passes it, and ``HelpService.list_articles`` orders that group last; the
     event handbook passes nothing, because its role-gated pages are not staff's.
     """
-    labelled = for_staff is not None and any(for_staff(a) for a in articles)
+    staff = {a.slug for a in articles if for_staff is not None and for_staff(a)}
+    labelled = bool(staff)
     with ui.row().classes('wiz-help-layout no-wrap w-full items-start'):
         with ui.column().classes('wiz-help-nav gap-0'):
             ui.link(f'← {back_label}', base).classes('wiz-help-back-link wiz-help-wide-only')
@@ -52,7 +53,7 @@ def render_article(
                 ui.label('Everyone').classes('wiz-help-nav-group')
             staff_label_shown = False
             for other in articles:
-                if labelled and for_staff(other) and not staff_label_shown:
+                if other.slug in staff and not staff_label_shown:
                     staff_label_shown = True
                     ui.label('For staff').classes('wiz-help-nav-group')
                 link = ui.link(other.title, f'{base}/{other.slug}') \
