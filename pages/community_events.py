@@ -66,7 +66,7 @@ async def _viewer() -> Optional[User]:
 async def _chrome(user: User, *parts: str) -> None:
     community = await TenantService.current_community_name() or 'Wizzrobe'
     ui.page_title(' — '.join((*parts, community)))
-    await BaseLayout(user=user, show_admin=await AuthService.can_view_admin(user)).render()
+    await BaseLayout(user=user).render()
 
 
 def _subscribe_button(service: CommunityEventService, user: User, event: CommunityEvent,

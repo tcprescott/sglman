@@ -123,13 +123,14 @@ async def test_can_view_volunteer_true_for_super_admin_once_feature_enabled(
     (Role.VOLUNTEER, True),
     (Role.PROCTOR, True),
     (Role.STAFF, True),
+    (Role.VOLUNTEER_COORDINATOR, True),
     (Role.EQUIPMENT_MANAGER, False),
     (None, False),
 ])
 async def test_can_view_volunteer_matches_the_pages_role_gate(
     db, fresh_tenant, role, expected,
 ):
-    """Mirrors ``roles=[VOLUNTEER, PROCTOR, STAFF]`` on the page decorator — an
+    """Mirrors the volunteer roles in the page decorator's ``roles=`` — an
     unrelated admin role must not surface the link, or it dead-ends on a 403."""
     await _enable(fresh_tenant.id, FeatureFlag.VOLUNTEERS)
     user = await User.create(discord_id=91000, username='u')
@@ -155,3 +156,38 @@ async def test_volunteer_role_in_another_tenant_does_not_surface_the_link(
         assert await AuthService.can_view_volunteer(user) is False
     with tenant_scope(other.id):
         assert await AuthService.can_view_volunteer(user) is True
+
+
+# --- Proctor Station follows the proctor, not the VOLUNTEERS flag -----------
+
+@pytest.mark.parametrize('volunteers_on', [False, True])
+async def test_proctor_keeps_proctor_station_whatever_volunteers_says(
+    db, fresh_tenant, volunteers_on,
+):
+    """``can_run_match`` admits a proctor with no flag, so their one screen for
+    it must not vanish when the community turns volunteer shifts off."""
+    if volunteers_on:
+        await _enable(fresh_tenant.id, FeatureFlag.VOLUNTEERS)
+    proctor = await User.create(discord_id=92000, username='proctor')
+    await UserRole.create(user=proctor, role=Role.PROCTOR, tenant_id=fresh_tenant.id)
+    with tenant_scope(fresh_tenant.id):
+        assert await AuthService.can_open_proctor_station(proctor) is True
+
+
+@pytest.mark.parametrize('volunteers_on', [False, True])
+async def test_staff_proctor_station_still_follows_volunteers(super_admin, fresh_tenant, volunteers_on):
+    if volunteers_on:
+        await _enable(fresh_tenant.id, FeatureFlag.VOLUNTEERS)
+    with tenant_scope(fresh_tenant.id):
+        assert await AuthService.can_open_proctor_station(super_admin) is volunteers_on
+
+
+@pytest.mark.parametrize('role', [Role.VOLUNTEER, Role.VOLUNTEER_COORDINATOR, None])
+async def test_proctor_station_refuses_everyone_else(db, fresh_tenant, role):
+    await _enable(fresh_tenant.id, FeatureFlag.VOLUNTEERS)
+    user = await User.create(discord_id=92001, username='u')
+    if role is not None:
+        await UserRole.create(user=user, role=role, tenant_id=fresh_tenant.id)
+    with tenant_scope(fresh_tenant.id):
+        assert await AuthService.can_open_proctor_station(user) is False
+    assert await AuthService.can_open_proctor_station(None) is False

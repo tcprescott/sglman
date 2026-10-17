@@ -272,8 +272,11 @@ class AuthService:
 
     # Roles that have something to do on the Volunteer hub's volunteer tabs. The
     # hub's ``roles=`` also admits CHECK_IN_DESK, for its Check-in Desk tab,
-    # which :meth:`can_view_check_in_desk` decides.
-    _VOLUNTEER_ROLES: ClassVar[set[Role]] = {Role.VOLUNTEER, Role.PROCTOR, Role.STAFF}
+    # which :meth:`can_view_check_in_desk` decides. A volunteer coordinator
+    # builds the schedule in Admin, so they read the published one here too.
+    _VOLUNTEER_ROLES: ClassVar[set[Role]] = {
+        Role.VOLUNTEER, Role.PROCTOR, Role.STAFF, Role.VOLUNTEER_COORDINATOR,
+    }
 
     @staticmethod
     async def can_view_volunteer(user: Optional[User]) -> bool:
@@ -298,6 +301,21 @@ class AuthService:
         if await AuthService.is_super_admin(user):
             return True
         return bool(await AuthService.get_roles(user) & AuthService._VOLUNTEER_ROLES)
+
+    @staticmethod
+    async def can_open_proctor_station(user: Optional[User]) -> bool:
+        """Whether the Volunteer hub's Proctor Station tab is offered to ``user``.
+
+        A proctor gets it whether or not VOLUNTEERS is on: ``can_run_match``
+        admits them with no flag, because running matches isn't volunteer
+        scheduling, and Proctor Station is their only screen for it. Staff run
+        matches from the Admin board, so for them it follows the hub as before.
+        """
+        if user is None:
+            return False
+        if Role.PROCTOR in await AuthService.get_roles(user):
+            return True
+        return await AuthService.is_staff(user) and await AuthService.can_view_volunteer(user)
 
     @staticmethod
     async def can_edit_tournament(user: Optional[User], tournament: Tournament) -> bool:

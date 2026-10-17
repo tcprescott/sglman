@@ -22,7 +22,7 @@ Defined in [`models/enums.py`](../../models/enums.py) as `Role(str, Enum)` — t
 | `proctor` | Race monitors | Race/schedule workflow on `/volunteer`; seat/start/finish, record the result, roll seeds, assign stations (`can_run_match`) — **not** confirming a result, which is the admin's step (`can_confirm_match`). No Admin access |
 | `stream_manager` | Stream desk | Admin dashboard; stage assignment; stream-candidate flag; CRUD on stages |
 | `triforce_submitter` | Paid submitters | Submit Triforce texts on active tournaments whose generator supports them (no Admin access) |
-| `volunteer_coordinator` | Volunteer leads | Admin dashboard; manage volunteer positions, shifts, assignments |
+| `volunteer_coordinator` | Volunteer leads | Admin dashboard; manage volunteer positions, shifts, assignments; the published schedule on `/volunteer` |
 | `equipment_manager` | Equipment leads | Admin dashboard; CRUD on lending assets; check equipment in/out; view private notes/owner |
 | `volunteer` | General volunteers | Volunteer workflows on `/volunteer` (no Admin access) |
 | `check_in_desk` | Check-in volunteers | Work the event check-in desk at Volunteer → Check-in Desk: check people in, link registrants to accounts, sync (`can_run_check_in_desk`). Walk-ups and event setup stay staff-only. No Admin access |
@@ -209,7 +209,7 @@ Signed-out readability is **not** publication: the app serves a blanket `robots.
 | Decorator | Route(s) | Gating |
 |---|---|---|
 | `protected_tab_page` | `/admin` ([`pages/admin.py`](../../pages/admin.py)) | Login-only; the page body does its own tab-by-tab authorization |
-| `protected_tab_page` | `/volunteer` ([`pages/volunteer.py`](../../pages/volunteer.py)) | `roles=[VOLUNTEER, PROCTOR, STAFF, CHECK_IN_DESK]`, `feature=(VOLUNTEERS, EVENT_CHECK_IN)` (either opens it); the volunteer tabs follow `can_view_volunteer`, the desk tab `can_view_check_in_desk` |
+| `protected_tab_page` | `/volunteer` ([`pages/volunteer.py`](../../pages/volunteer.py)) | `roles=[VOLUNTEER, PROCTOR, STAFF, CHECK_IN_DESK, VOLUNTEER_COORDINATOR]`, no page-level flag; the volunteer tabs follow `can_view_volunteer`, Proctor Station `can_open_proctor_station`, the desk tab `can_view_check_in_desk`, and a visitor with no tab gets the not-found page a flag would give |
 | `protected_page` | `/equipment/{asset_id}` ([`pages/equipment.py`](../../pages/equipment.py)) | `feature=EQUIPMENT` |
 | `protected_page` | `/equipment/qr-labels` ([`pages/equipment_labels.py`](../../pages/equipment_labels.py)) | `roles=[STAFF, EQUIPMENT_MANAGER]`, `feature=EQUIPMENT` |
 | `protected_page` | `/checkin`, `/checkin/{event_id}` ([`pages/check_in.py`](../../pages/check_in.py)) | `roles=[STAFF, CHECK_IN_DESK]`, `feature=EVENT_CHECK_IN`; both redirect to the Volunteer hub's desk tab |
@@ -274,7 +274,8 @@ The `MOCK_DISCORD` production refusal is **not** part of `validate_security_conf
 |---|---|
 | `can_view_admin(user)` | Global `SUPER_ADMIN` (checked first), an admin role (`STAFF`, `STREAM_MANAGER`, `EQUIPMENT_MANAGER`, `VOLUNTEER_COORDINATOR`), or TA/CC of at least one tournament **in this tenant** (the reverse relations hang off the global `User`, so they are tenant-filtered). Excludes `PROCTOR`/`VOLUNTEER` |
 | `can_open_admin(user)` | The nav's Admin link: `/admin` has at least one tab for this viewer. Mirrors `build_admin_tabs` flags included: super-admin, `STAFF`/`STREAM_MANAGER`, TA/CC, `PRESET_MANAGER`, `SYNC_ADMIN`; `VOLUNTEER_COORDINATOR` with `VOLUNTEERS`, `EQUIPMENT_MANAGER` with `EQUIPMENT`, `QUALIFIER_ADMIN` or a per-qualifier admin with `ASYNC_QUALIFIERS`. Deliberately separate from `can_view_admin`, which also gates the admin API, MCP admin scope, reports and staff help |
-| `can_view_volunteer(user)` | The `VOLUNTEERS` flag is live **and** (super-admin or one of `VOLUNTEER`/`PROCTOR`/`STAFF`). The nav's source of truth for the volunteer tabs, so the header link and `@protected_tab_page('/volunteer')` cannot drift into offering a link that 404s or 403s. The hub also opens for the desk (`can_view_check_in_desk`) |
+| `can_open_proctor_station(user)` | A `PROCTOR` always (`can_run_match` has no flag, so their one screen for it doesn't either); staff only where `can_view_volunteer` holds |
+| `can_view_volunteer(user)` | The `VOLUNTEERS` flag is live **and** (super-admin or one of `VOLUNTEER`/`PROCTOR`/`STAFF`/`VOLUNTEER_COORDINATOR`). The nav's source of truth for the volunteer tabs, so the header link and `@protected_tab_page('/volunteer')` cannot drift into offering a link that 404s or 403s. The hub also opens for the desk (`can_view_check_in_desk`) |
 | `can_edit_tournament(user, tournament)` | Staff, or TA of that tournament |
 | `can_manage_payouts(user, tournament)` | Same people as `can_edit_tournament` — read **and** edit one tournament's prize split (an unannounced split is admin data, so reads are gated too) |
 | `can_crud_match(user, match)` | Staff, or TA of the match's tournament |
