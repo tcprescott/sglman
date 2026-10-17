@@ -4519,12 +4519,12 @@ body.wiz-offline .wiz-requires-socket {
 /* Long-form reading measure. Uncapped, the article column tracks the viewport
    and a paragraph on a desktop monitor runs past 110 characters a line. The cap
    is in `ch`, which is the width of a `0` — wider than this face's average
-   character, so 56ch measures out at roughly 80 characters, the top of the
-   comfortable range. Narrower than the column on purpose; the slack on the
-   right is what keeps the line returns short enough to track. */
+   character, so 68ch measures out at roughly 90 characters, which fills the
+   middle of the three-column layout without the line returns getting hard to
+   track (Thomas picked this measure from the 2026-10 layout mockups). */
 .wiz-help-body .wiz-help-prose {
-    max-width: 56ch;
-    font-size: 0.95rem;
+    max-width: 68ch;
+    font-size: 1rem;
 }
 
 .wiz-help-p {
@@ -4795,39 +4795,108 @@ ol.wiz-help-list { list-style-type: decimal; }
     opacity: 0.7;
 }
 
-/* --- /help layout ------------------------------------------------------- */
+/* --- /help and /event-info article layout ------------------------------ */
 
-.wiz-help-layout { gap: 2rem; }
+/* Three columns, centred. Uncapped, the row ran the whole viewport: the list
+   hugged the drawer and the 68ch body left a 1920px screen two thirds empty. */
+.wiz-help-layout {
+    gap: 2rem;
+    max-width: 82.5rem;
+    margin: 0 auto;
+}
 
 .wiz-help-nav {
-    flex: 0 0 15rem;
+    flex: 0 0 16rem;
     position: sticky;
     top: 4.5rem;
+    max-height: calc(100vh - 6rem);
+    overflow-y: auto;
+    padding-right: 1rem;
+    border-right: 1px solid var(--border-subtle);
 }
+
+.wiz-help-back-link {
+    display: block;
+    padding: 0 0.75rem 0.5rem;
+    font-size: var(--text-sm, 0.8125rem);
+    color: var(--wiz-link);
+}
+
+.wiz-help-nav-group {
+    margin: 1rem 0 0.25rem;
+    padding: 0 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+}
+.wiz-help-back-link + .wiz-help-nav-group { margin-top: 0.25rem; }
 
 .wiz-help-nav-item {
     display: block;
-    padding: 0.3rem 0;
-    font-size: 0.92rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: var(--radius-md, 8px);
+    font-size: 0.9rem;
     text-decoration: none;
     color: inherit;
 }
+.wiz-help-nav-item:hover { background: color-mix(in srgb, currentColor 7%, transparent); }
+.wiz-help-nav-item:focus-visible { outline: 2px solid var(--wiz-link); outline-offset: -2px; }
 
-.wiz-help-nav-item--active { font-weight: 700; color: var(--wiz-link); }
+/* The "you are here" treatment the side menu uses: a tint of the accent with
+   the text left in the body colour, so it reads in both modes. */
+.wiz-help-nav-item--active {
+    font-weight: 700;
+    background: color-mix(in srgb, var(--q-primary) 16%, transparent);
+}
+
+.wiz-help-rail {
+    flex: 0 0 13rem;
+    position: sticky;
+    top: 4.5rem;
+    max-height: calc(100vh - 6rem);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding-left: 1rem;
+    border-left: 1px solid var(--border-subtle);
+}
+.wiz-help-rail .wiz-help-nav-group { margin-top: 0; padding: 0; }
 
 .wiz-help-nav-sub {
     display: block;
-    padding: 0.15rem 0 0.15rem 0.75rem;
-    font-size: 0.85rem;
+    padding: 0.2rem 0 0.2rem 0.75rem;
+    font-size: 0.875rem;
     text-decoration: none;
-    opacity: 0.8;
-    color: inherit;
+    color: var(--fg-muted);
+}
+.wiz-help-rail .wiz-help-nav-sub { padding-left: 0; }
+.wiz-help-nav-sub:hover { color: var(--wiz-link); }
+
+/* Section breaks the eye can find when skimming a long article. */
+.wiz-help-body .wiz-help-h2 {
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-subtle);
+}
+.wiz-help-body .wiz-help-prose > .wiz-help-h2:first-child {
+    padding-top: 0;
+    border-top: 0;
 }
 
 .wiz-help-card { width: 100%; padding: 0.75rem 1rem; }
 
-/* Below the drawer's own breakpoint the two columns stack and the nav stops
-   sticking — a sticky 15rem sidebar on a phone is most of the viewport.
+/* The rail needs width the body can't spare below 1280px; the headings fold
+   into the "On this page" expander above the body there instead. */
+@media (max-width: 1279.98px) {
+    .wiz-help-rail { display: none !important; }
+}
+@media (min-width: 1280px) {
+    .wiz-help-toc-inline { display: none !important; }
+}
+
+/* Below the drawer's own breakpoint the columns stack and the nav stops
+   sticking — a sticky 16rem sidebar on a phone is most of the viewport.
 
    The body is ordered *first*. Stacked in source order the nav is ~550px of
    links, which put the article's title below the fold and its first sentence
@@ -4839,14 +4908,17 @@ ol.wiz-help-list { list-style-type: decimal; }
     .wiz-help-nav {
         flex: 1 1 auto;
         position: static;
+        max-height: none;
+        overflow: visible;
         width: 100%;
         order: 2;
-        padding-top: 1rem;
-        border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+        padding: 1rem 0 0;
+        border-right: 0;
+        border-top: 1px solid var(--border-subtle);
     }
     .wiz-help-body { order: 1; }
-    /* The reader's own contents and the way back move above the body; only
-       the article list stays below it (theme/help/article.py). */
+    /* The way back moves above the body; only the article list stays below
+       it (theme/help/article.py). */
     .wiz-help-wide-only { display: none !important; }
 }
 @media (min-width: 1024px) {
