@@ -16,7 +16,7 @@ import gc
 import logging
 import weakref
 
-from nicegui import background_tasks, context, ui
+from nicegui import Client, app, background_tasks, ui
 from nicegui.functions.refreshable import refreshable
 
 from application.utils.environment import env_flag
@@ -38,11 +38,20 @@ def skip_layout_probe(section: refreshable) -> None:
     _skipped.add(section)
 
 
+_attached: 'weakref.WeakSet[Client]' = weakref.WeakSet()
+
+
 def install_layout_probe() -> None:
-    if not env_flag('WIZ_LAYOUT_PROBE'):
-        return
-    client = context.client
-    ui.on(PROBE_EVENT, lambda _: background_tasks.create(_refresh_all(client)))
+    """Give every page the redraw handler, once per client (app start-up)."""
+    if env_flag('WIZ_LAYOUT_PROBE'):
+        app.on_connect(_attach)
+
+
+def _attach(client: Client) -> None:
+    if client in _attached:
+        return  # on_connect fires again on every reconnect
+    _attached.add(client)
+    client.layout.on(PROBE_EVENT, lambda _: background_tasks.create(_refresh_all(client)))
 
 
 async def _refresh_all(client) -> None:

@@ -61,6 +61,7 @@ from pages import help as help_pages
 from pages._oauth_link import register_link_handoff_pages
 from theme.a11y import install_tooltip_labels
 from theme.assets import cache_control
+from theme.layout_probe import install_layout_probe
 from theme.notify import install_toast_position
 
 _ui_logger = logging.getLogger('wizzrobe.ui')
@@ -241,6 +242,7 @@ def init(fastapi_app: FastAPI) -> None:
     install_log_filter()
     install_tooltip_labels()
     install_toast_position()
+    install_layout_probe()
 
     # Which store holds `app.storage.user` decides whether a deploy logs
     # everyone out: the file backend lives in the container's filesystem and
