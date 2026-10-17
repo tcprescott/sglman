@@ -102,8 +102,7 @@ only what you're in, Tournaments is where you sign up, and Profile is you.
 
 :::snippet my-schedule-timeline
 My Schedule has two views, switched at the top. **List** shows it as sections:
-your matches, crew slots, volunteer shifts, when you can't play, and any gear you
-have out. **Timeline** puts one day's matches, crew slots and shifts on a clock in
+your matches, crew slots, volunteer shifts and when you can't play. **Timeline** puts one day's matches, crew slots and shifts on a clock in
 one column, so anything that clashes sits side by side. Times you said you can't
 play show as a hatched band behind them, which makes a match booked into one easy
 to spot. Tap the band to change those times.

@@ -1000,6 +1000,12 @@ body:has(.wiz-header) .q-notifications__list--top {
     margin-bottom: var(--space-3);
 }
 
+/* Profile's "Equipment you have out": one hairline between items. */
+.wiz-equipment-out__row {
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--border-subtle);
+}
+
 /* The staff view of an emergency contact: label beside value, the phone
    number as the biggest thing in it. */
 .wiz-emergency-contact {

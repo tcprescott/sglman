@@ -187,7 +187,7 @@ Only the signed-in shape is listed because it is the only shape: `enforce_member
 | [`player.py`](../../pages/home_tabs/player.py) | My Schedule → Your matches | The player's own match list and match requests; bracket matches to schedule |
 | [`my_crew.py`](../../pages/home_tabs/my_crew.py) | My Schedule → Crew | The commentator and tracker slots the viewer signed up for |
 | [`availability.py`](../../pages/home_tabs/availability.py) | My Schedule → When you can't play | Self-service *blocked-out* windows (opt-out) with a live effective-availability graph |
-| [`equipment.py`](../../pages/home_tabs/equipment.py) | My Schedule → Equipment | `equipment_checkouts_section` — the viewer's own checkouts, `EQUIPMENT` flag live. Browsing the register is admin-side; borrowing is the QR scan into `/equipment/<id>` |
+| [`equipment.py`](../../pages/home_tabs/equipment.py) | Profile (top card) | `equipment_checkouts_section(user)` — the viewer's own checkouts, `EQUIPMENT` flag live; draws nothing when they hold nothing. Browsing the register is admin-side; borrowing is the QR scan into `/equipment/<id>` |
 | [`tournaments.py`](../../pages/home_tabs/tournaments.py) | Tournaments | Signup cards per tournament, sectioned by what the reader can act on |
 | [`triforce_texts.py`](../../pages/home_tabs/triforce_texts.py) | Tournaments → dialog | `open_triforce_dialog` submits/tracks triforce-screen text for one tournament; `supporting_tournament_ids` says which cards get the button |
 | [`player_edit_info.py`](../../pages/home_tabs/player_edit_info.py) | Profile | Self-service profile and notification delivery; hosts the device-notification, identity-link, API-token, ADA-accommodation and feedback sections |
@@ -310,7 +310,7 @@ No longer a tab. `open_triforce_dialog(tournament, user)` is a dialog opened fro
 
 ### Equipment (`pages/home_tabs/equipment.py`)
 
-`equipment_checkouts_section()` — "Equipment you have out", one [section panel](#section-panels-themesectionpy) on My Schedule. It used to be a whole tab with an inventory browser; browsing the register is now Admin → Equipment, and borrowing is scanning the QR into `/equipment/<id>`.
+`equipment_checkouts_section(user)` — "Equipment you have out", a full-width card above Profile's settings, drawn only while the viewer holds something (`/home/equipment` aliases to Profile). It used to be a panel on My Schedule. It used to be a whole tab with an inventory browser; browsing the register is now Admin → Equipment, and borrowing is scanning the QR into `/equipment/<id>`.
 
 - One table of `EquipmentService.my_checkouts(user)`: #, Name, Checked out, and a **View** action navigating to `/equipment/{id}`. Empty state: "You have no equipment checked out."
 - `.equipment-table` family with a bespoke `item` card, then `customize_table(..., key=TableKeys.EQUIPMENT_MINE)`; the gear sits in the panel's `aside`. The View button comes from one `_VIEW` spec rendered two ways — `_VIEW_ICON_BTN` for the desktop cell, `_VIEW_LABEL_BTN` (visible text) for the mobile card — and both carry `wiz-requires-socket` ([Offline honesty](#offline-honesty-themeconnectionpy)).
