@@ -17,6 +17,7 @@ row from the database, so it drops the held state with it.
 """
 
 import json
+from typing import Any
 
 from nicegui import ui
 
@@ -54,6 +55,12 @@ _UNWATCH_JS = 'window.__wizHeldBoards && window.__wizHeldBoards[__NAME__] && win
 
 class MatchBoardHoldMixin:
     """Held-change bookkeeping and the Tidy up pill for a ``MatchTableView``."""
+
+    # Supplied by MatchTableView.
+    table: Any
+    _bg: Any
+    refresh: Any
+    _arrange: Any
 
     def _build_tidy_pill(self) -> None:
         self._held_ids: set = set()
