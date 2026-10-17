@@ -306,6 +306,8 @@ class MatchDisplayService:
             # in their copy, so a confirmation dialog can say what it is about
             # instead of quoting a primary key (``match_labels.match_row_label``).
             'title': match.title or '',
+            # Per-row board capabilities are scoped by tournament (MatchBoardAccess).
+            'tournament_id': match.tournament_id,  # type: ignore[attr-defined]
             'tournament': match.tournament.name if match.tournament else '',
             # The run sheets' label; the full name rides along as its tooltip.
             'tournament_short': match.tournament.short_label if match.tournament else '',
