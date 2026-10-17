@@ -103,6 +103,6 @@ async def test_shift_start_dm_goes_once_to_who_has_not_arrived(db, monkeypatch):
     await volunteer_reminder._tick()
 
     assert [assignment_id for assignment_id, _ in _RecordingDiscord.calls] == [waiting.id]
-    assert _RecordingDiscord.calls[0][1].url.endswith('/volunteer/my-shifts')
+    assert _RecordingDiscord.calls[0][1].url.endswith('/home/my-schedule?shifts=1')
     row = await VolunteerAssignment.get(id=waiting.id)
     assert row.start_dm_sent_at is not None

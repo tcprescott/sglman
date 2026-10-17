@@ -1,4 +1,4 @@
-"""When My Shifts warns that releasing a shift may leave nobody to cover it.
+"""When the give-back dialog warns that releasing a shift may leave nobody to cover it.
 
 The copy decision is a pure function precisely so it can be asserted without a
 slot context: the page it lives on cannot be rendered in a unit test.
@@ -7,7 +7,7 @@ slot context: the page it lives on cannot be rendered in a unit test.
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-from pages.volunteer_tabs.my_shifts import release_link_target, release_warning, shift_actions
+from pages.volunteer_tabs.my_shifts import release_warning, shift_actions
 
 UTC = timezone.utc
 
@@ -42,7 +42,7 @@ def test_an_already_started_shift_says_so():
     assert 'already started' in release_warning(_in(-1), 60)
 
 
-# --- which buttons a My Shifts card offers --------------------------------
+# --- which actions a shift row offers --------------------------------
 
 def _card(*, ends_in_hours: float, acknowledged: bool = False, checked_in: bool = False):
     now = datetime.now(timezone.utc)
@@ -65,8 +65,3 @@ def test_checked_in_shift_cannot_be_given_back():
 def test_finished_shift_offers_nothing():
     assert shift_actions(_card(ends_in_hours=-1), datetime.now(timezone.utc)) == (False, False)
 
-
-def test_release_link_param_parsing():
-    assert release_link_target(None) == (None, False)
-    assert release_link_target('42') == (42, False)
-    assert release_link_target('4x') == (None, True)

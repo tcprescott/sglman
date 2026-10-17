@@ -45,13 +45,16 @@ async def my_schedule_tab(
     book: Optional[int] = None,
     startgg: Optional[int] = None,
     comments: Optional[int] = None,
+    release: Optional[int] = None,
+    shifts: bool = False,
 ) -> None:
     """The deep-link params belong to the matches section and pass straight
     through to it; see :func:`pages.home_tabs.player.render_player_dashboard` for
     what each one opens. ``match`` also reaches the crew section, which scrolls
     to the viewer's slot on that match when they crew it rather than play it. They arrive here because the DMs that carry them predate
     this tab and address ``/home/player``, which resolves onto My Schedule via
-    the alias declared in :mod:`pages.home`.
+    the alias declared in :mod:`pages.home`. ``release`` and ``shifts`` belong
+    to the volunteer shifts section, as the old Volunteer → My Shifts did.
     """
     live = await FeatureFlagService().enabled_flags()
     # Someone entered in no tournament is here for their crew slots, and the
@@ -63,7 +66,9 @@ async def my_schedule_tab(
     plays = bool(user and await TournamentService().get_enrolled_players_by_user(user))
     volunteer = user if FeatureFlag.VOLUNTEERS in live else None
 
-    deep_link = any(v is not None for v in (schedule, reschedule, match, hard, agree, book, startgg, comments))
+    deep_link = shifts or any(
+        v is not None for v in (schedule, reschedule, match, hard, agree, book, startgg, comments, release)
+    )
     # A DM's link names something to open in the List view, so it wins over a
     # remembered Timeline for this visit without changing the remembered choice.
     state = {'view': 'list' if deep_link else app.storage.user.get(VIEW_KEY, 'list')}
@@ -71,7 +76,7 @@ async def my_schedule_tab(
     async def list_view() -> None:
         if not plays:
             if volunteer:
-                await my_volunteer_shifts_section(volunteer)
+                await my_volunteer_shifts_section(volunteer, release=release, focus=shifts)
             await my_crew_tab(focus_match=match)
         await render_player_dashboard(
             schedule=schedule, reschedule=reschedule, match=match, hard=hard,
@@ -80,7 +85,7 @@ async def my_schedule_tab(
         if plays:
             await my_crew_tab(focus_match=match)
             if volunteer:
-                await my_volunteer_shifts_section(volunteer)
+                await my_volunteer_shifts_section(volunteer, release=release, focus=shifts)
         await availability_tab()
         if FeatureFlag.EQUIPMENT in live:
             await equipment_checkouts_section()

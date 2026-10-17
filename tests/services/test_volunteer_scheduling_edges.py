@@ -209,8 +209,8 @@ async def test_acknowledged_reminder_drops_the_button_and_links_the_way_out(db, 
     kinds = sorted(kind for kind, _ in _RecordingDiscord.calls)
     assert kinds == ['ack', 'plain']
     links = {kind: link for kind, link in _RecordingDiscord.calls}
-    assert links['plain'].url.endswith(f'/volunteer/my-shifts?release={acked.id}')
-    assert links['ack'].url.endswith(f'/volunteer/my-shifts?release={pending.id}')
+    assert links['plain'].url.endswith(f'/home/my-schedule?release={acked.id}')
+    assert links['ack'].url.endswith(f'/home/my-schedule?release={pending.id}')
 
 
 async def test_moving_a_shift_rearms_its_reminder(db, monkeypatch):

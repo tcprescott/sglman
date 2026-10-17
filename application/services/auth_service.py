@@ -270,8 +270,9 @@ class AuthService:
         admin_ids, cc_ids = await AuthService.tournament_scope(user)
         return frozenset(admin_ids | cc_ids)
 
-    # Roles that have something to do on the Volunteer hub; mirrors the
-    # ``roles=`` list on ``@protected_tab_page('/volunteer')``.
+    # Roles that have something to do on the Volunteer hub's volunteer tabs. The
+    # hub's ``roles=`` also admits CHECK_IN_DESK, for its Check-in Desk tab,
+    # which :meth:`can_view_check_in_desk` decides.
     _VOLUNTEER_ROLES: ClassVar[set[Role]] = {Role.VOLUNTEER, Role.PROCTOR, Role.STAFF}
 
     @staticmethod

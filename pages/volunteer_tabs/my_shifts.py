@@ -1,26 +1,15 @@
-"""Volunteer My Shifts tab."""
+"""Shared pieces of a volunteer's own shifts: titles, actions, give-back, hours."""
 
 from datetime import datetime, timezone
 from typing import Awaitable, Callable, Optional
 
-from nicegui import app, ui
+from nicegui import ui
 
-from application.services import (
-    SystemConfigService,
-    VolunteerArrivalService,
-    get_user_from_session,
-)
-from application.services.volunteer import can_self_check_in, can_undo_check_in, describe_late
-from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
-from application.utils.timezone import format_local_display, format_local_time
+from application.utils.timezone import format_local_display
 from theme.dialog._helpers import dialog_actions, form_dialog
-from theme.empty_state import empty_state
-from theme.help import help_icon, resolve_help
+from theme.help import resolve_help
 from theme.notify import notify_error
-from theme.page_header import page_header
-from theme.shift_arrival_banner import arrival_changed, on_arrival_change
-from theme.steady import steady_refreshable
 
 
 def release_warning(starts_at: datetime, lead_minutes: int) -> Optional[str]:
@@ -61,15 +50,6 @@ def hours_message(summary) -> str:
     if summary.next_tier is not None:
         line += f' {_hours(summary.hours_to_next)} more reaches {_hours(summary.next_tier)}.'
     return line
-
-
-def release_link_target(raw: Optional[str]) -> tuple[Optional[int], bool]:
-    """Parse ``?release=``: (assignment id, whether the param was malformed)."""
-    if raw is None or raw == '':
-        return None, False
-    if raw.isdecimal():
-        return int(raw), False
-    return None, True
 
 
 def shift_actions(assignment, now: datetime) -> tuple[bool, bool]:
@@ -148,160 +128,3 @@ async def open_release_dialog(
             ui.button('Keep it', on_click=dialog.close).props('flat')
             ui.button('Give it back', on_click=do_release).props('color=negative')
     dialog.open()
-
-
-async def my_shifts_tab(release: Optional[str] = None) -> None:
-    user = await get_user_from_session(app.storage.user)
-    if user is None:
-        ui.label('You must be logged in.').classes('text-error')
-        return
-
-    service = VolunteerScheduleService()
-    arrival_service = VolunteerArrivalService()
-    hours_service = VolunteerHoursService()
-    state = {'upcoming_only': True}
-    lead_minutes = await SystemConfigService.get_volunteer_reminder_lead_minutes()
-
-    with ui.column().classes('page-container'):
-        with page_header('My Shifts'):
-            await help_icon(('my-shifts', 'Your shifts'), 'shift-release')
-            ui.space()
-
-
-        @steady_refreshable
-        async def hours_panel() -> None:
-            try:
-                summary = await hours_service.for_user(user)
-            except ValueError:
-                return
-            ui.label(hours_message(summary)).classes('text-body2 q-mb-sm')
-
-        await hours_panel()
-
-        async def confirm_release(assignment) -> None:
-            async def released() -> None:
-                hours_panel.refresh()
-                shift_list.refresh()
-            await open_release_dialog(assignment, user, lead_minutes, released)
-
-        async def arrive(assignment) -> None:
-            try:
-                await arrival_service.check_in_self(assignment.id, user)
-            except (ValueError, PermissionError) as e:
-                notify_error(e)
-                return
-            ui.notify("You're checked in. Thanks!", color='positive')
-            await arrival_changed()
-
-        async def undo(assignment) -> None:
-            try:
-                await arrival_service.undo_check_in(assignment.id, user)
-            except (ValueError, PermissionError) as e:
-                notify_error(e)
-                return
-            ui.notify('Check-in taken back.', color='info')
-            await arrival_changed()
-
-        @steady_refreshable
-        async def shift_list() -> None:
-            after = datetime.now(timezone.utc) if state['upcoming_only'] else None
-            assignments = await service.assignments_for_user(
-                user, upcoming_after=after, with_shiftmates=True,
-            )
-            if not assignments:
-                msg = 'You have no upcoming shifts.' if state['upcoming_only'] else 'You have no assigned shifts.'
-                empty_state(msg)
-                return
-            for assignment in assignments:
-                shift = assignment.shift
-                position = shift.position.name if shift.position else 'Volunteer'
-                acked = assignment.acknowledged_at is not None
-                checked_in = assignment.checked_in_at is not None
-                now = datetime.now(timezone.utc)
-                can_ack, can_release = shift_actions(assignment, now)
-                late = describe_late(assignment)
-                with ui.card().classes('full-width q-pa-md q-mb-sm'):
-                    with ui.column().classes('gap-0 full-width'):
-                        title = position + (f' — {shift.label}' if shift.label else '')
-                        ui.label(title).classes('text-subtitle1')
-                        ui.label(
-                            f'{format_local_display(shift.starts_at)} → '
-                            f'{format_local_display(shift.ends_at)}'
-                        ).classes('text-caption')
-                        assigned_by = assignment.assigned_by
-                        provenance = 'Scheduled'
-                        if assigned_by is not None:
-                            provenance = f'Scheduled by {assigned_by.preferred_name}'
-                        provenance += f' · {format_local_display(assignment.created_at)}'
-                        if assignment.acknowledged_at:
-                            provenance += (
-                                f' · you acknowledged '
-                                f'{format_local_display(assignment.acknowledged_at)}'
-                            )
-                        ui.label(provenance).classes('text-caption text-grey')
-                        if late:
-                            ui.label(late).classes('text-caption st-pending')
-                        render_shift_brief(assignment)
-                    # Negative left, positive right in every state: a status that
-                    # replaces Acknowledge takes its slot rather than shifting
-                    # "Can't make it" across.
-                    with ui.element('div').classes('wiz-shift-actions'):
-                        # Offered whether or not it is acknowledged — agreeing to a
-                        # shift is not a commitment you cannot revise.
-                        if can_release:
-                            ui.button("Can't make it", icon='event_busy',
-                                      on_click=lambda a=assignment: confirm_release(a)) \
-                                .props('outline color=negative')
-                        if checked_in:
-                            if can_undo_check_in(assignment, user, now):
-                                ui.button('Undo check-in', on_click=lambda a=assignment: undo(a)) \
-                                    .props('flat no-caps') \
-                                    .tooltip("Take back your check-in if you tapped by mistake")
-                            with ui.element('div').classes('wiz-shift-status st-live'):
-                                ui.icon('how_to_reg')
-                                ui.label(f'Arrived {format_local_time(assignment.checked_in_at)}')
-                            # Arriving says more than acknowledging, so it takes the slot.
-                            continue
-                        if can_self_check_in(assignment, now):
-                            ui.button("I'm here", icon='place',
-                                      on_click=lambda a=assignment: arrive(a)) \
-                                .props('color=primary')
-                            continue
-                        if acked:
-                            with ui.element('div').classes('wiz-shift-status st-ok'):
-                                ui.icon('check')
-                                ui.label('Acknowledged')
-                        elif can_ack:
-                            async def ack(a_id=assignment.id) -> None:
-                                try:
-                                    await service.acknowledge(a_id, user)
-                                    ui.notify('Shift acknowledged. Thanks!', color='positive')
-                                except (ValueError, PermissionError) as e:
-                                    notify_error(e)
-                                shift_list.refresh()
-                            ui.button('Acknowledge', icon='check', on_click=ack) \
-                                .props('color=primary')
-
-        def on_toggle(e) -> None:
-            state['upcoming_only'] = not e.value
-            shift_list.refresh()
-
-        ui.switch('Show all shifts', on_change=on_toggle)
-        with ui.element('div').classes('wiz-tile-grid'):
-            await shift_list()
-        on_arrival_change(shift_list.refresh)
-
-        release_id, malformed = release_link_target(release)
-        if malformed:
-            ui.notify("That link is broken. Your shifts are below.", color='warning')
-        elif release_id is not None:
-            target = await service.find_own_assignment(release_id, user)
-            if target is None:
-                ui.notify("That shift isn't on your list any more.", color='warning')
-            elif not shift_actions(target, datetime.now(timezone.utc))[1]:
-                ui.notify(
-                    "That shift can't be given back here: it's finished or you're "
-                    "checked in. Talk to your coordinator.", color='warning',
-                )
-            else:
-                await confirm_release(target)

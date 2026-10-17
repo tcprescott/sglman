@@ -134,6 +134,8 @@ def create() -> None:
         startgg: str | None = None,
         comments: str | None = None,
         focus: str | None = None,
+        release: str | None = None,
+        shifts: str | None = None,
     ):
         # Bare platform host (no /t/<slug>) -> community picker, not a tenant home.
         tid = get_current_tenant_id()
@@ -145,7 +147,7 @@ def create() -> None:
             return RedirectResponse(f"{request.scope.get('root_path', '') if request else ''}/live")
         ids, malformed_link = deep_link_ids(
             schedule=schedule, reschedule=reschedule, match=match, hard=hard, agree=agree,
-            book=book, startgg=startgg, comments=comments,
+            book=book, startgg=startgg, comments=comments, release=release, shifts=shifts,
         )
         # A bare ``ui.page`` misses the page view ``_tenant_page`` records, so
         # home records its own: every section under one path, like the hubs.
@@ -219,6 +221,10 @@ def create() -> None:
             # `badge` counts the matches waiting on this player to pick a time.
             # `comments` is a match id from the staff-comment DM: the board
             # narrows to that match and opens its details on the comments.
+            # `release` is a volunteer assignment id from the shift reminder's
+            # "Can't make it" button, opening that shift's give-back dialog;
+            # `shifts` scrolls to the shifts section (both used to address the
+            # retired Volunteer → My Shifts).
             {'label': 'My Schedule', 'icon': 'event_available',
              'badge': await count_waiting_on_you(user),
              'aliases': ('player', 'my-crew', 'availability', 'equipment'),
@@ -226,7 +232,8 @@ def create() -> None:
                          {'schedule': ids['schedule'], 'reschedule': ids['reschedule'],
                           'match': ids['match'], 'hard': ids['hard'], 'agree': ids['agree'],
                           'book': ids['book'], 'startgg': ids['startgg'],
-                          'comments': ids['comments']})},
+                          'comments': ids['comments'], 'release': ids['release'],
+                          'shifts': ids['shifts'] is not None})},
             # Signing up is the step that comes before having a schedule at all,
             # and it used to be a checkbox on Profile that a player could use the
             # app for a season without ever finding. Triforce text submission

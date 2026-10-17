@@ -2,7 +2,7 @@
 
 Each event names a Matcherino venue whose badge sales become the desk's
 roster. Opening an event puts it on the desk and starts the background sync;
-the desk itself lives at ``/checkin``.
+the desk itself is Volunteer → Check-in Desk.
 
 The Matcherino login card above the events (``theme.matcherino_login_card``)
 holds the refresh token the sync signs in with.
@@ -11,6 +11,7 @@ holds the refresh token the sync signs in with.
 from nicegui import background_tasks, context, ui
 
 from application.services import CheckInService
+from application.utils.app_links import volunteer_check_in_url
 from application.utils.timezone import format_local_display
 from models import CheckInEventStatus
 from theme.connection import REQUIRES_SOCKET_CLASS
@@ -154,7 +155,7 @@ async def admin_check_in_page() -> None:
                         on_confirm=do_delete, confirm_text='Delete',
                     ).open()
 
-            table.on('desk', lambda e: ui.navigate.to(f"/checkin/{e.args['id']}"))
+            table.on('desk', lambda e: ui.navigate.to(volunteer_check_in_url(e.args['id'])))
             table.on('edit', lambda e: background_tasks.create(handle_edit(e.args, context.client)))
             table.on('remove', lambda e: background_tasks.create(handle_remove(e.args, context.client)))
 

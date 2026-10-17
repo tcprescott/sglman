@@ -2,10 +2,9 @@
 
 My Schedule answers "what am I doing at this event?", and for anyone who
 volunteers, the shifts were the one commitment it left out: they lived only on
-Volunteer → My Shifts. This is the agenda of what is still ahead, grouped by
-day, one row per shift with the one thing to do about it (I'm here, or
-Acknowledge) and the rest behind ⋮. My Shifts keeps the full cards and the
-finished shifts; the section links there.
+Volunteer → My Shifts, which this replaced. This is the agenda of what is still
+ahead, grouped by day, one row per shift with the one thing to do about it (I'm
+here, or Acknowledge) and the rest behind ⋮, then the finished shifts.
 """
 
 from datetime import datetime, timezone
@@ -14,14 +13,12 @@ from typing import Optional
 from nicegui import ui
 
 from application.services import (
-    AuthService,
     SystemConfigService,
     VolunteerArrivalService,
 )
 from application.services.volunteer import can_self_check_in, can_undo_check_in, describe_late
 from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
-from application.utils.app_links import volunteer_my_shifts_url
 from application.utils.timezone import format_local_display, format_local_time, to_local
 from models import User
 from pages.volunteer_tabs.my_shifts import (
@@ -92,23 +89,32 @@ def day_heading(starts_at: datetime) -> str:
     return f'{local:%A, %B} {local.day}'
 
 
-async def my_volunteer_shifts_section(user: User) -> None:
+def finished_status(assignment) -> tuple[str, str, str]:
+    """(chip kind, icon, text) for a shift that has ended."""
+    if assignment.checked_in_at is not None:
+        return 'ok', 'how_to_reg', f'Arrived {format_local_time(assignment.checked_in_at)}'
+    return 'neutral', 'history', 'Finished'
+
+
+async def my_volunteer_shifts_section(
+    user: User, *, release: Optional[int] = None, focus: bool = False,
+) -> None:
     """Build the panel; the caller has already checked ``FeatureFlag.VOLUNTEERS``.
 
-    Nothing renders for someone with no upcoming shifts: most players never
+    Nothing renders for someone who has never had a shift: most players never
     volunteer, and an empty panel would sit on every one of their schedules.
+    ``release`` is an assignment id from the reminder DM's "Can't make it"
+    button and opens that shift's give-back dialog; ``focus`` scrolls here.
     """
     service = VolunteerScheduleService()
     arrival_service = VolunteerArrivalService()
-    assignments = await service.assignments_for_user(
-        user, upcoming_after=datetime.now(timezone.utc), with_shiftmates=True,
-    )
-    if not assignments:
+    every = await service.assignments_for_user(user, with_shiftmates=True)
+    if not every and release is None:
         return
 
     summary = await VolunteerHoursService().for_user(user)
     lead_minutes = await SystemConfigService.get_volunteer_reminder_lead_minutes()
-    hub = await AuthService.can_view_volunteer(user)
+    state = {'finished': False}
 
     panel = await section_panel(
         'Your volunteer shifts',
@@ -146,7 +152,7 @@ async def my_volunteer_shifts_section(user: User) -> None:
         ui.notify('Shift acknowledged. Thanks!', color='positive')
         await rows.refresh()
 
-    async def release(assignment) -> None:
+    async def release_shift(assignment) -> None:
         async def released() -> None:
             await rows.refresh()
         await open_release_dialog(assignment, user, lead_minutes, released)
@@ -154,9 +160,10 @@ async def my_volunteer_shifts_section(user: User) -> None:
     def render_row(assignment, now: datetime) -> None:
         shift = assignment.shift
         title = shift_title(shift)
-        kind, icon, text = shift_status(assignment, now)
+        ended = shift.ends_at <= now
+        kind, icon, text = finished_status(assignment) if ended else shift_status(assignment, now)
         _, can_release = shift_actions(assignment, now)
-        with ui.element('div').classes('wiz-shift-row'):
+        with ui.element('div').classes('wiz-shift-row' + (' wiz-shift-row--done' if ended else '')):
             with ui.column().classes('wiz-shift-row__time gap-0'):
                 ui.label(format_local_time(shift.starts_at)).classes('text-weight-medium')
                 ui.label(f'to {format_local_time(shift.ends_at)}').classes('text-caption text-muted')
@@ -166,7 +173,7 @@ async def my_volunteer_shifts_section(user: User) -> None:
                     ui.icon(icon, size='14px')
                     ui.label(text)
             with ui.row().classes('wiz-shift-row__actions items-center no-wrap gap-1'):
-                action = primary_action(assignment, now)
+                action = None if ended else primary_action(assignment, now)
                 if action == 'arrive':
                     ui.button("I'm here", icon='place',
                               on_click=lambda a=assignment: arrive(a)).props('color=primary no-caps')
@@ -180,25 +187,52 @@ async def my_volunteer_shifts_section(user: User) -> None:
                     if can_release:
                         ui.separator()
                         menu_action('event_busy', "Can't make it…",
-                                    lambda a=assignment: release(a), negative=True)
+                                    lambda a=assignment: release_shift(a), negative=True)
 
-    @steady_refreshable
-    async def rows() -> None:
-        now = datetime.now(timezone.utc)
-        current = await service.assignments_for_user(user, upcoming_after=now, with_shiftmates=True)
-        if not current:
-            ui.label('No upcoming shifts.').classes('text-muted')
+    def render_days(assignments, now: datetime) -> None:
         day = None
-        for assignment in current:
+        for assignment in assignments:
             heading = day_heading(assignment.shift.starts_at)
             if heading != day:
                 day = heading
                 ui.label(heading).classes('wiz-shift-day')
             render_row(assignment, now)
 
+    @steady_refreshable
+    async def rows() -> None:
+        now = datetime.now(timezone.utc)
+        current = await service.assignments_for_user(user, with_shiftmates=True)
+        upcoming = [a for a in current if a.shift.ends_at > now]
+        finished = [a for a in current if a.shift.ends_at <= now]
+        if not upcoming:
+            ui.label('No upcoming shifts.').classes('text-muted')
+        render_days(upcoming, now)
+        if finished:
+            # Newest first, folded: they matter for the hours, not for what's next.
+            with ui.expansion(f'Finished shifts ({len(finished)})', icon='history',
+                              value=state['finished'],
+                              on_value_change=lambda e: state.update(finished=e.value)) \
+                    .classes('wiz-shift-finished full-width q-mt-sm').props('dense'):
+                render_days(list(reversed(finished)), now)
+
     with panel.body:
         with ui.column().classes('gap-0 full-width'):
             await rows()
-        if hub:
-            ui.link('All your shifts on the Volunteer page', volunteer_my_shifts_url())
     on_arrival_change(rows.refresh)
+
+    if focus:
+        ui.run_javascript(
+            f"document.getElementById('{SHIFTS_SECTION_ID}')"
+            "?.closest('.wiz-panel')?.scrollIntoView({block: 'start', behavior: 'smooth'})"
+        )
+    if release is not None:
+        target = await service.find_own_assignment(release, user)
+        if target is None:
+            ui.notify("That shift isn't on your list any more.", color='warning')
+        elif not shift_actions(target, datetime.now(timezone.utc))[1]:
+            ui.notify(
+                "That shift can't be given back here: it's finished or you're "
+                "checked in. Talk to your coordinator.", color='warning',
+            )
+        else:
+            await release_shift(target)
