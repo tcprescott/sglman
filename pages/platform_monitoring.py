@@ -124,9 +124,6 @@ async def render_monitoring_section(user) -> None:
         {'name': 'added', 'label': 'Added', 'field': 'added', 'align': 'left'},
         {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
     ]
-    with rules_panel.aside:
-        ui.button('Ignore an error', icon='add', on_click=lambda: _open_rule_dialog(user, table)) \
-            .props('color=primary no-caps')
     with rules_panel.body.classes('w-full'):
         table = ui.table(columns=columns, rows=[], row_key='key').classes('w-full wiz-table')
         table.add_slot('body-cell-pattern', f'<q-td :props="props">{_PATTERN}</q-td>')
@@ -138,6 +135,9 @@ async def render_monitoring_section(user) -> None:
             field_slots={'pattern': _PATTERN, 'match': _MATCH_CHIP},
             wrap=True,
         )
+    with rules_panel.aside:
+        ui.button('Ignore an error', icon='add', on_click=lambda: _open_rule_dialog(user, table)) \
+            .props('color=primary no-caps')
 
     async def _on_remove(e) -> None:
         _confirm_remove(user, table, e.args)
