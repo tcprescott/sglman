@@ -9,6 +9,7 @@ narrowed to that match; a shift in its details dialog.
 """
 
 from datetime import date, datetime, timedelta, timezone
+from typing import Awaitable, Callable, Optional
 
 from nicegui import app, ui
 
@@ -17,6 +18,7 @@ from application.services.my_timeline_service import (
     CREW,
     MATCH,
     SHIFT,
+    UNAVAILABLE,
     TimelineItem,
     event_day,
     opening_day,
@@ -34,7 +36,11 @@ _KINDS = {
     MATCH: ('sports_esports', 'Your matches'),
     CREW: ('headset_mic', 'Crew'),
     SHIFT: ('volunteer_activism', 'Volunteer shifts'),
+    UNAVAILABLE: ('block', "Can't play"),
 }
+
+
+OnBlocked = Optional[Callable[[], Awaitable[None]]]
 
 
 def _px(hours: float) -> str:
@@ -62,7 +68,8 @@ def _legend(kinds: set, now_shown: bool) -> None:
         for kind, (_, words) in _KINDS.items():
             if kind in kinds:
                 with ui.row().classes('items-center gap-1 no-wrap'):
-                    ui.element('span').classes(f'wiz-tl-swatch wiz-tl--{kind}')
+                    hatch = ' wiz-tl-hatch' if kind == UNAVAILABLE else ''
+                    ui.element('span').classes(f'wiz-tl-swatch wiz-tl--{kind}{hatch}')
                     ui.label(words)
         if now_shown:
             with ui.row().classes('items-center gap-1 no-wrap'):
@@ -70,13 +77,15 @@ def _legend(kinds: set, now_shown: bool) -> None:
                 ui.label('Now')
 
 
-def _render_day(items: list[TimelineItem], day: date) -> None:
+def _render_day(
+    items: list[TimelineItem], blocked: list[TimelineItem], day: date, on_blocked: OnBlocked,
+) -> None:
     midnight = combine_local(day, datetime.min.time()).astimezone(timezone.utc)
-    first, last = hour_range(items, midnight)
+    first, last = hour_range(items + blocked, midnight)
     now = datetime.now(timezone.utc)
     now_hour = (now - midnight).total_seconds() / 3600
     now_shown = first <= now_hour < last
-    _legend({i.kind for i in items}, now_shown)
+    _legend({i.kind for i in items + blocked}, now_shown)
     height = _px(last - first)
     with ui.element('div').classes('wiz-vgrid wiz-tl').props(
         f'role=region aria-label="Your schedule for {day_label(day)}"'
@@ -91,10 +100,34 @@ def _render_day(items: list[TimelineItem], day: date) -> None:
             ui.label(f'{day:%A, %B} {day.day}').classes('wiz-vgrid__head')
             with ui.element('div').classes('wiz-vgrid__body wiz-vgrid__body--lines') \
                     .style(f'height: {height};'):
+                for off in blocked:
+                    _render_off(off, midnight, first, on_blocked)
                 for placed in place_in_lanes(items):
                     _render_block(placed.item, placed.lane, placed.lanes, midnight, first)
                 if now_shown:
                     ui.element('div').classes('wiz-vgrid__now').style(f'top: {_px(now_hour - first)};')
+
+
+def _render_off(item: TimelineItem, midnight: datetime, first: int, on_blocked: OnBlocked) -> None:
+    """A "can't play" window: a hatched band behind the blocks, so a match
+    booked into it still shows, on top, as the clash it is."""
+    top = (item.starts_at - midnight).total_seconds() / 3600 - first
+    span = (item.ends_at - item.starts_at).total_seconds() / 3600
+    when = f'{format_local_time(item.starts_at)} – {format_local_time(item.ends_at)}'
+    words = ' · '.join(part for part in (item.title, when, item.detail) if part)
+    band = ui.element('div').classes('wiz-tl-off wiz-tl-hatch').style(
+        f'top: {_px(top)}; height: {_px(span)};'
+    )
+    if on_blocked is not None:
+        band.props(f'tabindex=0 role=button aria-label="{words}. Edit when you can\'t play"')
+        band.on('click', on_blocked)
+        band.on('keydown.enter', on_blocked)
+    else:
+        band.props(f'role=note aria-label="{words}"')
+    band.tooltip(words)
+    with band, ui.row().classes('wiz-tl-off__label items-center no-wrap'):
+        ui.icon('block', size='14px')
+        ui.label(words)
 
 
 def _render_block(item: TimelineItem, lane: int, lanes: int, midnight: datetime, first: int) -> None:
@@ -119,7 +152,9 @@ def _render_block(item: TimelineItem, lane: int, lanes: int, midnight: datetime,
             ui.label(item.detail).classes('wiz-tl-block__detail')
 
 
-async def my_timeline_view(*, include_shifts: bool) -> None:
+async def my_timeline_view(*, include_shifts: bool, on_blocked: OnBlocked = None) -> None:
+    """``on_blocked`` runs when a "can't play" band is tapped: the editor
+    for those windows lives in the List view, so the caller switches to it."""
     user = await get_user_from_session(app.storage.user)
     if user is None:
         return
@@ -138,24 +173,28 @@ async def my_timeline_view(*, include_shifts: bool) -> None:
     async def view() -> None:
         try:
             items = await service.items(user, include_shifts=include_shifts)
+            blocked = await service.unavailable(user)
         except ValueError as e:
             ui.label(str(e)).classes('text-muted')
             return
         by_day: dict[date, list[TimelineItem]] = {}
         for item in items:
             by_day.setdefault(event_day(item.starts_at), []).append(item)
-        days = sorted(by_day)
+        blocked_by_day: dict[date, list[TimelineItem]] = {}
+        for item in blocked:
+            blocked_by_day.setdefault(event_day(item.starts_at), []).append(item)
+        days = sorted(set(by_day) | set(blocked_by_day))
         if not days:
             empty_panel('Nothing on your schedule yet.', icon='event_available')
             return
-        day = state['day'] if state['day'] in by_day else opening_day(
+        day = state['day'] if state['day'] in days else opening_day(
             days, event_day(datetime.now(timezone.utc)),
         )
         if day is None:
             return
         state['day'] = day
         render_day_bar(days, day, pick_day)
-        _render_day(by_day[day], day)
+        _render_day(by_day.get(day, []), blocked_by_day.get(day, []), day, on_blocked)
 
     def pick_day(d: date) -> None:
         state['day'] = d

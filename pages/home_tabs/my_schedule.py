@@ -23,7 +23,7 @@ from nicegui import app, ui
 
 from application.services import FeatureFlagService, TournamentService, get_user_from_session
 from models import FeatureFlag
-from pages.home_tabs.availability import availability_tab
+from pages.home_tabs.availability import AVAILABILITY_SECTION_ID, availability_tab
 from pages.home_tabs.equipment import equipment_checkouts_section
 from pages.home_tabs.my_crew import my_crew_tab
 from pages.home_tabs.my_timeline import my_timeline_view
@@ -64,7 +64,7 @@ async def my_schedule_tab(
     deep_link = any(v is not None for v in (schedule, reschedule, match, hard, agree, book, startgg, comments))
     # A DM's link names something to open in the List view, so it wins over a
     # remembered Timeline for this visit without changing the remembered choice.
-    state = {'view': 'list' if deep_link else app.storage.user.get(VIEW_KEY, 'list')}
+    state: dict = {'view': 'list' if deep_link else app.storage.user.get(VIEW_KEY, 'list')}
 
     async def list_view() -> None:
         if not plays:
@@ -86,7 +86,7 @@ async def my_schedule_tab(
     @ui.refreshable
     async def body() -> None:
         if state['view'] == 'timeline':
-            await my_timeline_view(include_shifts=volunteer is not None)
+            await my_timeline_view(include_shifts=volunteer is not None, on_blocked=edit_availability)
         else:
             await list_view()
 
@@ -94,9 +94,18 @@ async def my_schedule_tab(
         state['view'] = value
         app.storage.user[VIEW_KEY] = value
         await body.refresh()
+        if target := state.pop('scroll_to', None):
+            ui.run_javascript(
+                f"document.getElementById('{target}')"
+                "?.scrollIntoView({behavior: 'smooth', block: 'start'})"
+            )
+
+    async def edit_availability() -> None:
+        state['scroll_to'] = AVAILABILITY_SECTION_ID
+        toggle.value = 'list'
 
     with ui.column().classes('page-container wiz-section-stack'):
-        ui.toggle(
+        toggle = ui.toggle(
             {'list': 'List', 'timeline': 'Timeline'},
             value=state['view'],
             on_change=lambda e: switch(e.value),

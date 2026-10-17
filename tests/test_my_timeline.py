@@ -7,13 +7,15 @@ from types import SimpleNamespace
 from application.services.my_timeline_service import (
     MATCH,
     SHIFT,
+    UNAVAILABLE,
     MyTimelineService,
     TimelineItem,
     event_day,
     opening_day,
     place_in_lanes,
+    split_by_event_day,
 )
-from models import Tournament
+from models import Tournament, VolunteerAvailabilityStatus
 
 UTC = timezone.utc
 T0 = datetime(2026, 10, 23, 15, 0, tzinfo=UTC)
@@ -86,3 +88,42 @@ def test_a_crewed_match_says_the_role_and_who_plays():
 def test_short_label_falls_back_to_the_name():
     assert Tournament(name='Full', short_name='  ').short_label == 'Full'
     assert Tournament(name='Full', short_name='F').short_label == 'F'
+
+
+def test_a_window_past_six_in_the_morning_splits_into_two_days():
+    start = datetime(2026, 10, 23, 20, 0, tzinfo=UTC)
+    end = datetime(2026, 10, 24, 10, 0, tzinfo=UTC)
+    six = datetime(2026, 10, 24, 6, 0, tzinfo=UTC)
+    assert split_by_event_day(start, end, 'UTC') == [(start, six), (six, end)]
+
+
+def test_a_window_inside_one_day_stays_whole():
+    start = datetime(2026, 10, 23, 8, 0, tzinfo=UTC)
+    end = datetime(2026, 10, 23, 12, 0, tzinfo=UTC)
+    assert split_by_event_day(start, end, 'UTC') == [(start, end)]
+
+
+async def test_unavailable_keeps_only_cant_play_windows_inside_the_event(monkeypatch):
+    lo = datetime(2026, 10, 22, 6, 0, tzinfo=UTC)
+    hi = datetime(2026, 10, 26, 6, 0, tzinfo=UTC)
+    service = MyTimelineService()
+
+    async def window():
+        return lo, hi
+
+    def row(start, end, status, note=None):
+        return SimpleNamespace(starts_at=start, ends_at=end, status=status, note=note)
+
+    async def availability_for(_user):
+        return [
+            row(lo - timedelta(hours=4), lo + timedelta(hours=2), VolunteerAvailabilityStatus.UNAVAILABLE, 'Flight'),
+            row(T0, T0 + timedelta(hours=2), VolunteerAvailabilityStatus.PREFERRED),
+            row(hi + timedelta(days=1), hi + timedelta(days=2), VolunteerAvailabilityStatus.UNAVAILABLE),
+        ]
+
+    monkeypatch.setattr(service, 'window', window)
+    monkeypatch.setattr(service.availability_service, 'availability_for', availability_for)
+    items = await service.unavailable(SimpleNamespace(id=1))
+    assert [(i.kind, i.starts_at, i.ends_at, i.detail) for i in items] == [
+        (UNAVAILABLE, lo, lo + timedelta(hours=2), 'Flight'),
+    ]
