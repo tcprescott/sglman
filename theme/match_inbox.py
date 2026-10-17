@@ -108,7 +108,7 @@ class MatchInbox:
 
     @ui.refreshable_method
     def _build(self, requests: list) -> None:
-        rows: list = self.view.table.rows if self.view else []
+        rows: list = self.view._visible_rows() if self.view else []
         finished = [r for r in rows if r.get('state') == 'Finished'] if self.access.confirm else []
         late = [
             r for r in rows

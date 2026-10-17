@@ -28,6 +28,7 @@ from theme.dialog.reschedule_agree_dialog import (
     agree,
     render_agreement_summary,
 )
+from theme.steady import steady_refreshable
 
 # What a stale "Open the request" link says instead of opening nothing.
 _STALE_AGREE = {
@@ -61,7 +62,7 @@ async def render_opponent_requests(
         return
     service = MatchRescheduleService()
 
-    @ui.refreshable
+    @steady_refreshable
     async def section() -> None:
         rows = await service.list_awaiting_agreement(viewer)
         if not rows:

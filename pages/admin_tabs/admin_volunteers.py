@@ -30,6 +30,7 @@ from theme.help import help_icon
 from theme.menu import menu_action, more_menu
 from theme.notify import notify_error
 from theme.page_header import page_header
+from theme.steady import steady_refreshable
 
 # Standard four 4-hour shift blocks, in the community's own timezone (the
 # generator resolves them against it), matching the 2025 schedule.
@@ -112,7 +113,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
             result_panel.refresh()
             grid.refresh()
 
-        @ui.refreshable
+        @steady_refreshable
         async def coverage_strip() -> None:
             win_start, win_end = _day_window(state['day'])
             summary = await schedule_service.day_summary(win_start, win_end)
@@ -157,7 +158,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
         # --- Draft banner ------------------------------------------------
         banner_container = ui.column().classes('full-width')
 
-        @ui.refreshable
+        @steady_refreshable
         async def draft_banner() -> None:
             win_start, win_end = _day_window(state['day'])
             pending = await schedule_service.count_drafts(win_start, win_end)
@@ -180,7 +181,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
         # --- Last auto-fill result ---------------------------------------
         panel_container = ui.column().classes('full-width')
 
-        @ui.refreshable
+        @steady_refreshable
         async def result_panel() -> None:
             run = state['last_run']
             if not run:
@@ -279,7 +280,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
         # --- Grid --------------------------------------------------------
         grid_container = ui.column().classes('full-width')
 
-        @ui.refreshable
+        @steady_refreshable
         async def grid() -> None:
             win_start, win_end = _day_window(state['day'])
             positions = await position_service.list_active()
@@ -602,7 +603,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
         async def open_positions_dialog() -> None:
             with form_dialog('Volunteer Positions') as dialog:
 
-                @ui.refreshable
+                @steady_refreshable
                 async def position_list() -> None:
                     positions = await position_service.list_all()
                     if not positions:

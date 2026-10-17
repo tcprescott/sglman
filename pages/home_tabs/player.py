@@ -37,6 +37,7 @@ from theme.dialog.reschedule_request_dialog import RescheduleRequestDialog
 from theme.nav_badges import set_nav_count
 from theme.notify import notify_error
 from theme.section import section_panel
+from theme.steady import steady_refreshable
 from theme.tables.match import MatchTableView
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_player_run_sheet import (
@@ -400,7 +401,7 @@ async def render_player_dashboard(
         # tournament, since those turn off manual match requests) and Challonge
         # ones. Where a matchup came from is a tag on its row, not a second card
         # with the same title.
-        @ui.refreshable
+        @steady_refreshable
         async def waiting_section():
             user = await get_user_from_session(app.storage.user)
             if user is None:
@@ -543,7 +544,7 @@ async def render_player_dashboard(
             and await TournamentService().list_player_requestable(viewer)
         )
 
-        @ui.refreshable
+        @steady_refreshable
         async def requests_section():
             """This viewer's own reschedule requests, and what became of them.
 

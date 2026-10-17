@@ -24,6 +24,7 @@ from theme.dialog.emergency_contact_dialog import open_emergency_contact_dialog
 from theme.menu import menu_action
 from theme.notify import notify_error
 from theme.page_header import page_header
+from theme.steady import steady_refreshable
 from theme.tables.admin_crud import refresh_button
 from theme.tables.export import csv_export_menu_item
 from theme.tables.preferences import TableKeys, preferences_button, search_input
@@ -163,7 +164,7 @@ async def _members_panel(
         # Pending join requests, above the member table. The queue carries its
         # own buttons on purpose: discovery and action on different pages is the
         # mistake that makes a report nobody acts on.
-        @ui.refreshable
+        @steady_refreshable
         async def join_queue() -> None:
             service = TenantMembershipService()
             try:

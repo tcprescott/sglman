@@ -329,6 +329,44 @@ its card, text is cut off without an ellipsis, or a flex or grid item is
 stretched more than 96px past its content. It can't judge ordinary spacing or
 verbosity: look at the page at phone width yourself before calling it done.
 
+## Hold still
+
+Nothing on screen moves unless the person looking at it moved it. In the
+2026-10-16 demo, buttons slid out from under people's fingers twice: the Match
+Schedule board jumped sideways every time the Needs you list reloaded, and boards
+reshuffled when someone else checked a match in. A page that moves between two
+correct states is wrong for the frames in between, and screenshots never show it.
+
+- **A section that reloads keeps its old content until the new is ready.** An
+  async builder under `@ui.refreshable` blanks while it awaits, so everything
+  below it jumps up and back. Use `@steady_refreshable` (`theme/steady.py`),
+  which builds off-screen and swaps in one step; the `check_steady_refresh` hook
+  blocks the old shape. When you hand-roll a refresh, query first, then clear and
+  rebuild without awaiting in between (the Needs you inbox, `theme/match_inbox.py`).
+- **Reserve the space for what will arrive.** A spinner, an empty state or a
+  placeholder takes the height of what replaces it. A banner or count that can
+  appear after load gets a slot that is already there.
+- **Changes update rows where they sit, the viewer's own included.** On a match
+  board (`MatchTableView`, via `theme/tables/match_hold.py`) a row that now
+  belongs in another group stays put with a "Now Ready to start" tag, a removed
+  match fades in place with a "Removed" tag and no working buttons, and a new
+  match waits off the board. A "N changes held · Tidy up" pill counts them, and
+  the board re-sorts in one step when the viewer taps it, scrolls, or leaves the
+  board untouched for a minute. Never insert a row above what someone is
+  looking at. A tag is absolutely placed (or sits under the time on desktop), so
+  adding it never changes a row's height.
+- **A row's state change never swaps its controls' sides.** A badge that replaces
+  a button takes that button's slot (see [Actions and menus](#actions-and-menus)).
+
+`scripts/ui_layout_shift.js` checks this in CI. It loads every page in
+`scripts/ui_layout_shift_ci.json` at desktop and phone width, redraws every live
+section with unchanged data (`theme/layout_probe.py`, only installed when the app
+runs with `WIZ_LAYOUT_PROBE=1`), and fails any element that moves more than 2px.
+A failure names the element and how far it moved; the usual cause is a section
+that went empty, or changed height, while it rebuilt. Targets with `live` steps then
+change matches from a second session (check one in, delete one) and fail when a
+board row moves by more than the rows above it grew.
+
 ## Words
 
 UI copy follows [CLAUDE.md § Writing user-facing text](../CLAUDE.md#writing-user-facing-text)
@@ -353,6 +391,8 @@ Automated, on every PR:
 | `tests/test_a11y_names.py` | Icon-only `<q-btn>` in a slot template with no name |
 | `check_table_grid`, `check_table_prefs` hooks | Tables with no phone card view or no `table_key` |
 | `scripts/ui_a11y_scan.js` (CI `browser` job) | On every page in `scripts/ui_a11y_ci.json`, in light and dark: axe's WCAG 2.1 A/AA rules, and rendered text under 4.5:1 |
+| `check_steady_refresh` hook | An async `@ui.refreshable` in `pages/` or `theme/`, which blanks while it loads |
+| `scripts/ui_layout_shift.js` (CI `browser` job) | On every page in `scripts/ui_layout_shift_ci.json`, at desktop and phone width: anything that moves more than 2px when the page redraws its live sections with unchanged data. See [Hold still](#hold-still) |
 | `scripts/ui_a11y_scan.js` phone pass | On the same pages at 360, 393, 412 and 440px: sideways scrolling, elements running off the screen or out of their card, text cut off without an ellipsis, empty bands over 96px |
 
 The browser scan runs locally against the seeded app (boot and seed as in the

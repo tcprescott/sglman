@@ -19,6 +19,7 @@ from application.utils.timezone import format_local_date
 from models import User
 from theme.assets import asset_url
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.steady import steady_refreshable
 
 
 def _device_label(user_agent: str | None) -> str:
@@ -108,7 +109,7 @@ async def render_device_rows(
             ),
         )
 
-    @ui.refreshable
+    @steady_refreshable
     async def other_devices() -> None:
         subscriptions = await service.list_subscriptions(user)
         if on_count_change is not None:

@@ -16,6 +16,7 @@ from application.services import RandomizerCredentialService, get_user_from_sess
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.page_header import page_header
+from theme.steady import steady_refreshable
 from theme.tables.admin_crud import wire_tab_refresh
 
 
@@ -59,7 +60,7 @@ async def admin_randomizer_keys_page() -> None:
             confirm_text='Clear', title='Clear credential?',
         ).open()
 
-    @ui.refreshable
+    @steady_refreshable
     async def credentials_section() -> None:
         try:
             rows = await service.list_status(await _current())

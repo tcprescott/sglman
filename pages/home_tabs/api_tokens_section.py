@@ -18,6 +18,7 @@ from theme.clipboard import copy_to_clipboard
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.dialog.secret_dialog import show_secret_dialog
+from theme.steady import steady_refreshable
 
 EXPIRY_CHOICES: dict[str, Optional[timedelta]] = {
     '8 hours': timedelta(hours=8),
@@ -41,7 +42,7 @@ def expiry_hint(choice: str, now: datetime) -> str:
 async def render_api_tokens_section(user: User) -> None:
     service = ApiTokenService()
 
-    @ui.refreshable
+    @steady_refreshable
     async def token_list() -> None:
         tokens = await service.list_tokens(user)
         if not tokens:

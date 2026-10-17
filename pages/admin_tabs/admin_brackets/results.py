@@ -26,6 +26,7 @@ from theme.brackets.tables import render_standings
 from theme.dialog._helpers import form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
+from theme.steady import steady_refreshable
 from theme.tables.admin_crud import current_actor
 
 from .shared import ELIM_FORMATS, entry_display_maps, match_label, round_display_names
@@ -72,7 +73,7 @@ async def open_results(row, client, *, service, tenant_id, tournament_id, on_cha
         actor = await current_actor()
         with form_dialog(f"Results — {row['name']}", card_classes='dialog-card dialog-card--lg') as dialog:
 
-            @ui.refreshable
+            @steady_refreshable
             async def body() -> None:
                 with tenant_scope(tenant_id):
                     bracket = await service.get_bracket(bracket_id)

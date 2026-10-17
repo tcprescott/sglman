@@ -30,6 +30,7 @@ from theme.equipment_copy import equipment_guidance
 from theme.help import help_icon
 from theme.page_header import page_title
 from theme.realtime import refresh_on_reconnect
+from theme.steady import steady_refreshable
 
 _STATUS_LABELS = {
     'available': 'Available',
@@ -80,7 +81,7 @@ def create() -> None:
         can_checkout = await AuthService.can_checkout_equipment(user)
         can_checkin = await AuthService.can_checkin_equipment(user)
 
-        @ui.refreshable
+        @steady_refreshable
         async def render_detail() -> None:
             asset = await service.get_asset(asset_id)
             if asset is None:

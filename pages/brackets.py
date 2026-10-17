@@ -76,6 +76,7 @@ from theme.brackets.tables import render_crosstable, render_pairings, render_sta
 from theme.empty_state import empty_panel
 from theme.error_page import render_not_found
 from theme.page_header import page_title
+from theme.steady import steady_refreshable
 
 
 def _slot_label(
@@ -501,7 +502,7 @@ def create() -> None:
         def on_card_click(match_id: int) -> None:
             background_tasks.create(open_match_dialog(match_id, context.client))
 
-        @ui.refreshable
+        @steady_refreshable
         async def render_body() -> None:
             # A live-event/dialog refresh re-runs this from a background task whose
             # tenant contextvar is unset, so scope the reads explicitly (the admin

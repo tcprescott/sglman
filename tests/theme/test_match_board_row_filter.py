@@ -6,6 +6,9 @@ transitions have to work in opposite directions: a match that starts leaves the
 screen, and a match that gets a seed appears on it. The second is the subtle
 one, because rolling a seed publishes ``changed`` (not ``CREATED``) for a match
 the board has never had a row for, which a plain in-place update would no-op.
+
+Neither moves the board under the viewer (docs/style-guide.md#hold-still): the
+started match fades in place and the newly seeded one waits for the next tidy.
 """
 
 import asyncio
@@ -28,7 +31,11 @@ class _Table:
 def _view(rows, *, fetched=None):
     """A MatchTableView with only the pieces these paths touch."""
     view = object.__new__(MatchTableView)
-    view.table = _Table(list(rows))
+    view.table = _Table([dict(r) for r in rows])
+    view.layout = 'table'
+    view._held_ids = set()
+    view._tidy_event = 'wiz_board_tidy_test'
+    view._tidy_pill = _Pill()
     view.row_filter = is_seeded_and_unplayed
     view.on_rows_changed = None
     view.on_set_stage = None
@@ -50,6 +57,19 @@ def _view(rows, *, fetched=None):
     return view
 
 
+class _Pill:
+    def __init__(self):
+        self.visible = False
+        self.text = ''
+        self.client = SimpleNamespace(run_javascript=lambda _js: None)
+
+    def set_visibility(self, visible):
+        self.visible = visible
+
+    def set_text(self, text):
+        self.text = text
+
+
 def _returning(value):
     async def _get(_match_id):
         return value
@@ -62,12 +82,15 @@ UNSEEDED = {'id': 2, 'generated_seed': '', 'state': 'Scheduled'}
 
 
 class TestUpdateRow:
-    async def test_a_match_that_starts_leaves_the_board(self):
-        view = _view([SEEDED], fetched=STARTED)
+    async def test_a_match_that_starts_fades_where_it_sits(self):
+        view = _view([SEEDED, UNSEEDED], fetched=STARTED)
 
         await view.update_row_by_id(1)
 
-        assert view.table.rows == []
+        assert [r['id'] for r in view.table.rows] == [1, 2]
+        assert view.table.rows[0]['_removed'] is True
+        assert view._visible_rows() == [UNSEEDED]
+        assert view._tidy_pill.visible
 
     async def test_a_row_that_still_qualifies_updates_in_place(self):
         refreshed = dict(SEEDED, stage='Stage 1')
@@ -79,8 +102,17 @@ class TestUpdateRow:
 
 
 class TestRemoteChange:
-    async def test_a_seed_rolled_for_an_unlisted_match_refreshes_the_board(self):
+    async def test_a_seed_rolled_for_an_unlisted_match_waits_for_a_tidy(self):
         view = _view([SEEDED], fetched=None)
+
+        await view._on_remote_change(99, match_live.CHANGED)
+
+        assert view.refreshed == 0
+        assert view._held_ids == {99}
+        assert view._tidy_pill.text == '1 change held · Tidy up'
+
+    async def test_an_empty_board_fills_straight_away(self):
+        view = _view([], fetched=None)
 
         await view._on_remote_change(99, match_live.CHANGED)
 
@@ -93,12 +125,14 @@ class TestRemoteChange:
 
         assert view.refreshed == 0
 
-    async def test_a_new_match_always_refreshes(self):
+    async def test_a_new_match_waits_for_a_tidy(self):
         view = _view([SEEDED], fetched=None)
 
         await view._on_remote_change(5, match_live.CREATED)
 
-        assert view.refreshed == 1
+        assert view.refreshed == 0
+        assert view.table.rows == [SEEDED]
+        assert view._held_ids == {5}
 
 
 class TestPredicateOnBoardRows:

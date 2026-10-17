@@ -11,6 +11,7 @@ from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.save_footer import SaveFooter
 from theme.section import section_panel
+from theme.steady import steady_refreshable
 
 _STATION_FORMATS = {
     StationFormat.FREE.value: 'Anything (no check)',
@@ -54,7 +55,7 @@ async def _stations_card(can_edit: bool) -> None:
     """
     service = StationService()
 
-    @ui.refreshable
+    @steady_refreshable
     async def station_list() -> None:
         stations = await service.list_stations()
         if not stations:

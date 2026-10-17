@@ -22,6 +22,7 @@ from theme.help.render import render_user_blocks
 from theme.menu import menu_action
 from theme.notify import notify_error
 from theme.page_header import page_header
+from theme.steady import steady_refreshable
 from theme.tables.admin_crud import current_actor, refresh_button
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -75,7 +76,7 @@ async def admin_community_events_page(open_event: Optional[int] = None) -> None:
 
         ui.select(_FILTERS, value=state['filter'], label='Show', on_change=set_filter).classes('w-56')
 
-        @ui.refreshable
+        @steady_refreshable
         async def _render_table() -> None:
             choice = state['filter']
             statuses = None if choice == 'all' else [CommunityEventStatus(choice)]

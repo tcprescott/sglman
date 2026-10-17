@@ -19,6 +19,7 @@ from theme.brackets import state_color, state_label
 from theme.dialog._helpers import dialog_actions, form_dialog, submit_on_enter
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
+from theme.steady import steady_refreshable
 from theme.tables.admin_crud import current_actor
 
 from .draw_preview import render_draw_preview
@@ -50,7 +51,7 @@ async def open_manage(row, client, *, service, tenant_id, tournament_id, on_chan
         # and 'Close' ~1200-4400px below the fold.
         with form_dialog(f"Manage — {row['name']} · {row['stage']}", card_classes='dialog-card dialog-card--lg') as dialog:
 
-            @ui.refreshable
+            @steady_refreshable
             async def body() -> None:
                 with tenant_scope(tenant_id):
                     bracket = await service.get_bracket(bracket_id)

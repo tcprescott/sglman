@@ -44,6 +44,7 @@ from theme.help import help_icon
 from theme.help.render import render_blocks
 from theme.notify import notify_error
 from theme.page_header import page_header
+from theme.steady import steady_refreshable
 
 # The Profile's Challonge link, returning to this tab instead of the Profile so
 # the player finishes signing up where they started.
@@ -348,7 +349,7 @@ async def tournaments_tab() -> None:
                                 open_triforce_dialog(tourney, user, context.client)),
                         ).props('flat color=primary dense no-caps')
 
-        @ui.refreshable
+        @steady_refreshable
         async def cards() -> None:
             all_cards = await service.list_signup_cards(user)
             if not all_cards:

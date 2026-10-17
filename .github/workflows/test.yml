@@ -277,6 +277,9 @@ jobs:
       MOCK_CHALLONGE: 'true'
       MOCK_TWITCH: 'true'
       MOCK_RACETIME: 'true'
+      # Installs the redraw hook scripts/ui_layout_shift.js drives
+      # (theme/layout_probe.py). Never set in production.
+      WIZ_LAYOUT_PROBE: 'true'
     steps:
       - uses: actions/checkout@v7
 
@@ -333,6 +336,11 @@ jobs:
         # axe WCAG 2.1 AA rules plus a tint-aware contrast check on every page in
         # scripts/ui_a11y_ci.json. docs/style-guide.md says how to fix a failure.
         run: node scripts/ui_a11y_scan.js scripts/ui_a11y_ci.json
+
+      - name: Layout holds still (desktop and phone)
+        # Redraws every live section with unchanged data and fails anything that
+        # moves. docs/style-guide.md#hold-still says how to fix a failure.
+        run: node scripts/ui_layout_shift.js scripts/ui_layout_shift_ci.json
 
       - name: App log
         if: always()

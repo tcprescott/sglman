@@ -11,6 +11,7 @@ from nicegui import app, background_tasks, ui
 from application.services import FeatureFlagService, TelemetryService
 from models import FeatureFlag
 from theme.assets import asset_url
+from theme.steady import steady_refreshable
 
 from .audit import audit_page
 from .capacity import capacity_page
@@ -129,7 +130,7 @@ async def reports_page(
     # body, not a navigation, a fresh websocket and every other admin tab.
     # The filter strip is built *inside* each report body, so it is rebuilt too
     # and its handlers close over the new values rather than the stale ones.
-    @ui.refreshable
+    @steady_refreshable
     async def report_body(report: Optional[str], params: dict) -> None:
         await _render_report(report, params, live, only)
 

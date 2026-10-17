@@ -261,6 +261,15 @@ call; opt out with `table-prefs: exempt` / `noqa: table-prefs` on the constructi
 or the line above. Both table hooks fail open on non-Python, unreadable, unparseable, or
 `ui.table`-free files.
 
+### Steady refresh — `scripts/check_steady_refresh.py` (PostToolUse: Write|Edit)
+Blocks an async `@ui.refreshable` in `pages/` or `theme/`. NiceGUI clears the container
+and then awaits the builder, so the browser draws the empty section for the length of the
+query and everything below it jumps up and back (the Match Schedule board's Needs you
+bounce, PR #482). Use `@steady_refreshable` from `theme.steady`, which builds the new
+content off-screen and swaps it in one step. A synchronous `@ui.refreshable` is fine. Opt
+out with `steady-refresh: exempt` on the decorator line. The browser half of the rule is
+`scripts/ui_layout_shift.js`; see docs/style-guide.md#hold-still.
+
 ### First-party import resolution — `scripts/enforce_import_resolution.py` (Stop + PostToolUse: Write|Edit)
 Catches an `ImportError`-at-startup left by a rename/refactor: a `from PKG import old_name`
 whose target module no longer defines `old_name` (e.g. the `current_user_from_storage` →

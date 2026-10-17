@@ -17,6 +17,7 @@ from theme.help import help_icon
 from theme.menu import menu_action, more_menu
 from theme.notify import notify_error
 from theme.page_header import page_header
+from theme.steady import steady_refreshable
 
 
 async def admin_challonge_page() -> None:
@@ -28,7 +29,7 @@ async def admin_challonge_page() -> None:
         with page_header('Challonge Integration'):
             await help_icon('admin-challonge-sync', user=actor)
 
-        @ui.refreshable
+        @steady_refreshable
         async def connection_card() -> None:
             status = await service.get_connection_status()
             with ui.card().classes('w-full'):
@@ -155,7 +156,7 @@ async def admin_challonge_page() -> None:
 
         ui.label('Linked tournaments').classes('section-title q-mt-md')
 
-        @ui.refreshable
+        @steady_refreshable
         async def linked_tournaments() -> None:
             tournaments = await Tournament.filter(challonge_tournament_id__isnull=False, tenant_id=require_tenant_id()).order_by('name')
             if not tournaments:

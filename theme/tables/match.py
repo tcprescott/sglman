@@ -32,6 +32,7 @@ from theme.tables.match_filters import (
 )
 from theme.tables.match_grid import render_grid_slot
 from theme.tables.match_handlers import MatchTableHandlersMixin
+from theme.tables.match_hold import MatchBoardHoldMixin
 from theme.tables.match_player_run_sheet import arrange_player_run_sheet, register_player_run_sheet_slots
 from theme.tables.match_run_sheet import arrange_run_sheet, register_run_sheet_slots
 from theme.tables.match_slots import (
@@ -57,7 +58,7 @@ from theme.timer_teardown import PageTimer
 _MATCHES_NOTHING = [0]
 
 
-class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
+class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin, MatchBoardHoldMixin):
     """
     Encapsulates the match table UI and logic for admin/player dashboards.
 
@@ -281,6 +282,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
                 pagination={'rowsPerPage': 25, 'page': 1},
             ).classes('match-table match-table-container').props(f':grid="Quasar.Screen.{self.grid_breakpoint}"')
             self.table.add_slot('no-data', no_data_slot('No matches to show yet.'))
+        self._build_tidy_pill()
 
         # Resolve current user's discord_id once for slot templates and event wiring.
         discord_id = app.storage.user.get('discord_id', None)
@@ -428,14 +430,17 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
     async def _on_remote_change(self, match_id, change_type):
         """Apply a match change broadcast from another user's action."""
         from application.events import match_live
-        if change_type == match_live.CREATED:
-            await self.refresh()  # a new match may not have a row yet
-        elif self.row_filter is not None and not self._has_row(match_id):
-            # On a filtered board an *existing* match can become this board's
-            # business — the room view's rows appear the moment a seed is
-            # rolled, and rolling publishes 'changed', not CREATED. Without this
-            # the update would no-op against a row that is not there yet.
-            await self.refresh()
+        if change_type == match_live.CREATED or (
+            self.row_filter is not None and not self._has_row(match_id)
+        ):
+            # A new row would push the board down under the viewer, so it waits
+            # for the next tidy. On a filtered board an *existing* match can
+            # become this board's business too (the room view's rows appear the
+            # moment a seed is rolled, which publishes 'changed', not CREATED).
+            if self._visible_rows():
+                self._hold(match_id)
+            else:
+                await self.refresh()
         else:
             # 'changed' updates in place; 'deleted' removes the row.
             await self.update_row_by_id(match_id, flash=True)
@@ -521,6 +526,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         rows = self._arrange(rows)
 
         self.table.rows = rows
+        self._release_hold()
         self.table.update()
         self._notify_rows_changed()
 
@@ -551,7 +557,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
     def _notify_rows_changed(self) -> None:
         """Tell the caller the visible row set changed (drives a summary strip)."""
         if self.on_rows_changed is not None:
-            self.on_rows_changed(self.table.rows)
+            self.on_rows_changed(self._visible_rows())
 
     async def _fetch_watched_ids(self) -> set:
         user = await get_user_from_session(app.storage.user)
@@ -684,8 +690,8 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         if not match_data or (self.row_filter is not None and not self.row_filter(match_data)) \
                 or not self._still_crews(match_data):
             # Gone, or no longer this board's business (a room-view seed whose
-            # match just started) — either way the row goes.
-            del self.table.rows[idx]
+            # match just started): it fades where it is until the next tidy.
+            self._hold_removed(idx)
             self.table.update()
             self._notify_rows_changed()
             return
@@ -699,10 +705,11 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
             match_data['stage_options'] = stage_options
         if flash:
             match_data['_flash'] = True
-        self.table.rows[idx] = match_data
-        if self.layout != 'table':
-            # A state change can move the match to another group.
-            self.table.rows[:] = self._arrange(self.table.rows)
+        if self.layout == 'table':
+            self.table.rows[idx] = match_data
+        else:
+            # A state change belongs in another group, but the row stays put.
+            self._place_in_hold(idx, match_data)
         self.table.update()
         self._notify_rows_changed()
         if flash:
@@ -755,6 +762,6 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         idx = next((i for i, row in enumerate(self.table.rows)
                    if row.get('id') == match_id), None)
         if idx is not None:
-            del self.table.rows[idx]
+            self._hold_removed(idx)
             self.table.update()
 

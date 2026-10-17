@@ -354,9 +354,15 @@ _CREW_LINES = r"""<span v-for="c in props.row._crew" :key="c.key" class="run-she
                 """ + CREW_NAMES + """
             </span>"""
 
+# What changed on a row the board is holding in place (MatchTableView._hold):
+# "Now Ready to start", or "Removed". Positioned over the row's edge in CSS, so
+# it never makes the row taller.
+HELD_TAG = """<span v-if="props.row._held_note" class="wiz-held-tag" :class="props.row._removed ? 'wiz-held-tag--removed' : ''">{{ props.row._held_note }}</span>"""
+
 _TIME = """<span v-if="props.row._time" class="run-sheet__time" :class="props.row._status === 'Late' ? 'st-pending' : ''">{{ props.row._time }}</span>
             <span v-else class="run-sheet__day">No time</span>
-            <span v-if="props.row._day && props.row._day !== 'Today'" class="run-sheet__day">{{ props.row._day }}</span>"""
+            <span v-if="props.row._day && props.row._day !== 'Today'" class="run-sheet__day">{{ props.row._day }}</span>
+            """ + HELD_TAG
 
 _WHO = "{{ props.row._who || (props.row.bracket ? props.row.bracket.name : props.row.title) }}"
 
@@ -428,7 +434,7 @@ def _body_slot(proctor: bool, can_run: bool = False) -> str:
 <q-tr v-if="props.row._group_start" class="run-sheet__group-row">
     <q-td colspan="100%" class="run-sheet__group">""" + _group_header(proctor) + """</q-td>
 </q-tr>
-<q-tr :props="props" class="run-sheet__row" :class="props.row._flash ? 'wiz-row-flash' : ''"
+<q-tr :props="props" class="run-sheet__row" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id"
       @click="$parent.$emit('open_match', props.row.id)">
     <q-td v-for="col in props.cols" :key="col.name" :props="props">
         <template v-if="col.name === 'scheduled_at'">
@@ -464,7 +470,7 @@ def _item_slot(proctor: bool, can_run: bool = False) -> str:
         return """
 <div class="run-sheet__item">
     <div v-if="props.row._group_start" class="run-sheet__group">""" + _group_header(proctor) + """</div>
-    <div class="run-sheet__card run-sheet__card--split" :class="props.row._flash ? 'wiz-row-flash' : ''">
+    <div class="run-sheet__card run-sheet__card--split" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
         <button type="button" class="run-sheet__card-open" @click="$parent.$emit('open_match', props.row.id)">
             """ + when + """
             <span class="run-sheet__main">
@@ -482,7 +488,7 @@ def _item_slot(proctor: bool, can_run: bool = False) -> str:
     return """
 <div class="run-sheet__item">
     <div v-if="props.row._group_start" class="run-sheet__group">""" + _group_header(proctor) + """</div>
-    <button type="button" class="run-sheet__card" :class="props.row._flash ? 'wiz-row-flash' : ''"
+    <button type="button" class="run-sheet__card" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id"
             @click="$parent.$emit('open_match', props.row.id)">
         """ + when + """
         <span class="run-sheet__main">

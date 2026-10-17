@@ -337,7 +337,7 @@ _ACTIONS = '''
         </div>'''
 
 
-_CARD_OPEN = '''<div class="match-grid-card q-pa-md q-mb-sm" :class="props.row._flash ? 'wiz-row-flash' : ''" style="width: 100%; box-sizing: border-box;">'''
+_CARD_OPEN = '''<div class="match-grid-card q-pa-md q-mb-sm" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id" style="width: 100%; box-sizing: border-box;">'''
 _CARD_CLOSE = '''
     </div>'''
 

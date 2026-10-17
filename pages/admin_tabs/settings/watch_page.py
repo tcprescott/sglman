@@ -24,6 +24,7 @@ from theme.banner import banner
 from theme.notify import notify_error
 from theme.save_footer import SaveFooter
 from theme.section import section_panel
+from theme.steady import steady_refreshable
 
 #: New live viewers the app can let in a minute, from docs/scaling-roadmap.md.
 ADMISSIONS_PER_MINUTE = 600
@@ -82,7 +83,7 @@ async def watch_page_settings_pane(can_edit: bool) -> None:
                  'One count per browser.',
     )
 
-    @ui.refreshable
+    @steady_refreshable
     async def votes() -> None:
         try:
             tally = await WatchLayoutService().tally(await current_actor())
