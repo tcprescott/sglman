@@ -4921,13 +4921,16 @@ ol.wiz-help-list { list-style-type: decimal; }
     color: var(--fg-muted);
     white-space: nowrap;
 }
+/* Most licences are one short id; a few are "A OR B OR C", which wraps
+   rather than pushing the row past a phone's edge. */
 .wiz-about-licence {
     font-size: 0.75rem;
     padding: 0.125rem 0.5rem;
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius-md);
     background: var(--surface-sunken);
     color: var(--fg-secondary);
-    white-space: nowrap;
+    max-width: 50%;
+    text-align: right;
 }
 .wiz-about-licence-text {
     font-family: var(--font-mono);

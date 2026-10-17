@@ -231,6 +231,7 @@ _CLASSIFIER_SPDX = {
     'Python Software Foundation License': 'PSF-2.0',
     'ISC License (ISCL)': 'ISC',
     'GNU Lesser General Public License v3 (LGPLv3)': 'LGPL-3.0',
+    'GNU General Public License (GPL)': 'GPL',
 }
 
 _LICENSE_FILE_RE = re.compile(r'(licen[cs]e|copying|notice|authors)', re.IGNORECASE)
