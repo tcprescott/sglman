@@ -35,7 +35,7 @@ async def _coordinator_token(username='coord'):
 
 class TestPositions:
     async def test_list_positions_all_and_active_only(self, db, app):
-        _, raw = await create_user_token(username='reader', read_only=True)
+        _, raw = await create_user_token(username='reader', roles=[Role.VOLUNTEER], read_only=True)
         await VolunteerPosition.create(name='Active Desk', is_active=True)
         await VolunteerPosition.create(name='Retired Desk', is_active=False)
         async with client_for(app, raw) as c:
@@ -136,7 +136,7 @@ class TestPositions:
 
 class TestShifts:
     async def test_list_shifts_in_window(self, db, app):
-        _, raw = await create_user_token(username='reader')
+        _, raw = await create_user_token(username='reader', roles=[Role.VOLUNTEER])
         pos = await VolunteerPosition.create(name='Desk')
         await VolunteerShift.create(position=pos, starts_at=utc(2025, 10, 8, 12), ends_at=utc(2025, 10, 8, 16))
         async with client_for(app, raw) as c:
@@ -151,7 +151,7 @@ class TestShifts:
             assert rows[0]['filled'] == 0
 
     async def test_get_shift_success(self, db, app):
-        _, raw = await create_user_token(username='reader')
+        _, raw = await create_user_token(username='reader', roles=[Role.VOLUNTEER])
         pos = await VolunteerPosition.create(name='Desk')
         shift = await VolunteerShift.create(
             position=pos, starts_at=utc(2025, 10, 8, 12), ends_at=utc(2025, 10, 8, 16), label='Morning',
@@ -188,7 +188,7 @@ class TestShifts:
             assert {a['user_id'] for a in body['assignments']} == {published.id, drafted.id}
 
     async def test_get_shift_not_found(self, db, app):
-        _, raw = await create_user_token(username='reader')
+        _, raw = await create_user_token(username='reader', roles=[Role.VOLUNTEER])
         async with client_for(app, raw) as c:
             resp = await c.get('/api/volunteers/shifts/9999')
             assert resp.status_code == 404
@@ -387,7 +387,7 @@ class TestAssignments:
 
 class TestCoverage:
     async def test_coverage_reports_understaffed(self, db, app):
-        _, raw = await create_user_token(username='reader')
+        _, raw = await create_user_token(username='reader', roles=[Role.VOLUNTEER])
         pos = await VolunteerPosition.create(name='Desk')
         shift = await VolunteerShift.create(
             position=pos, starts_at=utc(2025, 10, 8, 12), ends_at=utc(2025, 10, 8, 16),
@@ -554,3 +554,46 @@ class TestSelfService:
             resp = await c.get('/api/volunteers/me/assignments')
             assert resp.status_code == 200
             assert resp.json() == []
+
+
+# --- Who may read the schedule -------------------------------------------
+
+WINDOW = {'start': iso(2025, 10, 1), 'end': iso(2025, 10, 31)}
+
+
+class TestScheduleReadsFollowTheVolunteerHub:
+    """The roster says who works where and when: the Volunteer page's people
+    and coordinators read it, players and unrelated admin roles don't."""
+
+    async def _reads(self, app, raw, shift_id):
+        async with client_for(app, raw) as c:
+            return [
+                (await c.get('/api/volunteers/positions')).status_code,
+                (await c.get('/api/volunteers/shifts', params=WINDOW)).status_code,
+                (await c.get(f'/api/volunteers/shifts/{shift_id}')).status_code,
+                (await c.get('/api/volunteers/coverage', params=WINDOW)).status_code,
+            ]
+
+    async def _shift(self):
+        pos = await VolunteerPosition.create(name='Desk')
+        return await VolunteerShift.create(
+            position=pos, starts_at=utc(2025, 10, 8, 12), ends_at=utc(2025, 10, 8, 16),
+        )
+
+    async def test_a_player_is_refused(self, db, app):
+        _, raw = await create_user_token(username='player')
+        shift = await self._shift()
+        assert await self._reads(app, raw, shift.id) == [403] * 4
+
+    async def test_an_equipment_manager_is_refused(self, db, app):
+        _, raw = await create_user_token(username='em', roles=[Role.EQUIPMENT_MANAGER])
+        shift = await self._shift()
+        assert await self._reads(app, raw, shift.id) == [403] * 4
+
+    async def test_hub_roles_and_coordinators_read_it(self, db, app):
+        shift = await self._shift()
+        for i, role in enumerate(
+            (Role.VOLUNTEER, Role.PROCTOR, Role.STAFF, Role.VOLUNTEER_COORDINATOR),
+        ):
+            _, raw = await create_user_token(username=f'r{i}', roles=[role])
+            assert await self._reads(app, raw, shift.id) == [200] * 4, role

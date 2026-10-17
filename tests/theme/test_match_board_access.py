@@ -131,3 +131,99 @@ def test_capabilities_combine_rather_than_replace():
     access = MatchBoardAccess.for_roles(is_stream_manager=True, is_crew_coordinator=True)
     assert access.assign_stream and access.approve_crew
     assert not access.edit and not access.confirm
+
+
+# --- Per-row scope for mixed roles -----------------------------------------
+#
+# A Broadcast Tech who is also a tournament admin has an unscoped board, and a
+# tournament admin of one tournament who coordinates crew for another sees both
+# on theirs. One capability flag for the whole board offered edit, run and
+# confirm on rows whose services refuse them.
+
+A, B = 1, 2
+
+
+def _row(tournament_id, stage_id=None):
+    return {'tournament_id': tournament_id, 'stage_id': stage_id}
+
+
+def test_a_broadcast_tech_who_admins_one_tournament_is_scoped_per_row():
+    access = MatchBoardAccess.for_roles(
+        is_stream_manager=True, is_tournament_admin=True,
+        admin_tournament_ids={A}, crew_tournament_ids=set(),
+    )
+    assert access.can_edit_row(_row(A)) and not access.can_edit_row(_row(B))
+    assert access.can_confirm_row(_row(A)) and not access.can_confirm_row(_row(B))
+    # Runs their own tournament anywhere, and any match on a stage.
+    assert access.can_run_row(_row(A)) and access.can_run_row(_row(B, stage_id=3))
+    assert not access.can_run_row(_row(B))
+    # Stage assignment is the Broadcast Tech's everywhere.
+    assert access.can_assign_stream_row(_row(B))
+    assert access.run_js() == f'([{A}].includes(props.row.tournament_id) || !!props.row.stage_id)'
+    assert access.confirm_js() == f'([{A}].includes(props.row.tournament_id))'
+    assert access.stream_js() == 'true'
+
+
+def test_a_tournament_admin_who_coordinates_another_tournament():
+    access = MatchBoardAccess.for_roles(
+        is_tournament_admin=True, is_crew_coordinator=True,
+        admin_tournament_ids={A}, crew_tournament_ids={B},
+    )
+    assert access.can_run_row(_row(A)) and not access.can_run_row(_row(B))
+    assert access.can_edit_row(_row(A)) and not access.can_edit_row(_row(B))
+    assert not access.can_assign_stream_row(_row(B))
+    assert access.can_approve_crew_row(_row(A)) and access.can_approve_crew_row(_row(B))
+    assert access.crew_js() == f'([{A},{B}].includes(props.row.tournament_id))'
+
+
+def test_staff_and_unscoped_callers_reach_every_row():
+    staff = MatchBoardAccess.for_roles(
+        is_staff=True, is_tournament_admin=True, admin_tournament_ids={A},
+    )
+    legacy = MatchBoardAccess.for_roles(is_tournament_admin=True)
+    for access in (staff, legacy):
+        assert access.can_edit_row(_row(B)) and access.can_confirm_row(_row(B))
+        assert access.confirm_js() == 'true'
+
+
+@pytest.mark.parametrize('ta_ids, cc_ids', [({A}, set()), ({A}, {B}), (set(), {B})])
+@pytest.mark.parametrize('sm', [False, True])
+async def test_per_row_scope_matches_the_service_gates(monkeypatch, ta_ids, cc_ids, sm):
+    """Each ``can_*_row`` must agree with its ``AuthService`` gate on every row."""
+    async def is_staff(_user):
+        return False
+
+    async def is_proctor(_user):
+        return False
+
+    async def is_ta(_user, tournament_id):
+        return tournament_id in ta_ids
+
+    async def is_sm(_user):
+        return sm
+
+    async def has_role(_user, role):
+        return sm and role == Role.STREAM_MANAGER
+
+    async def can_manage_stages(_user):
+        return sm
+
+    monkeypatch.setattr(AuthService, 'is_staff', is_staff)
+    monkeypatch.setattr(AuthService, 'is_proctor', is_proctor)
+    monkeypatch.setattr(AuthService, 'is_tournament_admin', is_ta)
+    monkeypatch.setattr(AuthService, 'is_stream_manager', is_sm)
+    monkeypatch.setattr(AuthService, 'has_role', has_role)
+    monkeypatch.setattr(AuthService, 'can_manage_stages', can_manage_stages)
+
+    access = MatchBoardAccess.for_roles(
+        is_stream_manager=sm, is_tournament_admin=bool(ta_ids), is_crew_coordinator=bool(cc_ids),
+        admin_tournament_ids=ta_ids, crew_tournament_ids=cc_ids,
+    )
+    for tid in (A, B):
+        for stage_id in (None, 5):
+            row = _row(tid, stage_id)
+            match = SimpleNamespace(tournament_id=tid, stage_id=stage_id)
+            assert access.can_edit_row(row) == await AuthService.can_crud_match(None, match)
+            assert access.can_run_row(row) == await AuthService.can_run_match(None, match)
+            assert access.can_confirm_row(row) == await AuthService.can_confirm_match(None, match)
+            assert access.can_assign_stream_row(row) == await AuthService.can_assign_match_stream(None, match)

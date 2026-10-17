@@ -48,6 +48,11 @@ logger = logging.getLogger(__name__)
 RELEASE_REASON_MAX_CHARS = 500
 
 
+async def _ensure_can_view_schedule(viewer: Optional[User]) -> None:
+    await AuthService.ensure(await AuthService.can_view_volunteer_schedule(viewer),
+                             "You don't have access to the volunteer schedule.")
+
+
 class VolunteerScheduleService:
     """Core volunteer-scheduling operations."""
 
@@ -65,17 +70,25 @@ class VolunteerScheduleService:
         return await self.shift_repository.list_for_window(start, end)
 
     @requires_feature(FeatureFlag.VOLUNTEERS)
+    async def shifts_for_viewer(self, viewer: Optional[User], start: datetime, end: datetime) -> List[VolunteerShift]:
+        await _ensure_can_view_schedule(viewer)
+        return await self.shift_repository.list_for_window(start, end)
+
+    @requires_feature(FeatureFlag.VOLUNTEERS)
+    async def shift_for_viewer(self, viewer: Optional[User], shift_id: int) -> Optional[VolunteerShift]:
+        await _ensure_can_view_schedule(viewer)
+        return await self.shift_repository.get_by_id(shift_id)
+
+    @requires_feature(FeatureFlag.VOLUNTEERS)
     async def grid_roles(self, viewer: Optional[User]) -> List[Tuple[int, str]]:
         """The roles a Full Schedule viewer can show, hide and reorder."""
-        if not await AuthService.can_view_volunteer(viewer):
-            raise PermissionError("You don't have access to the volunteer schedule.")
+        await _ensure_can_view_schedule(viewer)
         return [(p.id, p.name) for p in await self.position_repository.list_active()]
 
     @requires_feature(FeatureFlag.VOLUNTEERS)
     async def day_grid(self, viewer: Optional[User], day: date) -> DayGrid:
         """One event day's published schedule, for anyone the volunteer hub admits."""
-        if not await AuthService.can_view_volunteer(viewer):
-            raise PermissionError("You don't have access to the volunteer schedule.")
+        await _ensure_can_view_schedule(viewer)
         midnight = combine_local(day, time(0))
         start, end = day_window(midnight)
         shifts = await self.shift_repository.list_for_window(start, end)
@@ -544,6 +557,11 @@ class VolunteerScheduleService:
         )
 
     # --- Coverage ---------------------------------------------------------
+
+    @requires_feature(FeatureFlag.VOLUNTEERS)
+    async def coverage_for_viewer(self, viewer: Optional[User], start: datetime, end: datetime) -> List[Dict]:
+        await _ensure_can_view_schedule(viewer)
+        return await self.coverage(start, end)
 
     @requires_feature(FeatureFlag.VOLUNTEERS)
     async def coverage(self, start: datetime, end: datetime) -> List[Dict]:

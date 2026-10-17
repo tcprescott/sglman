@@ -286,7 +286,7 @@ class MatchSheet:
             elif state == 'Started':
                 ui.button('Finish', icon='sports_score',
                           on_click=lambda: self._run(h.on_finish, match_id)).props('color=primary')
-        if self.access.confirm and state == 'Finished':
+        if self.access.can_confirm_row(row) and state == 'Finished':
             if not row.get('has_result'):
                 ui.button('Record winner', icon='emoji_events',
                           on_click=lambda: self._run(h.on_edit_result, match_id)).props('color=primary')
@@ -296,7 +296,7 @@ class MatchSheet:
                 ui.button('Review result' if row.get('needs_review') else 'Confirm result',
                           icon='verified', on_click=lambda: self._run(h.on_confirm, match_id)) \
                     .props('color=primary')
-        if self.access.confirm and state == 'Confirmed':
+        if self.access.can_confirm_row(row) and state == 'Confirmed':
             ui.button('Change result', on_click=lambda: self._run(h.on_edit_result, match_id)) \
                 .props('flat color=primary')
         if row.get('is_racetime') and state not in ('Finished', 'Confirmed'):
@@ -349,7 +349,7 @@ class MatchSheet:
     def _check_stage(self, row: dict, item: dict) -> None:
         match_id = row['id']
         with ui.row().classes('items-center no-wrap full-width gap-2'):
-            if self.access.assign_stream and self.view is not None:
+            if self.access.can_assign_stream_row(row) and self.view is not None:
                 options = {_NO_STAGE: 'No stage'}
                 for opt in self.view._stage_options() or []:
                     if opt['value'] is not None:
@@ -438,7 +438,7 @@ class MatchSheet:
                 ui.label('confirmed').classes('match-sheet__pill-state st-ok')
             else:
                 ui.label("hasn't confirmed").classes('match-sheet__pill-state')
-            if self.access.approve_crew:
+            if self.access.can_approve_crew_row(row):
                 with ui.button(icon='more_vert').props(f'flat round dense size=sm color=primary aria-label="More for {name}"'):
                     with ui.menu():
                         ui.menu_item('Open profile', on_click=self._profile(row, role, idx))
@@ -448,12 +448,12 @@ class MatchSheet:
         # The people waiting on staff get the weight; approved crew shrinks to
         # pills above. Three runs of link-coloured text per person read as one blur.
         with ui.column().classes('match-sheet__waiting full-width gap-0'):
-            heading = 'Waiting for you' if self.access.approve_crew else 'Signed up'
+            heading = 'Waiting for you' if self.access.can_approve_crew_row(row) else 'Signed up'
             ui.label(f'{heading} · {len(waiting)}').classes('match-sheet__waiting-head')
             for idx, person in waiting:
                 with ui.row().classes('match-sheet__waiting-row items-center no-wrap full-width'):
                     name = person.get('name') or ''
-                    if self.access.approve_crew:
+                    if self.access.can_approve_crew_row(row):
                         ui.button(name, on_click=self._profile(row, role, idx), color=None) \
                             .props('flat dense no-caps align=left').classes('match-sheet__waiting-name col') \
                             .tooltip(f"Open {name}'s profile")
@@ -637,7 +637,7 @@ class MatchSheet:
         await self._reload_comments()
 
     def _footer(self, row: dict) -> None:
-        if not self.access.edit:
+        if not self.access.can_edit_row(row):
             return
         with dialog_actions().classes('justify-end'):
             ui.button('Edit match', icon='edit', on_click=lambda: self._run(self.handlers.on_edit, row['id'])) \

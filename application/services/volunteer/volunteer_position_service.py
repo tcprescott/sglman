@@ -48,6 +48,15 @@ class VolunteerPositionService:
     async def list_active(self) -> List[VolunteerPosition]:
         return await self.repository.list_active()
 
+    async def list_for_viewer(
+        self, viewer: Optional[User], active_only: bool = False,
+    ) -> List[VolunteerPosition]:
+        await AuthService.ensure(
+            await AuthService.can_view_volunteer_schedule(viewer),
+            "You don't have access to the volunteer schedule.",
+        )
+        return await (self.repository.list_active() if active_only else self.repository.list_all())
+
     async def get(self, position_id: int) -> Optional[VolunteerPosition]:
         return await self.repository.get_by_id(position_id)
 

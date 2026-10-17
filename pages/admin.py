@@ -67,10 +67,15 @@ class AdminAccess:
     # that scope to them. Excluded from ``any()``: it is derived from the two
     # booleans above, and a set is not an access grant of its own.
     operated_tournament_ids: frozenset[int] = frozenset()
+    # The two halves of that union, for the board's per-row capabilities. None
+    # when unknown (tests, older callers): the board then scopes nothing per row.
+    admin_tournament_ids: frozenset[int] | None = None
+    crew_tournament_ids: frozenset[int] | None = None
 
     def any(self) -> bool:
         return any(getattr(self, f) for f in self.__dataclass_fields__
-                   if f != 'operated_tournament_ids')
+                   if f not in ('operated_tournament_ids', 'admin_tournament_ids',
+                                'crew_tournament_ids'))
 
 
 def build_admin_tabs(
@@ -107,6 +112,8 @@ def build_admin_tabs(
         is_tournament_admin=is_ta_any,
         is_stream_manager=is_sm,
         is_crew_coordinator=is_cc_any,
+        admin_tournament_ids=access.admin_tournament_ids,
+        crew_tournament_ids=access.crew_tournament_ids,
     )
     # Staff and the stream manager operate community-wide; a TA/CC's authority is
     # per tournament, so their board is narrowed to the ones they run rather than
@@ -288,6 +295,8 @@ def create() -> None:
             is_qualifier_owner=await user.admin_async_qualifiers.filter(
                 tenant_id=get_current_tenant_id()).exists(),
             operated_tournament_ids=frozenset(admin_tournament_ids | cc_tournament_ids),
+            admin_tournament_ids=frozenset(admin_tournament_ids),
+            crew_tournament_ids=frozenset(cc_tournament_ids),
         )
 
         # Per-tenant feature flags: a subsystem's tab only appears when the

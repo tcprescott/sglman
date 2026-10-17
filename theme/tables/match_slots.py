@@ -32,8 +32,8 @@ def _fill(template: str, *, admin_controls: bool, access: MatchBoardAccess,
         template
         .replace('__IA__', _bool_js(admin_controls))
         .replace('__RUN__', access.run_js())
-        .replace('__CONFIRM__', _bool_js(access.confirm))
-        .replace('__CREW__', _bool_js(access.approve_crew))
+        .replace('__CONFIRM__', access.confirm_js())
+        .replace('__CREW__', access.crew_js())
         .replace('__DID__', discord_id_js)
         .replace('__WANTED__', crew_wanted_js(role))
         .replace('__KEY__', role)
@@ -59,14 +59,15 @@ def crew_wanted_js(role: str) -> str:
 # and a control nobody can guess is a control. A labelled pencil in the same
 # first-column slot costs the same width and says what it does.
 EDIT_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
-    <q-btn flat round dense icon="edit" color="primary"
+    <q-btn v-if="__EDIT__" flat round dense icon="edit" color="primary"
            @click="$parent.$emit('edit_match', props)" aria-label="Edit this match">
         <q-tooltip>Edit this match</q-tooltip>
     </q-btn>
 </q-td>'''
 
 ID_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
-    <a href="#" @click="$parent.$emit('edit_match', props)" class="table-link cell-id">{{ props.value }}</a>
+    <a v-if="__EDIT__" href="#" @click="$parent.$emit('edit_match', props)" class="table-link cell-id">{{ props.value }}</a>
+    <span v-else class="cell-id">{{ props.value }}</span>
 </q-td>'''
 
 # Plain id for viewers without an edit callback (e.g. proctors) — a link that
@@ -477,7 +478,7 @@ STAGE_VALUE_JS = (
 # one, and a clear affordance that only appears once something is chosen cannot
 # be found by someone looking for it.
 STAGE_ADMIN_SLOT = f'''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
-    <div style="display: flex; align-items: center; gap: 4px;">
+    <div v-if="__STREAM__" style="display: flex; align-items: center; gap: 4px;">
         <q-select :model-value="{STAGE_VALUE_JS}" :options="props.row.stage_options || []"
                   @update:model-value="val => $parent.$emit('set_stage', {{ key: props.row.id, stage: val }})"
                   dense options-dense borderless emit-value map-options
@@ -488,7 +489,7 @@ STAGE_ADMIN_SLOT = f'''<q-td :props="props" :class="[props.row._flash ? 'wiz-row
             <q-icon name="open_in_new" size="18px" />
             <q-tooltip>Open the stream</q-tooltip>
         </a>
-    </div>
+    </div><span v-else>{{ props.value || '-' }}</span>
 </q-td>'''
 
 STAGE_READONLY_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
@@ -751,8 +752,8 @@ def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess
     """
     discord_id_js = f"'{discord_id}'" if discord_id else 'null'
 
-    table.add_slot('body-cell-edit', EDIT_SLOT)
-    table.add_slot('body-cell-id', ID_SLOT if has_edit else ID_SLOT_READONLY)
+    table.add_slot('body-cell-edit', EDIT_SLOT.replace('__EDIT__', access.edit_slot_js()))
+    table.add_slot('body-cell-id', ID_SLOT.replace('__EDIT__', access.edit_slot_js()) if has_edit else ID_SLOT_READONLY)
     table.add_slot('body-cell-tournament', TOURNAMENT_SLOT)
     table.add_slot('body-cell-scheduled_at', SCHEDULED_AT_SLOT)
 
@@ -794,6 +795,6 @@ def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess
             discord_id_js=discord_id_js,
         ))
     if want_stage_admin:
-        table.add_slot('body-cell-stage', STAGE_ADMIN_SLOT)
+        table.add_slot('body-cell-stage', STAGE_ADMIN_SLOT.replace('__STREAM__', access.stream_slot_js()))
     if want_stage_readonly:
         table.add_slot('body-cell-stage', STAGE_READONLY_SLOT)

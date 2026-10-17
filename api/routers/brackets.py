@@ -119,7 +119,7 @@ async def list_my_open_matches(
         "Shows which entries of a completed stage would move into the next stage, in the "
         "order they'd advance, without changing anything. Fails with 400 in the same cases as "
         "`POST /brackets/advance-stage`.\n\n"
-        "**Who can call this:** Any member."
+        "**Who can call this:** Staff."
     ),
 )
 async def advancing_preview(
@@ -131,7 +131,7 @@ async def advancing_preview(
     would advance, in advancement order. Writes nothing, and raises the same
     guards the real advance does.
     """
-    return await BracketService().get_advancing_preview(tournament_id, from_stage_order)
+    return await BracketService().preview_advance(actor, tournament_id, from_stage_order)
 
 
 @router.get(
@@ -139,13 +139,14 @@ async def advancing_preview(
     response_model=BracketMatchResponse,
     summary="Get one bracket match with its series games",
     description=(
-        "Returns one matchup with the games booked for its series.\n\n"
+        "Returns one matchup with the games booked for its series. A matchup in a draft or "
+        "cancelled stage is visible only to Staff; anyone else gets 404.\n\n"
         "**Who can call this:** Any member."
     ),
 )
 async def get_match(match_id: int, actor: User = Depends(require_api_actor)):
     return require_found(
-        await BracketService().get_match_with_games(match_id), "Bracket match"
+        await BracketService().get_visible_match_with_games(actor, match_id), "Bracket match"
     )
 
 

@@ -1,8 +1,9 @@
 """Seed-generation endpoints.
 
 Exposes the list of supported randomizers and a single roll-a-seed action over
-the existing :class:`SeedGenerationService`. Seed generation itself is ungated
-(any authenticated token may roll); the HTTP dependency is the only authz layer.
+the existing :class:`SeedGenerationService`. A free roll spends the community's
+randomizer keys, so it is held to the people the web app offers Seed Presets'
+Test roll to (``AuthService.ensure_can_roll_free_seed``).
 """
 
 from typing import List
@@ -19,6 +20,7 @@ from api.schemas.seeds import (
 )
 from application.errors import require_found
 from application.services import (
+    AuthService,
     ProviderTaskService,
     RandomizerCredentialService,
     SeedGenerationService,
@@ -69,8 +71,8 @@ async def list_randomizers(actor: User = Depends(require_api_actor)):
         "answer 200 with the seed. Donkey Kong 64 rolls take minutes, so they answer 202 with "
         "a task to poll at `GET /seeds/tasks/{task_id}`. Fails with 400 when the randomizer "
         "is unknown, needs a preset or API key that's missing, or the randomizer site rejects "
-        "the roll.\n\n"
-        "**Who can call this:** Any member."
+        "the roll. Fails with 403 for anyone who isn't Staff or a Preset manager.\n\n"
+        "**Who can call this:** Staff or Preset manager."
     ),
 )
 async def generate_seed(
@@ -83,6 +85,7 @@ async def generate_seed(
     id for one whose upstream is a queue (`dk64r`), because those take minutes
     and there is no url to hand back yet — poll `GET /seeds/tasks/{id}`.
     """
+    await AuthService.ensure_can_roll_free_seed(actor)
     # A keyed randomizer this community has not configured raises inside the
     # generator; ServiceErrorRoute turns that ValueError into a 400 naming the
     # missing credential.

@@ -1,16 +1,13 @@
 """Volunteer shifts and coverage.
 
-The roster tools are gated at **admin**, one step above their REST counterparts
-(``api/routers/volunteers.py`` reads at ``require_api_actor``). That is a
-deliberate divergence, not an oversight: the REST reads back a self-service UI
-where a volunteer looks at their own schedule, whereas a single call here hands
-back a whole window's roster with names attached. Bulk disclosure of who is
-where and when is a different thing from a person checking their own shift, so
-it sits behind the coordinator's gate.
+The roster reads admit exactly who the Volunteer hub admits, plus volunteer
+coordinators (``AuthService.can_view_volunteer_schedule``), the same check as
+their REST counterparts in ``api/routers/volunteers.py``. The service enforces
+it, so they register at **actor**: a player, or an admin role with no part in
+the volunteer schedule, is refused.
 
-``my_volunteer_shifts`` is the self-service exception, at **actor**: it reads
-back only the caller's own published shifts, the same as
-``GET /volunteers/me/assignments``.
+``my_volunteer_shifts`` reads back only the caller's own published shifts, the
+same as ``GET /volunteers/me/assignments``.
 """
 
 from datetime import datetime, timezone
@@ -18,7 +15,7 @@ from typing import Any, Dict, List
 
 from mcp.server.mcpserver import MCPServer
 
-from application.services import AnalyticsService
+from application.services import AnalyticsService, AuthService
 from application.services.volunteer.volunteer_position_service import (
     VolunteerPositionService,
 )
@@ -39,13 +36,19 @@ async def list_volunteer_shifts(
 ) -> List[ShiftSummary]:
     """List volunteer shifts in a window, with who is assigned to each.
 
-    Requires admin access or the volunteer coordinator role. `start` and `end` are ISO 8601 timestamps (UTC).
+    For staff, volunteer coordinators, proctors and volunteers. `start` and
+    `end` are ISO 8601 timestamps (UTC). Unpublished auto-fill drafts are left
+    out unless you can manage volunteers.
     """
     start_dt, end_dt = _window(start, end)
-    shifts = await VolunteerScheduleService().list_shifts_for_window(start_dt, end_dt)
+    actor = current_actor().user
+    shifts = await VolunteerScheduleService().shifts_for_viewer(actor, start_dt, end_dt)
+    include_drafts = await AuthService.can_manage_volunteers(actor)
     out: List[ShiftSummary] = []
     for shift in shifts:
-        assignments = list(shift.assignments)
+        assignments = [
+            a for a in shift.assignments if include_drafts or not a.auto_generated
+        ]
         out.append(ShiftSummary(
             id=shift.id,
             position=shift.position.name if shift.position else None,
@@ -67,10 +70,12 @@ async def volunteer_coverage(
 ) -> List[Dict[str, Any]]:
     """Per-shift filled-versus-needed counts across a window — where the gaps are.
 
-    Requires admin access or the volunteer coordinator role.
+    For staff, volunteer coordinators, proctors and volunteers.
     """
     start_dt, end_dt = _window(start, end)
-    return await VolunteerScheduleService().coverage(start_dt, end_dt)
+    return await VolunteerScheduleService().coverage_for_viewer(
+        current_actor().user, start_dt, end_dt,
+    )
 
 
 async def volunteer_hour_trends(
@@ -101,10 +106,12 @@ async def list_volunteer_positions(
 ) -> List[VolunteerPositionInfo]:
     """List the volunteer jobs a community schedules — the names shifts hang off.
 
-    Requires admin access or the volunteer coordinator role. Set `active_only` to skip retired positions.
+    For staff, volunteer coordinators, proctors and volunteers. Set
+    `active_only` to skip retired positions.
     """
-    service = VolunteerPositionService()
-    positions = await (service.list_active() if active_only else service.list_all())
+    positions = await VolunteerPositionService().list_for_viewer(
+        current_actor().user, active_only=active_only,
+    )
     return [
         VolunteerPositionInfo.model_validate(p, from_attributes=True) for p in positions
     ]
@@ -144,15 +151,15 @@ def register_tools(mcp: MCPServer) -> None:
         feature=FeatureFlag.VOLUNTEERS, title='My volunteer shifts',
     )
     register(
-        mcp, list_volunteer_positions, gate=Gate.VOLUNTEER_ADMIN,
+        mcp, list_volunteer_positions, gate=Gate.ACTOR,
         feature=FeatureFlag.VOLUNTEERS, title='List volunteer positions',
     )
     register(
-        mcp, list_volunteer_shifts, gate=Gate.VOLUNTEER_ADMIN,
+        mcp, list_volunteer_shifts, gate=Gate.ACTOR,
         feature=FeatureFlag.VOLUNTEERS, title='List volunteer shifts',
     )
     register(
-        mcp, volunteer_coverage, gate=Gate.VOLUNTEER_ADMIN,
+        mcp, volunteer_coverage, gate=Gate.ACTOR,
         feature=FeatureFlag.VOLUNTEERS, title='Volunteer coverage',
     )
     register(

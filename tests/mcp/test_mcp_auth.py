@@ -203,7 +203,7 @@ class TestErrorMapping:
         async def boom(*args, **kwargs):
             raise RuntimeError('secret connection string in here')
 
-        monkeypatch.setattr(TournamentService, 'get_all_tournaments', boom)
+        monkeypatch.setattr(TournamentService, 'list_for_viewer', boom)
         _, raw = await create_oauth_token(roles=[Role.STAFF])
         async with mcp_session() as client:
             is_error, payload = await call_tool(
