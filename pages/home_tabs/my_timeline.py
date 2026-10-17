@@ -27,6 +27,7 @@ from application.utils.timezone import combine_local, format_local_time
 from pages.home_tabs.my_volunteer_shifts import open_shift_details
 from theme.empty_state import empty_panel
 from theme.section import section_panel
+from theme.steady import steady_refreshable
 from theme.timer_teardown import PageTimer
 from theme.volunteer_grid import HOUR_PX, day_label, render_day_bar
 
@@ -134,7 +135,7 @@ async def my_timeline_view(*, include_shifts: bool) -> None:
         user=user,
     )
 
-    @ui.refreshable
+    @steady_refreshable
     async def view() -> None:
         try:
             items = await service.items(user, include_shifts=include_shifts)

@@ -29,6 +29,8 @@ from pages.home_tabs.my_crew import my_crew_tab
 from pages.home_tabs.my_timeline import my_timeline_view
 from pages.home_tabs.my_volunteer_shifts import my_volunteer_shifts_section
 from pages.home_tabs.player import render_player_dashboard
+from theme.layout_probe import skip_layout_probe
+from theme.steady import steady_refreshable
 
 #: Where the viewer's List / Timeline choice is remembered.
 VIEW_KEY = 'my_schedule_view'
@@ -83,7 +85,7 @@ async def my_schedule_tab(
         if FeatureFlag.EQUIPMENT in live:
             await equipment_checkouts_section()
 
-    @ui.refreshable
+    @steady_refreshable
     async def body() -> None:
         if state['view'] == 'timeline':
             await my_timeline_view(include_shifts=volunteer is not None)
@@ -94,6 +96,8 @@ async def my_schedule_tab(
         state['view'] = value
         app.storage.user[VIEW_KEY] = value
         await body.refresh()
+
+    skip_layout_probe(body)
 
     with ui.column().classes('page-container wiz-section-stack'):
         ui.toggle(
