@@ -247,15 +247,11 @@ Used by `OAuthApp.client_type` (`max_length=16`): `CONFIDENTIAL` = `'confidentia
 (a server-side app holding a client secret), `PUBLIC` = `'public'` (desktop,
 mobile, browser-only; PKCE alone). Both must use PKCE.
 
-### `OAuthScope`
-
-Not stored as an enum column: grants keep a space-separated scope string
-(`ApiToken.scope`, `OAuthAppCode.scope`) and apps a JSON list
-(`OAuthApp.allowed_scopes`). Eight area scopes: `profile`, `profile:write`,
-`schedule:read`, `play`, `crew`, `volunteer`, `staff:read`, `staff:write`. The
-consent wording and the write/staff groupings live in
-[`application/oauth_scopes.py`](../../application/oauth_scopes.py); see
-[oauth-apps.md](../features/oauth-apps.md).
+App scopes are not a `models` enum: `ApiScope` lives in
+[`application/api_scopes.py`](../../application/api_scopes.py), shared by the
+authorization server and the REST scope check. Grants keep a space-separated
+scope string (`ApiToken.scope`, `OAuthAppCode.scope`) and apps a JSON list
+(`OAuthApp.allowed_scopes`); see [oauth-apps.md](../features/oauth-apps.md).
 
 ### `RoleSource`
 
@@ -748,7 +744,7 @@ A third-party app a user registered for the `/oauth` authorization server. **Glo
 | `client_secret_hash` / `secret_prefix` | `CharField(64)` / `CharField(24)` | null | Confidential apps only; plaintext shown once |
 | `previous_secret_hash` / `secret_rotated_at` | `CharField(64)` / `DatetimeField` | null | The old secret stays valid 24 h after a rotation |
 | `redirect_uris` | `JSONField` | default `[]` | Exact-match allowlist (max 10) |
-| `allowed_scopes` | `JSONField` | default `[]` | `OAuthScope` values the app may request |
+| `allowed_scopes` | `JSONField` | default `[]` | `ApiScope` values the app may request |
 | `disabled_at` / `disabled_reason` | `DatetimeField` / `CharField(300)` | null | Platform-admin kill switch; grants stop while set |
 | `created_at` / `updated_at` | `DatetimeField` | auto | |
 

@@ -35,7 +35,7 @@ from urllib.parse import urlencode, urlsplit, urlunsplit
 
 from application.errors import FeatureDisabledError, NotFoundError
 from application.events import EventType
-from application.oauth_scopes import STAFF_SCOPES, format_scope, grants_write, parse_scope
+from application.api_scopes import STAFF_SCOPES, WRITE_SCOPES, ApiScope, format_scope, parse_scope
 from application.repositories.api_token_repository import ApiTokenRepository
 from application.repositories.oauth_app_repository import OAuthAppRepository
 from application.repositories.tenant_membership_repository import TenantMembershipRepository
@@ -44,11 +44,11 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.mcp_auth_service import is_allowed_redirect_uri
-from application.services.oauth_app_service import secret_matches
+from application.services.oauth_app_service import secret_matches, strict_scopes
 from application.services.tenant_service import TenantService
 from application.tenant_context import tenant_scope
 from application.utils.environment import get_base_url
-from models import ApiToken, FeatureFlag, OAuthApp, OAuthClientType, OAuthScope, Role, User
+from models import ApiToken, FeatureFlag, OAuthApp, OAuthClientType, Role, User
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +127,7 @@ class PendingAppAuthorization:
     app_id: int
     redirect_uri: str
     code_challenge: str
-    requested_scopes: FrozenSet[OAuthScope]
+    requested_scopes: FrozenSet[ApiScope]
     state: Optional[str]
     created_at: datetime
 
@@ -139,7 +139,7 @@ class ConsentCommunity:
     slug: str
     #: What this person may grant here: the request, minus staff scopes when
     #: they hold no role that could use them.
-    scopes: List[OAuthScope]
+    scopes: List[ApiScope]
 
 
 @dataclass
@@ -152,7 +152,7 @@ class ConsentView:
     owner_name: str
     redirect_host: str
     verified: bool
-    requested_scopes: List[OAuthScope]
+    requested_scopes: List[ApiScope]
     communities: List[ConsentCommunity] = field(default_factory=list)
 
 
@@ -233,10 +233,10 @@ class OAuthGrantService:
         if not _CHALLENGE_RE.match(code_challenge):
             raise fail('invalid_request', 'code_challenge is not a valid S256 challenge.')
         try:
-            requested = parse_scope(scope)
+            requested = strict_scopes(scope)
         except ValueError as exc:
             raise fail('invalid_scope', str(exc)) from None
-        allowed = parse_scope(app.allowed_scopes)
+        allowed = parse_scope(' '.join(app.allowed_scopes or []))
         if not requested:
             requested = allowed
         if not requested <= allowed:
@@ -294,12 +294,12 @@ class OAuthGrantService:
             owner_name=app.owner.preferred_name,
             redirect_host=self._redirect_label(pending.redirect_uri),
             verified=False,
-            requested_scopes=[s for s in OAuthScope if s in pending.requested_scopes],
+            requested_scopes=[s for s in ApiScope if s in pending.requested_scopes],
             communities=communities,
         )
 
     async def approve(
-        self, txn_id: str, user: User, tenant_id: int, scopes: Iterable[OAuthScope | str],
+        self, txn_id: str, user: User, tenant_id: int, scopes: Iterable[ApiScope | str],
     ) -> str:
         """Record the person's approval and return the redirect back to the app.
 
@@ -311,7 +311,7 @@ class OAuthGrantService:
         offer = await self._offer(user, tenant_id, pending.requested_scopes)
         if offer is None:
             raise ValueError("You can't connect this app to that community.")
-        chosen = parse_scope([s.value if isinstance(s, OAuthScope) else s for s in scopes])
+        chosen = strict_scopes(scopes)
         if not chosen:
             raise ValueError('Tick at least one thing the app may do, or deny it.')
         if not chosen <= set(offer.scopes):
@@ -345,7 +345,7 @@ class OAuthGrantService:
         ).redirect_url() or pending.redirect_uri
 
     async def _offer(
-        self, user: User, tenant_id: int, requested: FrozenSet[OAuthScope],
+        self, user: User, tenant_id: int, requested: FrozenSet[ApiScope],
     ) -> Optional[ConsentCommunity]:
         """What ``user`` may grant in ``tenant_id``, or None if nothing at all."""
         tenant = await TenantService.get_by_id(tenant_id)
@@ -356,14 +356,14 @@ class OAuthGrantService:
         with tenant_scope(tenant_id):
             if not await FeatureFlagService().is_enabled(FeatureFlag.THIRD_PARTY_APPS):
                 return None
-            scopes: Set[OAuthScope] = set(requested)
+            scopes: Set[ApiScope] = set(requested)
             if not await self._may_use_staff_scopes(user):
                 scopes -= STAFF_SCOPES
         if not scopes:
             return None
         return ConsentCommunity(
             tenant_id=tenant.id, name=tenant.name, slug=tenant.slug,
-            scopes=[s for s in OAuthScope if s in scopes],
+            scopes=[s for s in ApiScope if s in scopes],
         )
 
     @staticmethod
@@ -449,7 +449,7 @@ class OAuthGrantService:
                 refresh_token_hash=_hash(refresh_raw),
                 refresh_expires_at=now + REFRESH_TOKEN_TTL,
                 scope=record.scope,
-                read_only=not grants_write(scopes),
+                read_only=not (scopes & WRITE_SCOPES),
             )
             await self.repository.link_code_to_grant(record, grant)
             details = {'app_id': app.id, 'app': app.name, 'scope': record.scope, 'replaced': len(replaced)}
@@ -483,10 +483,10 @@ class OAuthGrantService:
             raise OAuthError('invalid_grant', 'This refresh token has expired. Sign in again.')
 
         current = parse_scope(grant.scope)
-        narrowed: Optional[Set[OAuthScope]] = None
+        narrowed: Optional[Set[ApiScope]] = None
         if scope is not None:
             try:
-                narrowed = parse_scope(scope)
+                narrowed = strict_scopes(scope)
             except ValueError as exc:
                 raise OAuthError('invalid_scope', str(exc)) from None
             if not narrowed or not narrowed <= current:
@@ -506,7 +506,7 @@ class OAuthGrantService:
             refresh_expires_at=now + REFRESH_TOKEN_TTL,
             remember_previous=True,
             scope=format_scope(final) if narrowed is not None else None,
-            read_only=(not grants_write(final)) if narrowed is not None else None,
+            read_only=(not (final & WRITE_SCOPES)) if narrowed is not None else None,
         )
         if not rotated:
             raise OAuthError('invalid_grant', 'This refresh token has already been used.')

@@ -21,11 +21,11 @@ import logging
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Iterable, List, Optional, Tuple
+from typing import FrozenSet, Iterable, List, Optional, Tuple, Union
 from urllib.parse import urlsplit
 
 from application.errors import NotFoundError
-from application.oauth_scopes import format_scope, parse_scope
+from application.api_scopes import ApiScope, format_scope
 from application.repositories.api_token_repository import ApiTokenRepository
 from application.repositories.oauth_app_repository import OAuthAppRepository
 from application.services.audit_service import AuditActions, AuditService
@@ -111,8 +111,22 @@ def _redirect_uris(values: Iterable[str], client_type: OAuthClientType) -> List[
     return uris
 
 
+def strict_scopes(values: Union[str, Iterable[Union[ApiScope, str]], None]) -> FrozenSet[ApiScope]:
+    """The scopes an app or a person named, refusing any name we don't know.
+
+    ``api_scopes.parse_scope`` drops unknown names so stored grants survive a
+    retired scope; a fresh request must hear about its typo instead.
+    """
+    names = (values or '').split() if isinstance(values, str) or values is None else list(values)
+    known = {scope.value: scope for scope in ApiScope}
+    unknown = sorted({str(getattr(n, 'value', n)) for n in names} - set(known))
+    if unknown:
+        raise ValueError(f"Unknown scope: {', '.join(unknown)}.")
+    return frozenset(known[getattr(n, 'value', n)] for n in names)
+
+
 def _scopes(values: Iterable[str]) -> List[str]:
-    scopes = parse_scope(list(values or []))
+    scopes = strict_scopes(values)
     if not scopes:
         raise ValueError('Pick at least one thing the app may ask for.')
     return format_scope(scopes).split()

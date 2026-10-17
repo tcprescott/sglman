@@ -9,7 +9,7 @@ _Backend reference for the `/oauth` authorization server that lets people sign i
 | Piece | Where |
 |---|---|
 | Models | [`models/oauth_app.py`](../../models/oauth_app.py): `OAuthApp` (global, owned by a user), `OAuthAppCode` (single-use, 5 min, bound to the picked community). Grants are `ApiToken` rows with `origin='app'`, `oauth_app`, `tenant` = picked community, `scope`, `previous_refresh_hash` |
-| Scope catalogue | [`application/oauth_scopes.py`](../../application/oauth_scopes.py) + `models.OAuthScope` |
+| Scope catalogue | [`application/api_scopes.py`](../../application/api_scopes.py) (`ApiScope`, shared with the REST scope check) |
 | Registration | [`OAuthAppService`](../../application/services/oauth_app_service.py) |
 | Authorization server | [`OAuthGrantService`](../../application/services/oauth_grant_service.py) |
 | HTTP surface | [`api/oauth_server.py`](../../api/oauth_server.py), mounted from `main.py` before NiceGUI |

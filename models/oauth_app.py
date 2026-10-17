@@ -40,7 +40,7 @@ class OAuthApp(Model):
     secret_rotated_at = fields.DatetimeField(null=True)
     # Exact-match allowlist, checked at authorize and again at the token endpoint.
     redirect_uris = fields.JSONField(default=list)
-    # OAuthScope values the app may ask for. Asking is not getting: the person
+    # ApiScope values the app may ask for. Asking is not getting: the person
     # approving decides what the grant carries.
     allowed_scopes = fields.JSONField(default=list)
     # Set by a platform admin (abuse); every grant stops working while set.

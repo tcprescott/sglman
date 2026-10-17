@@ -227,26 +227,6 @@ class OAuthClientType(str, Enum):
     PUBLIC = 'public'
 
 
-class OAuthScope(str, Enum):
-    """What a third-party app grant may do, one area of the REST API each.
-
-    Scopes only ever narrow: a grant can do what its scopes cover *and* what the
-    person's own roles in that community allow. The consent wording and the
-    write/staff groupings live in :mod:`application.oauth_scopes`. The values
-    are an external contract (apps request them by name), so renaming one is
-    breaking.
-    """
-
-    PROFILE = 'profile'
-    PROFILE_WRITE = 'profile:write'
-    SCHEDULE_READ = 'schedule:read'
-    PLAY = 'play'
-    CREW = 'crew'
-    VOLUNTEER = 'volunteer'
-    STAFF_READ = 'staff:read'
-    STAFF_WRITE = 'staff:write'
-
-
 class RoleSource(str, Enum):
     MANUAL = 'manual'
     DISCORD = 'discord'

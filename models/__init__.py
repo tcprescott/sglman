@@ -69,7 +69,6 @@ from .enums import (
     MatchNotificationLevel,
     MembershipSource,
     OAuthClientType,
-    OAuthScope,
     PresetOverride,
     ProviderTaskStatus,
     RaceRoomStatus,
@@ -252,7 +251,6 @@ __all__ = [
     'OAuthApp',
     'OAuthAppCode',
     'OAuthClientType',
-    'OAuthScope',
     # volunteer
     'PlayerAvailability',
     'Preset',

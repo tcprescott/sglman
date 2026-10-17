@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from api.rate_limit import rate_limit
-from application.oauth_scopes import ALL_SCOPES
+from application.api_scopes import ApiScope
 from application.services.oauth_grant_service import OAuthError, OAuthGrantService, issuer
 from application.utils.environment import get_base_url
 
@@ -44,7 +44,7 @@ def authorization_server_metadata() -> dict:
         'code_challenge_methods_supported': ['S256'],
         'token_endpoint_auth_methods_supported': ['client_secret_basic', 'client_secret_post', 'none'],
         'revocation_endpoint_auth_methods_supported': ['client_secret_basic', 'client_secret_post', 'none'],
-        'scopes_supported': [s.value for s in ALL_SCOPES],
+        'scopes_supported': [s.value for s in ApiScope],
         'authorization_response_iss_parameter_supported': True,
         'service_documentation': f'{get_base_url()}/api/docs',
     }
