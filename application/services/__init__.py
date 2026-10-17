@@ -88,6 +88,7 @@ from .match import (
 from .match_reschedule_service import MatchRescheduleService
 from .matcherino_login_service import MatcherinoLoginService, MatcherinoLoginStatus
 from .mcp_auth_service import McpAuthService
+from .my_timeline_service import MyTimelineService
 from .notification_channel_service import NotificationChannelService
 from .password_auth_service import PasswordAuthService
 from .payout_service import PayoutService
@@ -110,6 +111,7 @@ from .seedgen_service import SeedGenerationService
 from .service_health_service import ProbeResult, ServiceHealthService, ServiceStatus
 from .speedgaming_etl_service import SpeedGamingETLService
 from .speedgaming_sync_service import SpeedGamingSyncService
+from .staff_alert_service import StaffAlertService
 from .stage_service import StageService
 from .startgg_link_service import StartggLinkService
 from .startgg_service import StartggService
@@ -203,6 +205,7 @@ __all__ = [
     'MatcherinoLoginService',
     'MatcherinoLoginStatus',
     'McpAuthService',
+    'MyTimelineService',
     'NotFoundError',
     'NotificationChannelService',
     'PasswordAuthService',
@@ -229,6 +232,7 @@ __all__ = [
     'SetupStep',
     'SpeedGamingETLService',
     'SpeedGamingSyncService',
+    'StaffAlertService',
     'StageService',
     'StartggLinkService',
     'StartggService',

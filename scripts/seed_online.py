@@ -55,6 +55,7 @@ from models import (
     Tenant,
     TenantMembership,
     Tournament,
+    TournamentNotificationPreference,
     TournamentPlayers,
     User,
 )
@@ -337,6 +338,11 @@ async def _seed_online_tournament(
     )
     await backfill(tournament, **_ONLINE_TOURNAMENT_META)
     await tournament.admins.add(staff)
+    # staff_user runs this one but switched its match alerts off, so the
+    # Profile → Notifications opt-out shows both states on a fresh seed.
+    await TournamentNotificationPreference.update_or_create(
+        user=staff, tournament=tournament, tenant=tenant, defaults={"staff_alerts": False},
+    )
     for p in players:
         await TournamentPlayers.get_or_create(
             tournament=tournament, user=p, tenant=tenant,

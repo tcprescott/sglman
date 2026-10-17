@@ -92,7 +92,7 @@ class TestNotifyMatchCrew:
         await service.notify_match_crew(m, "crew msg", watcher_message="watch msg")
 
         service.discord_service.send_dm.assert_not_awaited()
-        service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "watch msg", m.id, embed=None, link=None, silent=False)
+        service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "watch msg", m.id, embed=None, link=None, silent=True)
 
     async def test_crew_who_also_watches_reads_the_crew_copy(self, service, db):
         """Watching adds the Unwatch button; it does not demote them to a spectator."""
@@ -281,7 +281,7 @@ class TestNotifySubscriberFailurePaths:
         # ANY for the link: this test is about the failure being swallowed,
         # not about where the button points.
         service.discord_service.send_dm_with_crew_buttons.assert_awaited_once_with(
-            555, "msg", m.id, embed=None, link=ANY,
+            555, "msg", m.id, embed=None, link=ANY, silent=True,
         )
 
     async def test_stream_candidate_subscriber_dm_failure_is_swallowed(self, service, db):

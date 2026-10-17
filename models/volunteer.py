@@ -19,6 +19,10 @@ class VolunteerPosition(Model):
     # offset by ``stagger_minutes`` so handoffs happen one at a time).
     shift_length_minutes = fields.IntField(null=True)
     stagger_minutes = fields.IntField(null=True)
+    # Whoever is on one of this position's shifts is the admin on duty: match
+    # alerts (player comments, reschedule requests) go to them and the
+    # tournament's admins rather than to every staff member.
+    staff_alerts = fields.BooleanField(default=False)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

@@ -61,6 +61,7 @@ class VolunteerPositionService:
         is_active: bool = True,
         shift_length_minutes: Optional[int] = None,
         stagger_minutes: Optional[int] = None,
+        staff_alerts: bool = False,
     ) -> VolunteerPosition:
         await AuthService.ensure(
             await AuthService.can_manage_volunteers(actor),
@@ -76,6 +77,7 @@ class VolunteerPositionService:
             name=name, description=description, color=color,
             display_order=display_order, is_active=is_active,
             shift_length_minutes=shift_length_minutes, stagger_minutes=stagger_minutes,
+            staff_alerts=staff_alerts,
         )
         await self.audit_service.write_log(
             actor, AuditActions.VOLUNTEER_POSITION_CREATED,

@@ -324,6 +324,8 @@ class MatchScheduleService(MatchNotificationMixin):
             event_type=EventType.MATCH_CONFIRMED,
             build_message=lambda m, c, b: _state_notification(m, c, "Confirmed", b),
             authorize=AuthService.can_confirm_match,
+            # A record of the result; nobody has anything left to do.
+            silent=True,
         )
 
         # Confirming a flagged result *is* the resolution — the admin has now

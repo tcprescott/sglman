@@ -56,6 +56,11 @@ def admin_url(section: Optional[str] = None, **params) -> str:
     return f"{'/admin/' + section if section else '/admin'}{_query(params)}"
 
 
+def admin_match_comments_url(match_id: int) -> str:
+    """The admin Schedule board narrowed to one match, its sheet open on the comments."""
+    return admin_url(SCHEDULE, comments=match_id)
+
+
 def admin_qualifier_queue_url(qualifier_id: int) -> str:
     """The review queue of one qualifier, open on arrival.
 

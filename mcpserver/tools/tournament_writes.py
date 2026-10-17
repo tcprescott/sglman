@@ -67,6 +67,7 @@ def _response(tournament: Tournament) -> TournamentResponse:
 async def create_tournament(
     name: str,
     tenant: TenantArg = None,
+    short_name: Optional[str] = None,
     description: Optional[str] = None,
     tournament_format: Optional[str] = None,
     bracket_url: Optional[str] = None,
@@ -118,6 +119,7 @@ async def update_tournament(
     tournament_id: int,
     tenant: TenantArg = None,
     name: Optional[str] = None,
+    short_name: Optional[str] = None,
     description: Optional[str] = None,
     tournament_format: Optional[str] = None,
     bracket_url: Optional[str] = None,

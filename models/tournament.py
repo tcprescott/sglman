@@ -8,6 +8,9 @@ class Tournament(Model):
     id = fields.IntField(pk=True)
     tenant = fields.ForeignKeyField('models.Tenant', related_name='tournaments', on_delete=fields.CASCADE)
     name = fields.CharField(max_length=255)
+    # Where a full name will not fit (the timeline, run sheets). Blank means
+    # use ``name``; read it through ``short_label``.
+    short_name = fields.CharField(max_length=40, null=True)
     description = fields.TextField(null=True)
     seed_generator = fields.CharField(max_length=255, null=True)
     is_active = fields.BooleanField(default=True)
@@ -180,6 +183,10 @@ class Tournament(Model):
     challonge_matches = fields.ReverseRelation["ChallongeMatch"]
 
     @property
+    def short_label(self) -> str:
+        return (self.short_name or '').strip() or self.name
+
+    @property
     def is_racetime_enabled(self) -> bool:
         """True when this tournament is wired to a racetime.gg category.
 
@@ -255,6 +262,9 @@ class TournamentNotificationPreference(Model):
     user = fields.ForeignKeyField('models.User', related_name='tournament_notifications')
     tournament = fields.ForeignKeyField('models.Tournament', related_name='notification_preferences')
     match_notifications = fields.CharEnumField(MatchNotificationLevel, default=MatchNotificationLevel.NONE, max_length=30)
+    # A tournament admin's opt-out from its match alerts (player comments,
+    # reschedule requests). No row means on.
+    staff_alerts = fields.BooleanField(default=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

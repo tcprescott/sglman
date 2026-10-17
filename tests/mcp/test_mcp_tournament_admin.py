@@ -52,6 +52,31 @@ class TestEditing:
         assert tournament.is_test is False
         assert tournament.tournament_hours
 
+    async def test_short_name_sets_trims_and_clears(self, db):
+        _, raw = await create_oauth_token(roles=[Role.STAFF], write=True)
+        async with mcp_session() as client:
+            is_error, created = await call_tool(
+                client, raw, 'create_tournament', tenant=TENANT,
+                name='A Link to the Past Randomizer Main Bracket', short_name='  ALTTPR Main ',
+            )
+            assert not is_error, created
+            assert created['short_name'] == 'ALTTPR Main'
+            tid = created['id']
+
+            is_error, too_long = await call_tool(
+                client, raw, 'update_tournament', tenant=TENANT, tournament_id=tid,
+                short_name='x' * 41,
+            )
+            assert is_error, too_long
+
+            is_error, cleared = await call_tool(
+                client, raw, 'update_tournament', tenant=TENANT, tournament_id=tid, short_name='',
+            )
+            assert not is_error, cleared
+        tournament = await Tournament.get(id=tid)
+        assert tournament.short_name is None
+        assert tournament.short_label == 'A Link to the Past Randomizer Main Bracket'
+
     async def test_clear_removes_a_preset_and_the_hours(self, db):
         _, raw = await create_oauth_token(roles=[Role.STAFF], write=True)
         preset = await Preset.create(name='sgl2026', randomizer='ffr', settings={})

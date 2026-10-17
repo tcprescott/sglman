@@ -33,6 +33,7 @@ class VolunteerPositionRepository(TenantScopedRepository[VolunteerPosition]):
         is_active: bool = True,
         shift_length_minutes: Optional[int] = None,
         stagger_minutes: Optional[int] = None,
+        staff_alerts: bool = False,
     ) -> VolunteerPosition:
         return await VolunteerPosition.create(
             tenant_id=current_tenant_id(),
@@ -43,5 +44,6 @@ class VolunteerPositionRepository(TenantScopedRepository[VolunteerPosition]):
             is_active=is_active,
             shift_length_minutes=shift_length_minutes,
             stagger_minutes=stagger_minutes,
+            staff_alerts=staff_alerts,
         )
 

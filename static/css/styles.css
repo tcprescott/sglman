@@ -935,11 +935,24 @@ body:has(.wiz-header) .q-notifications__list--top {
     color: var(--accent);
 }
 
+/* The section the viewer is in (Home, Volunteer, Admin, Help...): an accent
+   tint, so it reads apart from the grey "this page" row in the tab list. */
+.q-drawer .q-item.wiz-nav-section--active {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--fg);
+    font-weight: 700;
+}
+
+.q-drawer .q-item.wiz-nav-section--active .q-icon {
+    color: var(--accent);
+}
+
 .q-drawer .q-item .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
 }
 
 .q-drawer .q-item--active .material-symbols-outlined,
+.q-drawer .wiz-nav-section--active .material-symbols-outlined,
 .wiz-bottom-nav .q-tab--active .material-symbols-outlined {
     font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
@@ -4232,6 +4245,75 @@ body.wiz-offline .wiz-requires-socket {
         grid-column: 1 / -1;
         justify-content: flex-end;
     }
+}
+
+/* My Schedule's Timeline view: one day column on the volunteer grid's hour
+   scale, a block per commitment tinted by kind. */
+.wiz-tl--match { --tl-kind: var(--status-live); }
+.wiz-tl--crew  { --tl-kind: var(--status-pending); }
+.wiz-tl--shift { --tl-kind: var(--status-ok); }
+
+.wiz-tl .wiz-vgrid__col {
+    flex: 1 1 auto;
+}
+
+.wiz-tl-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: var(--tl-kind);
+}
+
+.wiz-tl-block {
+    position: absolute;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    padding: 4px 8px;
+    overflow: hidden;
+    cursor: pointer;
+    background: color-mix(in srgb, var(--tl-kind) 14%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--tl-kind) 55%, transparent);
+    border-left: 4px solid var(--tl-kind);
+    border-radius: 8px;
+}
+
+.wiz-tl-block:hover {
+    background: color-mix(in srgb, var(--tl-kind) 22%, var(--surface));
+}
+
+.wiz-tl-block:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.wiz-tl-block__time,
+.wiz-tl-block__detail {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--fg-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wiz-tl-block__title {
+    gap: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.15rem;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.wiz-tl-block__title .q-icon {
+    flex: none;
+}
+
+.wiz-tl-block__title > div {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .wiz-shift-status {

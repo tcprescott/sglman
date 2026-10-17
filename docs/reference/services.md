@@ -62,6 +62,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `CheckInDeskService` | [check_in_desk_service.py](../../application/services/check_in_desk_service.py) | The desk's gated reads (events you can work, an event's roster) for the REST and MCP surfaces | [event-check-in.md](../features/event-check-in.md), `EVENT_CHECK_IN` |
 | `MatcherinoLoginService` | [matcherino_login_service.py](../../application/services/matcherino_login_service.py) | The per-community Matcherino login check-in syncs with: status, verified save, remove, sync-time resolve | [event-check-in.md](../features/event-check-in.md#the-stored-login), `EVENT_CHECK_IN` |
 | `CrewService` | [crew_service.py](../../application/services/crew_service.py) | Crew signup/undo, approval, and acknowledgment | [match-participation.md](../features/match-participation.md) |
+| `MyTimelineService` | [my_timeline_service.py](../../application/services/my_timeline_service.py) | My Schedule's Timeline view: one person's played matches, crew slots and volunteer shifts merged into time ranges, plus the pure lane and 06:00 event-day rules | [frontend.md](frontend.md) |
 | `DiscordEventReconcilerService` | [discord_event_reconciler_service.py](../../application/services/discord/discord_event_reconciler_service.py) | Idempotent mirror of the schedule into a guild's Discord Scheduled Events | [discord.md](../features/discord.md) |
 | `DiscordEventSyncService` | [discord_event_sync_service.py](../../application/services/discord/discord_event_sync_service.py) | Admin surface over the reconciler: per-tournament opt-in + "reconcile now" | [discord.md](../features/discord.md) |
 | `DiscordLinkService` | [discord_link_service.py](../../application/services/discord/discord_link_service.py) | Verified tenant↔Discord-server link (bot-authorization OAuth + authority re-check) | [multitenancy.md](../features/multitenancy.md) |
@@ -109,6 +110,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `TenantLogoService` | [tenant_logo_service.py](../../application/services/tenant_logo_service.py) | Per-tenant logo upload: re-encode a bitmap to WebP or sanitise an SVG, store in `TenantLogo`, serve by hash, feed the QR codes | [§ below](#tenant_logo_servicepy--tenantlogoservice) |
 | `TenantThemeService` | [tenant_theme_service.py](../../application/services/tenant_theme_service.py) | Per-tenant brand palette (STAFF-editable colours on `Tenant.config['theme']`) | [frontend.md](../reference/frontend.md#per-tenant-theme-colours) |
 | `TimezoneService` | [timezone_service.py](../../application/services/timezone_service.py) | Per-tenant display-timezone policy (pin vs. follow-the-viewer) and per-viewer resolution | [timezone-handling.md](../timezone-handling.md) |
+| `StaffAlertService` | [staff_alert_service.py](../../application/services/staff_alert_service.py) | Match-alert recipients: the admin on duty (a published shift on a `staff_alerts` position) plus the tournament's opted-in admins, falling back to all STAFF; the same on-duty set for volunteer late/give-back alerts; a tournament admin's per-tournament opt-out | [match-participation.md](../features/match-participation.md) |
 | `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [match-participation.md](../features/match-participation.md) |
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
@@ -1298,6 +1300,18 @@ STAFF-picked profile items each member should have done, and the banner rows a m
 | `dismiss(actor, check)` | `None` | Records an acknowledgement; refuses a rule that is off or mandatory; audits `profile_nudge.dismissed` once. |
 
 Collaborators: `ProfileNudgeRepository`, `TenantRepository`, `AuthService`, `AuditService`, `FeatureFlagService`, `TimezoneService`, and the Challonge/Twitch/racetime services' `is_configured`.
+
+### staff_alert_service.py — StaffAlertService
+
+Who hears about a *match alert*: a staff-facing DM about one match that someone must pick up (a player's comment, a reschedule request). Community-wide requests (join, ADA, community events) are not match alerts and still go to every STAFF member.
+
+| Method | Returns | Description |
+|---|---|---|
+| `on_duty_now(at=None)` | `List[User]` | Holders of a published shift at `at` on a position with `staff_alerts` on. |
+| `match_alert_recipients(match, *, can_act=AuthService.can_run_match, exclude=(), at=None)` | `List[User]` | On-duty users, falling back to all STAFF when none who `can_act` is on duty, plus the tournament's admins minus opt-outs. Every recipient passes `can_act`, so nobody is linked to a control that refuses them. Reschedule requests pass `can_crud_match`. |
+| `volunteer_alert_recipients(at=None)` | `List[User]` | Who hears a volunteer is running late or gave a shift back: on-duty users who `can_manage_volunteers` (all STAFF when none), plus every VOLUNTEER_COORDINATOR. |
+| `admin_tournaments(user)` | `List[(Tournament, bool)]` | Active tournaments the user admins, with whether alerts are on. |
+| `set_tournament_alerts(user, tournament_id, on)` | `None` | The opt-out. Raises `ValueError` unless the user admins that tournament. |
 
 ### tournament_notification_service.py — TournamentNotificationService
 

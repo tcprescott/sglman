@@ -45,12 +45,17 @@ _PROFILE_DESC = 'ID of the race room profile new rooms use (online tournaments).
 _AUTO_ROOMS_DESC = 'Open racetime rooms automatically before each match. Needs a racetime bot.'
 _ROOM_OPEN_DESC = 'How many minutes before the match an automatic room opens.'
 _REQUIRE_LINK_DESC = 'Require players to have linked a racetime account.'
+_SHORT_NAME_DESC = (
+    "Abbreviation of up to 40 characters, shown where the full name won't fit (run sheets, "
+    "the timeline). Leave it out to use the name."
+)
 _GOAL_DESC = 'Racetime goal new rooms use.'
 _STAGE_REMINDER_DESC = 'How many minutes before a match the stage reminder DM goes out. 0 turns it off.'
 
 
 class TournamentCreateRequest(BaseModel):
     name: str = Field(..., description="The tournament's name. Can't be blank.")
+    short_name: Optional[str] = Field(None, description=_SHORT_NAME_DESC)
     description: Optional[str] = Field(None, description="Long description shown to players, as markdown.")
     seed_generator: Optional[str] = Field(
         None, description="Key of the randomizer that rolls this tournament's seeds, or null for none.",
@@ -92,6 +97,9 @@ class TournamentCreateRequest(BaseModel):
 
 class TournamentUpdateRequest(BaseModel):
     name: Optional[str] = Field(None, description="New name. Can't be blank." + _UPDATE_NOTE)
+    short_name: Optional[str] = Field(
+        None, description=_SHORT_NAME_DESC + ' An empty string clears it.' + _UPDATE_NOTE,
+    )
     description: Optional[str] = Field(
         None, description="Long description, as markdown. An empty string clears it." + _UPDATE_NOTE,
     )

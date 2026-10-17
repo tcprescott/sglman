@@ -36,6 +36,7 @@ from application.utils.app_links import (
     admin_ada_request_url,
     admin_check_in_url,
     admin_community_event_url,
+    admin_match_comments_url,
     admin_qualifier_queue_url,
     admin_reschedule_request_url,
     admin_url,
@@ -258,6 +259,13 @@ async def home_tournaments(*, label: str = 'View tournaments') -> Optional[DMLin
 async def admin_match(match_id: int, *, label: str = 'Open the match') -> Optional[DMLink]:
     """The admin Schedule board filtered to one match — where crew gets refilled."""
     return await link_for(label, admin_url(SCHEDULE, match_id=match_id))
+
+
+async def admin_match_comments(
+    match_id: int, *, label: str = 'Read the comment',
+) -> Optional[DMLink]:
+    """A player's comment, read where staff answer it: the match sheet's comments."""
+    return await link_for(label, admin_match_comments_url(match_id))
 
 
 async def admin_reschedule_request(

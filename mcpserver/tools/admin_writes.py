@@ -129,11 +129,14 @@ async def create_volunteer_position(
     is_active: bool = True,
     shift_length_minutes: Optional[int] = None,
     stagger_minutes: Optional[int] = None,
+    staff_alerts: bool = False,
 ) -> VolunteerPositionResponse:
     """Add a volunteer position, such as "Runner" or "Info desk". Staff or volunteer coordinators.
 
     Set `shift_length_minutes` and `stagger_minutes` together to have generated
-    shifts overlap; leave both out for back-to-back blocks.
+    shifts overlap; leave both out for back-to-back blocks. Set `staff_alerts`
+    on the admin-desk position: whoever is on its shift gets match alerts
+    (player comments, reschedule requests) instead of every staff member.
     """
     args = dict(locals())
     args.pop('tenant')
@@ -152,6 +155,7 @@ async def update_volunteer_position(
     is_active: Optional[bool] = None,
     shift_length_minutes: Optional[int] = None,
     stagger_minutes: Optional[int] = None,
+    staff_alerts: Optional[bool] = None,
 ) -> VolunteerPositionResponse:
     """Change a volunteer position. Only what you pass changes. Staff or volunteer coordinators."""
     args = dict(locals())

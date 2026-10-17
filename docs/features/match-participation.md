@@ -554,6 +554,31 @@ opens its sheet. Every add and delete audits and emits `match.comment_added` /
 `match.comment_deleted`, with `kind` in the payload so a webhook can drop private
 notes. No feature flag.
 
+A `player` comment DMs the match's alert recipients (below), whose button opens
+`/admin/match-schedule?comments=<match_id>`: the board narrowed to that match
+with its sheet open. The comment text is escaped (`player_comment_staff_dm`) so
+a player's masked link or mention can't render in Discord.
+
+## Match alerts: the admin on duty
+
+A *match alert* is a staff DM about one match that someone has to pick up: a
+player's comment, a reschedule request. `StaffAlertService.match_alert_recipients`
+sends it to whoever holds a published shift **right now** on a volunteer position
+with `VolunteerPosition.staff_alerts` on (Admin → Volunteers → Edit Position →
+"Staff alerts while on shift"), plus the tournament's admins minus those who
+switched that tournament off (`TournamentNotificationPreference.staff_alerts`).
+Nobody on duty who can act means the alert falls back to every STAFF member, so
+a community that never set the switch behaves as before. Every recipient must
+pass the caller's permission check (`can_run_match` for comments,
+`can_crud_match` for reschedule requests), so a volunteer on the desk without
+the role is skipped rather than sent to a control that refuses them.
+Community-wide requests (join, ADA, community events) still go to all staff.
+
+The volunteer alerts (running late, gave a shift back) reuse the same on-duty
+set through `StaffAlertService.volunteer_alert_recipients`: every volunteer
+coordinator plus whoever is on duty and `can_manage_volunteers`, with all STAFF
+standing in when nobody is.
+
 ## Models
 
 | Model | Holds |
