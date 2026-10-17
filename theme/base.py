@@ -391,6 +391,7 @@ class BaseLayout:
         # markup added from a lazy tab build never executes its <script>.
         ui.add_head_html(f'<script src="{asset_url("js/table-columns.js")}"></script>')
         ui.add_head_html(f'<script defer src="{asset_url("js/a11y.js")}"></script>')
+        ui.add_head_html(f'<script defer src="{asset_url("js/busy.js")}"></script>')
         ui.add_head_html(f'<script defer src="{asset_url("js/dialog-keyboard.js")}"></script>')
         install_usage_capture(self._tenant_id)
         # Phoenix brand palette: gold primary, ember secondary — overridable per

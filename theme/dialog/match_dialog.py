@@ -10,6 +10,7 @@ from application.services import (
 )
 from application.tenant_context import require_tenant_id, tenant_scope
 from models import FeatureFlag, RaceRoomStatus
+from theme.busy import busy_click
 from theme.dialog import _match_bracket_link as bracket_link
 from theme.dialog._helpers import (
     dialog_header,
@@ -113,7 +114,8 @@ class AdminMatchDialog(BaseMatchDialog):
                     await self.on_submit(self.match)
 
             ui.button(
-                'Create racetime room', icon='sports_esports', on_click=create_room,
+                'Create racetime room', icon='sports_esports',
+                on_click=busy_click('Opening room…', create_room),
             ).props('outline color=secondary')
 
     def _render_existing_room(self, room, can_sync: bool) -> None:
