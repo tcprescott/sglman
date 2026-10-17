@@ -70,7 +70,7 @@ async def test_uncredentialed_randomizer_dropped_from_catalogue(db, app):
 # --- POST /seeds ----------------------------------------------------------
 
 async def test_generate_seed_happy_path(db, app):
-    _, raw = await create_user_token(username='roller')
+    _, raw = await create_user_token(username='roller', roles=[Role.PRESET_MANAGER])
     async with client_for(app, raw) as c:
         resp = await c.post('/api/seeds', json={'randomizer': 'alttpr'})
         assert resp.status_code == 200
@@ -78,7 +78,7 @@ async def test_generate_seed_happy_path(db, app):
 
 
 async def test_generate_seed_with_preset(db, app):
-    _, raw = await create_user_token(username='roller')
+    _, raw = await create_user_token(username='roller', roles=[Role.PRESET_MANAGER])
     preset = await Preset.create(name='Custom', randomizer='alttpr', settings={'foo': 'bar'})
     async with client_for(app, raw) as c:
         resp = await c.post('/api/seeds', json={'randomizer': 'alttpr', 'preset_id': preset.id})
@@ -88,7 +88,7 @@ async def test_generate_seed_with_preset(db, app):
 
 async def test_generate_seed_queued_randomizer_202(db, app):
     # A task-queue randomizer answers 202 with a pollable task, not a permalink.
-    _, raw = await create_user_token(username='roller')
+    _, raw = await create_user_token(username='roller', roles=[Role.PRESET_MANAGER])
     async with client_for(app, raw) as c:
         resp = await c.post('/api/seeds', json={'randomizer': 'dk64r'})
         assert resp.status_code == 202, resp.text
@@ -101,14 +101,14 @@ async def test_generate_seed_queued_randomizer_202(db, app):
 
 
 async def test_generate_seed_unknown_preset_404(db, app):
-    _, raw = await create_user_token(username='roller')
+    _, raw = await create_user_token(username='roller', roles=[Role.PRESET_MANAGER])
     async with client_for(app, raw) as c:
         resp = await c.post('/api/seeds', json={'randomizer': 'alttpr', 'preset_id': 999999})
         assert resp.status_code == 404
 
 
 async def test_generate_seed_unsupported_randomizer_400(db, app):
-    _, raw = await create_user_token(username='roller')
+    _, raw = await create_user_token(username='roller', roles=[Role.PRESET_MANAGER])
     async with client_for(app, raw) as c:
         resp = await c.post('/api/seeds', json={'randomizer': 'nope'})
         assert resp.status_code == 400
@@ -144,6 +144,29 @@ async def test_generate_seed_rejects_read_only_token(db, app):
     async with client_for(app, raw) as c:
         resp = await c.post('/api/seeds', json={'randomizer': 'alttpr'})
         assert resp.status_code == 403
+
+
+async def test_generate_seed_refuses_a_plain_member(db, app):
+    """A free roll spends the community's randomizer keys: players can't."""
+    _, raw = await create_user_token(username='player')
+    async with client_for(app, raw) as c:
+        resp = await c.post('/api/seeds', json={'randomizer': 'alttpr'})
+        assert resp.status_code == 403
+
+
+@pytest.mark.parametrize('role', [Role.PROCTOR, Role.VOLUNTEER])
+async def test_generate_seed_refuses_other_roles(db, app, role):
+    _, raw = await create_user_token(username='other', roles=[role])
+    async with client_for(app, raw) as c:
+        resp = await c.post('/api/seeds', json={'randomizer': 'alttpr'})
+        assert resp.status_code == 403
+
+
+async def test_generate_seed_allows_staff(db, app):
+    _, raw = await create_user_token(username='staffer', roles=[Role.STAFF])
+    async with client_for(app, raw) as c:
+        resp = await c.post('/api/seeds', json={'randomizer': 'alttpr'})
+        assert resp.status_code == 200
 
 
 # --- cross-tenant preset scoping -----------------------------------------

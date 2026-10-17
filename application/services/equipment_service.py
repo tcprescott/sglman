@@ -318,6 +318,16 @@ class EquipmentService:
         return await self.repository.list_all()
 
     @requires_feature(FeatureFlag.EQUIPMENT)
+    async def list_register(self, actor: Optional[User]) -> List[Equipment]:
+        """The whole register, for the people the admin Equipment tab admits.
+        Everyone else reaches one asset at a time, from its QR page."""
+        await AuthService.ensure(
+            await AuthService.can_manage_equipment(actor),
+            "Only staff and equipment managers can list the whole equipment register.",
+        )
+        return await self.repository.list_all()
+
+    @requires_feature(FeatureFlag.EQUIPMENT)
     async def get_assets_by_ids(self, ids: List[int]) -> List[Equipment]:
         """Fetch the given assets (tenant-scoped) for bulk QR-label printing.
 

@@ -39,8 +39,10 @@ from models import (
     Tournament,
     TriforceText,
     User,
+    VolunteerAssignment,
     VolunteerAvailabilityStatus,
     VolunteerPosition,
+    VolunteerShift,
     Webhook,
     WebhookDelivery,
 )
@@ -651,3 +653,53 @@ class TestVolunteerPositions:
         assert {p['name'] for p in everything['result']} == {'Check-in Desk', 'Retired Job'}
         assert [p['name'] for p in active['result']] == ['Check-in Desk']
         assert everything['result'][0]['description'] == 'Front door'
+
+
+class TestPlayerFacingGaps:
+    """A player reaches neither the volunteer roster nor the whole equipment
+    register; the app keeps both to the people who run them."""
+
+    async def test_a_player_cannot_read_the_volunteer_schedule(self, db):
+        player, raw = await create_oauth_token(roles=[])
+        await TenantMembership.create(user=player, tenant_id=1)
+        window = dict(start='2026-01-01T00:00:00', end='2026-01-02T00:00:00')
+        async with mcp_session() as client:
+            for tool, kwargs in (
+                ('list_volunteer_shifts', window),
+                ('volunteer_coverage', window),
+                ('list_volunteer_positions', {}),
+            ):
+                is_error, payload = await call_tool(client, raw, tool, tenant=TENANT, **kwargs)
+                assert is_error, (tool, payload)
+                assert 'forbidden:' in payload, (tool, payload)
+
+    async def test_a_volunteer_reads_shifts_without_drafts(self, db):
+        _, raw = await create_oauth_token(roles=[Role.VOLUNTEER])
+        pos = await VolunteerPosition.create(name='Desk')
+        shift = await VolunteerShift.create(
+            position=pos, starts_at=datetime(2026, 1, 1, 12, tzinfo=timezone.utc),
+            ends_at=datetime(2026, 1, 1, 16, tzinfo=timezone.utc),
+        )
+        published = await create_community_member(username='published')
+        drafted = await create_community_member(username='drafted')
+        await VolunteerAssignment.create(shift=shift, user=published, auto_generated=False)
+        await VolunteerAssignment.create(shift=shift, user=drafted, auto_generated=True)
+        async with mcp_session() as client:
+            is_error, payload = await call_tool(
+                client, raw, 'list_volunteer_shifts', tenant=TENANT,
+                start='2026-01-01T00:00:00', end='2026-01-02T00:00:00',
+            )
+        assert not is_error, payload
+        assert payload['result'][0]['assignees'] == [published.preferred_name]
+
+    async def test_a_player_cannot_list_equipment_but_can_look_one_up(self, db):
+        player, raw = await create_oauth_token(roles=[])
+        await TenantMembership.create(user=player, tenant_id=1)
+        asset = await Equipment.create(asset_number=3, name='CRT')
+        async with mcp_session() as client:
+            is_error, payload = await call_tool(client, raw, 'list_equipment', tenant=TENANT)
+            assert is_error and 'forbidden:' in payload, payload
+            is_error, payload = await call_tool(
+                client, raw, 'get_equipment', tenant=TENANT, equipment_id=asset.id,
+            )
+            assert not is_error, payload

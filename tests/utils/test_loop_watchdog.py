@@ -34,6 +34,17 @@ async def _settle(dog: wd.LoopWatchdog, stalls: int) -> None:
         await asyncio.sleep(0.02)
 
 
+async def _blocked_record(caplog) -> logging.LogRecord:
+    """The watchdog counts a stall before it logs it, from its own thread, so
+    the record can land a moment after ``_settle`` returns."""
+    for _ in range(100):
+        record = next((r for r in caplog.records if 'Event loop was blocked' in r.getMessage()), None)
+        if record is not None:
+            return record
+        await asyncio.sleep(0.02)
+    raise AssertionError('the watchdog never logged the block')
+
+
 class TestLoopWatchdog:
     async def test_a_quiet_loop_records_lag_but_no_stall(self, fast_watchdog):
         fast_watchdog.start()
@@ -49,10 +60,10 @@ class TestLoopWatchdog:
         with caplog.at_level(logging.WARNING, logger=wd.__name__):
             _block_the_loop(0.2)
             await _settle(fast_watchdog, 1)
+            record = await _blocked_record(caplog)
         stall = fast_watchdog.snapshot()['recent_stalls'][0]
         assert '_block_the_loop' in stall['culprit']
         assert 'tests/utils/test_loop_watchdog.py' in stall['culprit']
-        record = next(r for r in caplog.records if 'Event loop was blocked' in r.getMessage())
         assert record.levelno == logging.WARNING
 
     async def test_a_long_block_is_an_error(self, fast_watchdog, caplog):
@@ -61,7 +72,7 @@ class TestLoopWatchdog:
         with caplog.at_level(logging.WARNING, logger=wd.__name__):
             _block_the_loop(0.4)
             await _settle(fast_watchdog, 1)
-        record = next(r for r in caplog.records if 'Event loop was blocked' in r.getMessage())
+            record = await _blocked_record(caplog)
         assert record.levelno == logging.ERROR
 
     async def test_start_is_idempotent_and_stop_ends_the_thread(self, fast_watchdog):

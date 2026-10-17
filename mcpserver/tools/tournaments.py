@@ -41,8 +41,11 @@ async def list_tournaments(
 
     Returns a compact summary per tournament; use `get_tournament` for full
     detail on one. Set `active_only` to skip finished and archived events.
+    Inactive tournaments are listed only for admins.
     """
-    tournaments = await TournamentService().get_all_tournaments(active_only=active_only)
+    tournaments = await TournamentService().list_for_viewer(
+        current_actor().user, active_only=active_only,
+    )
     return [TournamentSummary.model_validate(t, from_attributes=True) for t in tournaments]
 
 
@@ -50,9 +53,13 @@ async def get_tournament(
     tournament_id: int,
     tenant: TenantArg = None,
 ) -> TournamentResponse:
-    """Get full detail for one tournament, including its configuration."""
+    """Get full detail for one tournament, including its configuration.
+
+    An inactive tournament is not found unless you're an admin.
+    """
     tournament = require_found(
-        await TournamentService().get_tournament_by_id(tournament_id), 'Tournament'
+        await TournamentService().get_for_viewer(current_actor().user, tournament_id),
+        'Tournament',
     )
     return TournamentResponse.model_validate(tournament, from_attributes=True)
 

@@ -416,6 +416,28 @@ class BracketService(
         return await self.repository.get_match_with_games(match_id)
 
     @requires_feature(FeatureFlag.BRACKETS)
+    async def get_visible_match_with_games(
+        self, viewer: Optional[User], match_id: int,
+    ) -> Optional[BracketMatch]:
+        """A matchup with its games, or ``None`` when it is missing or its
+        stage is not for this viewer (same answer, as :meth:`get_visible_bracket`)."""
+        match = await self.repository.get_match_with_games(match_id)
+        if match is None or await self.get_visible_bracket(viewer, match.bracket_id) is None:  # type: ignore[attr-defined]
+            return None
+        return match
+
+    @requires_feature(FeatureFlag.BRACKETS)
+    async def preview_advance(
+        self, actor: Optional[User], tournament_id: int, from_stage_order: int,
+    ) -> List[BracketEntry]:
+        """The dry run of :meth:`advance_stage`, for the people who may run it:
+        the next stage is a draft, so its existence and rule are staff-only."""
+        await AuthService.ensure(
+            await AuthService.is_staff(actor), "Only Staff can manage brackets",
+        )
+        return await self.get_advancing_preview(tournament_id, from_stage_order)
+
+    @requires_feature(FeatureFlag.BRACKETS)
     async def list_entries(self, bracket_id: int) -> List[BracketEntry]:
         return await self.repository.list_entries(bracket_id)
 

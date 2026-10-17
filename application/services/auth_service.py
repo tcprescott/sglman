@@ -313,6 +313,15 @@ class AuthService:
         return bool(await AuthService.get_roles(user) & AuthService._VOLUNTEER_ROLES)
 
     @staticmethod
+    async def can_view_volunteer_schedule(user: Optional[User]) -> bool:
+        """Read who works which shift: the Volunteer hub's people, plus the
+        coordinators who run the schedule from Admin."""
+        return (
+            await AuthService.can_view_volunteer(user)
+            or await AuthService.can_manage_volunteers(user)
+        )
+
+    @staticmethod
     async def can_edit_tournament(user: Optional[User], tournament: Tournament) -> bool:
         if await AuthService.is_staff(user):
             return True
@@ -528,6 +537,16 @@ class AuthService:
         await AuthService.ensure(
             await AuthService.can_manage_presets(user),
             "You do not have permission to manage presets",
+        )
+
+    @staticmethod
+    async def ensure_can_roll_free_seed(user: Optional[User]) -> None:
+        """Raise ``PermissionError`` unless ``user`` may roll a seed outside any
+        match on the community's randomizer keys: the people Seed Presets' Test
+        roll is offered to. A match's seed has its own gate (``can_run_match``)."""
+        await AuthService.ensure(
+            await AuthService.can_manage_presets(user),
+            "Only staff and preset managers can roll a seed outside a match.",
         )
 
     @staticmethod

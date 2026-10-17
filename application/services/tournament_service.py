@@ -649,6 +649,23 @@ class TournamentService(TournamentSignupMixin):
     async def get_tournament_by_id(self, tournament_id: int) -> Optional[Tournament]:
         return await self.repository.get_by_id(tournament_id)
 
+    async def list_for_viewer(
+        self, viewer: Optional[User], active_only: bool = False,
+    ) -> list[Tournament]:
+        """Inactive tournaments are hidden from players; admins see them all."""
+        if not active_only and not await AuthService.can_view_admin(viewer):
+            active_only = True
+        return await self.repository.get_all(active_only=active_only)
+
+    async def get_for_viewer(
+        self, viewer: Optional[User], tournament_id: int,
+    ) -> Optional[Tournament]:
+        """One tournament, or ``None`` when missing or inactive and ``viewer`` isn't an admin."""
+        tournament = await self.repository.get_by_id(tournament_id)
+        if tournament is None or tournament.is_active or await AuthService.can_view_admin(viewer):
+            return tournament
+        return None
+
     async def list_schedulable(
         self, actor: Optional[User], keep_id: Optional[int] = None,
     ) -> tuple[list[Tournament], dict[int, int]]:

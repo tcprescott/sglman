@@ -1,13 +1,12 @@
 """Equipment inventory reads.
 
 Gated at **actor** behind the ``EQUIPMENT`` flag, mirroring
-``api/routers/equipment.py`` and the home **Equipment** tab it shares a gate
-with. That tab carries no role check at all: in a community with the feature on,
-every member sees the inventory and who currently holds each item. These tools
-were originally ADMIN on the belief that the *admin* equipment tab was the gate
-of record; it is not, and the stricter gate only meant a member could see less
-through a connected client than in their own browser. ``private_notes`` — the
-one part of an asset that really is staff-only — stays out of both shapes.
+``api/routers/equipment.py``. A member reaches one asset at a time, as on its
+QR page (``pages/equipment.py``), which shows the holder and loan history to
+anyone; listing the whole register is the admin Equipment tab's job, so
+``list_equipment`` goes through ``EquipmentService.list_register``, which admits
+staff and equipment managers only. ``private_notes`` — the staff-only part of
+an asset — stays out of both shapes.
 
 ``EquipmentService`` carries its own ``@requires_feature`` on every read, so the
 flag is enforced twice — once at the registry gate, once in the owning service.
@@ -49,7 +48,7 @@ async def list_equipment(
 ) -> List[EquipmentSummary]:
     """List the community's equipment inventory and who currently holds each item.
 
-    `status` filters on the asset's state: `available`, `checked_out`, or
+    For staff and equipment managers. `status` filters on the asset's state: `available`, `checked_out`, or
     `retired`.
     """
     wanted: Optional[str] = None
@@ -63,7 +62,7 @@ async def list_equipment(
             ) from exc
 
     service = EquipmentService()
-    assets = await service.list_assets()
+    assets = await service.list_register(current_actor().user)
     open_loans = await service.open_loans_by_equipment_id()
     return [
         EquipmentSummary(

@@ -55,13 +55,14 @@ _shift_resp = VolunteerShiftResponse.from_row
     summary="List volunteer positions",
     description=(
         "Returns this community's volunteer positions (the roles shifts are grouped under), in display order.\n\n"
-        "**Who can call this:** Any member."
+        "**Who can call this:** Anyone the Volunteer page admits: Staff, Volunteer coordinator, Proctor or Volunteer."
     ),
 )
-async def list_positions(active_only: bool = Query(False, description="Return only active positions.")):
-    service = VolunteerPositionService()
-    positions = await (service.list_active() if active_only else service.list_all())
-    return positions
+async def list_positions(
+    active_only: bool = Query(False, description="Return only active positions."),
+    actor: User = Depends(require_api_actor),
+):
+    return await VolunteerPositionService().list_for_viewer(actor, active_only=active_only)
 
 
 @router.post(
@@ -121,7 +122,7 @@ async def delete_position(position_id: int, actor: User = Depends(require_write_
     summary="List shifts in a window",
     description=(
         "Returns every shift overlapping the window, with its assignments. Draft assignments (an unpublished auto-fill) are left out unless you can manage volunteers.\n\n"
-        "**Who can call this:** Any member."
+        "**Who can call this:** Anyone the Volunteer page admits: Staff, Volunteer coordinator, Proctor or Volunteer."
     ),
 )
 async def list_shifts(
@@ -129,7 +130,7 @@ async def list_shifts(
     end: datetime = Query(..., description="Window end (UTC ISO 8601)"),
     actor: User = Depends(require_api_actor),
 ):
-    shifts = await VolunteerScheduleService().list_shifts_for_window(start, end)
+    shifts = await VolunteerScheduleService().shifts_for_viewer(actor, start, end)
     include_drafts = await AuthService.can_manage_volunteers(actor)
     return [_shift_resp(s, include_drafts=include_drafts) for s in shifts]
 
@@ -140,11 +141,11 @@ async def list_shifts(
     summary="Get a shift",
     description=(
         "Returns one shift with its assignments. Draft assignments are left out unless you can manage volunteers.\n\n"
-        "**Who can call this:** Any member."
+        "**Who can call this:** Anyone the Volunteer page admits: Staff, Volunteer coordinator, Proctor or Volunteer."
     ),
 )
 async def get_shift(shift_id: int, actor: User = Depends(require_api_actor)):
-    shift = require_found(await VolunteerScheduleService().get_shift(shift_id), "Shift")
+    shift = require_found(await VolunteerScheduleService().shift_for_viewer(actor, shift_id), "Shift")
     return _shift_resp(shift, include_drafts=await AuthService.can_manage_volunteers(actor))
 
 
@@ -280,14 +281,15 @@ async def check_in(assignment_id: int, actor: User = Depends(require_write_actor
     summary="Per-shift coverage in a window",
     description=(
         "Returns filled and needed slot counts for every shift overlapping the window. `filled` counts draft assignments too.\n\n"
-        "**Who can call this:** Any member."
+        "**Who can call this:** Anyone the Volunteer page admits: Staff, Volunteer coordinator, Proctor or Volunteer."
     ),
 )
 async def coverage(
     start: datetime = Query(..., description="Window start (UTC ISO 8601)"),
     end: datetime = Query(..., description="Window end (UTC ISO 8601)"),
+    actor: User = Depends(require_api_actor),
 ):
-    return await VolunteerScheduleService().coverage(start, end)
+    return await VolunteerScheduleService().coverage_for_viewer(actor, start, end)
 
 
 # --- Hours ----------------------------------------------------------------
