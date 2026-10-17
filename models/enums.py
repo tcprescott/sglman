@@ -118,6 +118,7 @@ class FeatureFlag(str, Enum):
     EMERGENCY_CONTACTS = 'emergency_contacts'
     NOTIFICATION_CHANNELS = 'notification_channels'
     STARTGG = 'startgg'
+    THIRD_PARTY_APPS = 'third_party_apps'
 
 
 class BracketFormat(str, Enum):
@@ -202,12 +203,48 @@ class ApiTokenOrigin(str, Enum):
     ``PAT`` tokens are created on the profile page, carry a ``tenant``, and are
     accepted only by the REST API. ``OAUTH`` tokens are minted by the MCP
     authorization server, carry no tenant (platform-wide), and are accepted only
-    at ``/mcp``. Each surface rejects the other kind so a credential minted for
-    one can never be replayed against the other.
+    at ``/mcp``. ``APP`` tokens are grants a person approved for a third-party
+    app (:class:`~models.OAuthApp`): bound to the one community picked on the
+    consent screen, limited to the approved scopes, and accepted only by the
+    REST API. Each surface rejects the other kinds so a credential minted for
+    one can never be replayed against another.
     """
 
     PAT = 'pat'
     OAUTH = 'oauth'
+    APP = 'app'
+
+
+class OAuthClientType(str, Enum):
+    """How a third-party app proves who it is at the token endpoint.
+
+    ``CONFIDENTIAL`` apps run on a server and hold a client secret; ``PUBLIC``
+    apps (desktop, mobile, browser-only) cannot keep one and rely on PKCE alone.
+    Both must use PKCE.
+    """
+
+    CONFIDENTIAL = 'confidential'
+    PUBLIC = 'public'
+
+
+class OAuthScope(str, Enum):
+    """What a third-party app grant may do, one area of the REST API each.
+
+    Scopes only ever narrow: a grant can do what its scopes cover *and* what the
+    person's own roles in that community allow. The consent wording and the
+    write/staff groupings live in :mod:`application.oauth_scopes`. The values
+    are an external contract (apps request them by name), so renaming one is
+    breaking.
+    """
+
+    PROFILE = 'profile'
+    PROFILE_WRITE = 'profile:write'
+    SCHEDULE_READ = 'schedule:read'
+    PLAY = 'play'
+    CREW = 'crew'
+    VOLUNTEER = 'volunteer'
+    STAFF_READ = 'staff:read'
+    STAFF_WRITE = 'staff:write'
 
 
 class RoleSource(str, Enum):

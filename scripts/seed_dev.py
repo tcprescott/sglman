@@ -97,6 +97,7 @@ from scripts.seed_support import (
     backfill,
     fixture_discord_id,
 )
+from scripts.seed_oauth_apps import seed_oauth_apps_for_tenant
 from scripts.seed_tokens import seed_tokens_for_tenant
 from scripts.seed_venue import seed_venue_for_tenant
 from scripts.seed_volunteers import seed_volunteers_for_tenant
@@ -470,6 +471,9 @@ async def seed_for_tenant(
 
         # --- API + room tokens (scripts/seed_tokens.py) -------------------
         await seed_tokens_for_tenant(tenant, staff, now)
+
+        # --- Third-party apps (scripts/seed_oauth_apps.py) ----------------
+        await seed_oauth_apps_for_tenant(tenant, staff, now)
 
 
         # --- Triforce texts --------------------------------------------------

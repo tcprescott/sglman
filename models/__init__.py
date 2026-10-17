@@ -68,6 +68,8 @@ from .enums import (
     MatchCommentKind,
     MatchNotificationLevel,
     MembershipSource,
+    OAuthClientType,
+    OAuthScope,
     PresetOverride,
     ProviderTaskStatus,
     RaceRoomStatus,
@@ -101,6 +103,7 @@ from .match import (
     Tracker,
 )
 from .mcp import McpAuthorizationCode, McpOAuthClient
+from .oauth_app import OAuthApp, OAuthAppCode
 from .preferences import UserTablePreference
 from .racetime import RaceRoomProfile, RacetimeBot, RacetimeBotTenant, RacetimeRoom
 from .speedgaming import SpeedGamingEpisode, SpeedGamingEventLink
@@ -246,6 +249,10 @@ __all__ = [
     'McpAuthorizationCode',
     'McpOAuthClient',
     'MembershipSource',
+    'OAuthApp',
+    'OAuthAppCode',
+    'OAuthClientType',
+    'OAuthScope',
     # volunteer
     'PlayerAvailability',
     'Preset',
