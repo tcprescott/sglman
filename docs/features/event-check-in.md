@@ -370,10 +370,13 @@ events staff have opened. Run one tick by hand with
 
 `pages/check_in.py`, gated on `roles=[STAFF, CHECK_IN_DESK]` and the flag.
 
-- `/checkin` lists open events and redirects straight to the one when there is
-  only one. The **Check-in** nav item appears for desk roles while an event is
-  open (`BaseLayout` via `AuthService.can_view_check_in_desk`).
-- `/checkin/{event_id}` is the desk. It's phone-first: the search box, progress
+- The desk is the **Check-in Desk** tab of the Volunteer hub
+  (`/volunteer/check-in-desk`). It opens the only open event, or lists them when
+  several are open; `?event=<id>` picks one. The tab, and Volunteer in the menu
+  for a desk role with no volunteer role, show while an event is open
+  (`BaseLayout` via `AuthService.can_view_check_in_desk`). `/checkin` and
+  `/checkin/{event_id}` redirect there.
+- The desk itself It's phone-first: the search box, progress
   bar, the All / Not yet / Checked in / Comped / Walk-ups switch (the app's
   `.wiz-segmented` control, with counts; it scrolls sideways on a phone) and
   sync status stick under the app header. **Comped** is everyone with a comp,

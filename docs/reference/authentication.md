@@ -25,7 +25,7 @@ Defined in [`models/enums.py`](../../models/enums.py) as `Role(str, Enum)` — t
 | `volunteer_coordinator` | Volunteer leads | Admin dashboard; manage volunteer positions, shifts, assignments |
 | `equipment_manager` | Equipment leads | Admin dashboard; CRUD on lending assets; check equipment in/out; view private notes/owner |
 | `volunteer` | General volunteers | Volunteer workflows on `/volunteer` (no Admin access) |
-| `check_in_desk` | Check-in volunteers | Work the event check-in desk at `/checkin`: check people in, link registrants to accounts, sync (`can_run_check_in_desk`). Walk-ups and event setup stay staff-only. No Admin access |
+| `check_in_desk` | Check-in volunteers | Work the event check-in desk at Volunteer → Check-in Desk: check people in, link registrants to accounts, sync (`can_run_check_in_desk`). Walk-ups and event setup stay staff-only. No Admin access |
 | `preset_manager` | Seed-preset authors | Author/edit the tenant's seed-rolling presets (`can_manage_presets`) |
 | `sync_admin` | Sync/integration admins | Manage upstream sync config: SpeedGaming links, Discord events, racetime bot/room config (`can_manage_sync`) |
 | `qualifier_admin` | Qualifier admins | Administer async qualifiers — author pools/permalinks, work the reviewer queue (`can_admin_qualifier`) |
@@ -209,10 +209,10 @@ Signed-out readability is **not** publication: the app serves a blanket `robots.
 | Decorator | Route(s) | Gating |
 |---|---|---|
 | `protected_tab_page` | `/admin` ([`pages/admin.py`](../../pages/admin.py)) | Login-only; the page body does its own tab-by-tab authorization |
-| `protected_tab_page` | `/volunteer` ([`pages/volunteer.py`](../../pages/volunteer.py)) | `roles=[VOLUNTEER, PROCTOR, STAFF]`, `feature=VOLUNTEERS` |
+| `protected_tab_page` | `/volunteer` ([`pages/volunteer.py`](../../pages/volunteer.py)) | `roles=[VOLUNTEER, PROCTOR, STAFF, CHECK_IN_DESK]`, `feature=(VOLUNTEERS, EVENT_CHECK_IN)` (either opens it); the volunteer tabs follow `can_view_volunteer`, the desk tab `can_view_check_in_desk` |
 | `protected_page` | `/equipment/{asset_id}` ([`pages/equipment.py`](../../pages/equipment.py)) | `feature=EQUIPMENT` |
 | `protected_page` | `/equipment/qr-labels` ([`pages/equipment_labels.py`](../../pages/equipment_labels.py)) | `roles=[STAFF, EQUIPMENT_MANAGER]`, `feature=EQUIPMENT` |
-| `protected_page` | `/checkin`, `/checkin/{event_id}` ([`pages/check_in.py`](../../pages/check_in.py)) | `roles=[STAFF, CHECK_IN_DESK]`, `feature=EVENT_CHECK_IN` |
+| `protected_page` | `/checkin`, `/checkin/{event_id}` ([`pages/check_in.py`](../../pages/check_in.py)) | `roles=[STAFF, CHECK_IN_DESK]`, `feature=EVENT_CHECK_IN`; both redirect to the Volunteer hub's desk tab |
 | `protected_page` | `/qualifiers`, `/qualifiers/{qualifier_id}` ([`pages/qualifiers.py`](../../pages/qualifiers.py)) | `feature=ASYNC_QUALIFIERS` |
 | `public_page` | `/tournament/{tournament_id}/brackets`, `/brackets/{bracket_id}` ([`pages/brackets.py`](../../pages/brackets.py)) | `feature=BRACKETS`; spectator surfaces that must work signed out |
 | `public_page` | `/event-info`, `/event-info/{slug}` ([`pages/event_info.py`](../../pages/event_info.py)) | `feature=EVENT_INFO` |
@@ -274,7 +274,7 @@ The `MOCK_DISCORD` production refusal is **not** part of `validate_security_conf
 |---|---|
 | `can_view_admin(user)` | Global `SUPER_ADMIN` (checked first), an admin role (`STAFF`, `STREAM_MANAGER`, `EQUIPMENT_MANAGER`, `VOLUNTEER_COORDINATOR`), or TA/CC of at least one tournament **in this tenant** (the reverse relations hang off the global `User`, so they are tenant-filtered). Excludes `PROCTOR`/`VOLUNTEER` |
 | `can_open_admin(user)` | The nav's Admin link: `/admin` has at least one tab for this viewer. Mirrors `build_admin_tabs` flags included: super-admin, `STAFF`/`STREAM_MANAGER`, TA/CC, `PRESET_MANAGER`, `SYNC_ADMIN`; `VOLUNTEER_COORDINATOR` with `VOLUNTEERS`, `EQUIPMENT_MANAGER` with `EQUIPMENT`, `QUALIFIER_ADMIN` or a per-qualifier admin with `ASYNC_QUALIFIERS`. Deliberately separate from `can_view_admin`, which also gates the admin API, MCP admin scope, reports and staff help |
-| `can_view_volunteer(user)` | The `VOLUNTEERS` flag is live **and** (super-admin or one of `VOLUNTEER`/`PROCTOR`/`STAFF`). The nav's single source of truth, so the header link and `@protected_tab_page('/volunteer')` cannot drift into offering a link that 404s or 403s |
+| `can_view_volunteer(user)` | The `VOLUNTEERS` flag is live **and** (super-admin or one of `VOLUNTEER`/`PROCTOR`/`STAFF`). The nav's source of truth for the volunteer tabs, so the header link and `@protected_tab_page('/volunteer')` cannot drift into offering a link that 404s or 403s. The hub also opens for the desk (`can_view_check_in_desk`) |
 | `can_edit_tournament(user, tournament)` | Staff, or TA of that tournament |
 | `can_manage_payouts(user, tournament)` | Same people as `can_edit_tournament` — read **and** edit one tournament's prize split (an unannounced split is admin data, so reads are gated too) |
 | `can_crud_match(user, match)` | Staff, or TA of the match's tournament |

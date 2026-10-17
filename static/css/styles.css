@@ -4232,6 +4232,39 @@ body.wiz-offline .wiz-requires-socket {
         grid-column: 1 / -1;
         justify-content: flex-end;
     }
+
+    /* A finished shift has only its ⋮, which fits beside the title. */
+    .wiz-shift-row--done {
+        grid-template-columns: 64px minmax(0, 1fr) auto;
+    }
+
+    .wiz-shift-row--done .wiz-shift-row__actions {
+        grid-column: auto;
+    }
+}
+
+.wiz-shift-row--done .wiz-shift-row__main > :first-child,
+.wiz-shift-row--done .wiz-shift-row__time {
+    color: var(--fg-muted);
+}
+
+/* Finished shifts fold under the agenda, flush with its rows. */
+.wiz-shift-finished {
+    border-top: 1px solid var(--border-subtle);
+}
+
+.wiz-shift-finished .q-item {
+    padding-left: 0;
+    padding-right: 0;
+    color: var(--fg-muted);
+}
+
+.wiz-shift-finished .nicegui-expansion-content {
+    padding: 0;
+}
+
+.wiz-shift-finished .q-expansion-item__content .wiz-shift-day:first-child {
+    margin-top: var(--space-1);
 }
 
 /* My Schedule's Timeline view: one day column on the volunteer grid's hour
@@ -5179,6 +5212,13 @@ ol.wiz-help-list { list-style-type: decimal; }
     border-bottom: 1px solid var(--border-subtle);
 }
 
+/* The desk is a Volunteer tab, and Quasar's tab panel clips its overflow, which
+   would pin the toolbar to the panel instead of the window. */
+.q-tab-panels:has(.checkin-toolbar),
+.q-panel:has(.checkin-toolbar) {
+    overflow: visible;
+}
+
 /* Five filters don't fit a phone's width as equal segments. Scrolling them
    sideways cut "Comped" off with nothing saying more were there, so they wrap
    onto a second line instead and every filter stays in view. */
@@ -5236,6 +5276,13 @@ ol.wiz-help-list { list-style-type: decimal; }
     background: #2b2620; /* style-guide: exempt — a dark snackbar in both modes */
     color: #fff;
     box-shadow: var(--shadow-1);
+}
+
+/* Clear the Volunteer hub's bottom nav, which shows below the desktop break. */
+@media (max-width: 1023.98px) {
+    body.wiz-has-bottom-nav .checkin-undo {
+        bottom: calc(16px + var(--wiz-bottom-nav-h) + env(safe-area-inset-bottom));
+    }
 }
 
 .checkin-footer {

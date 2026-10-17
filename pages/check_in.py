@@ -1,7 +1,8 @@
 """The event check-in desk — the page volunteers work from on their phones.
 
-``/checkin`` lists the open check-in events (and goes straight to the one when
-there is only one); ``/checkin/{event_id}`` is the desk itself: a search box
+It is a tab of the Volunteer hub (``/volunteer/check-in-desk``), which lists the
+open check-in events (and goes straight to the one when there is only one);
+``?event=<id>`` opens the desk itself: a search box
 pinned to the top, filter chips with counts (one per badge type too), and one
 card per person showing the badges they bought and a full-width Check in button.
 
@@ -21,7 +22,7 @@ taps a button the service will refuse.
 
 from typing import Dict, List, Optional
 
-from nicegui import app, background_tasks, context, ui
+from nicegui import background_tasks, context, ui
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
@@ -30,8 +31,6 @@ from application.services import (
     AuthService,
     CheckInDeskService,
     CheckInService,
-    TenantService,
-    get_user_from_session,
 )
 from application.services.check_in_rules import (
     DESK_FILTERS,
@@ -45,6 +44,7 @@ from application.services.check_in_rules import (
 from application.table_preferences_context import table_prefs_scope
 from application.tenant_context import tenant_scope
 from application.timezone_context import tz_scope
+from application.utils.app_links import volunteer_check_in_url
 from application.utils.timezone import format_local_display, format_local_time
 from middleware.auth import protected_page
 from models import (
@@ -56,7 +56,6 @@ from models import (
     FeatureFlag,
     Role,
 )
-from theme.base import BaseLayout
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog
 from theme.dialog.check_in_dialogs import open_link_dialog, open_walk_up_dialog
@@ -419,49 +418,51 @@ def _sync_line(event: CheckInEvent) -> tuple[str, str]:
     )
 
 
-async def _desk_page_frame(title_suffix: str):
-    community = await TenantService.current_community_name() or 'Wizzrobe'
-    ui.page_title(f'{community} — {title_suffix}')
-    user = await get_user_from_session(app.storage.user)
-    await BaseLayout(user=user).render()
-    return user
+async def check_in_desk_tab(user, event: Optional[str] = None) -> None:
+    """Volunteer → Check-in Desk: the desk for one event, or a picker.
+
+    ``event`` is a check-in event id from the URL (``?event=``). Without one the
+    tab opens the only open event, or lists them when several are open.
+    """
+    service = CheckInService()
+    if event is not None and event.isdecimal():
+        current = await service.get_event(int(event))
+        if current is not None:
+            await _render_desk(service, user, current)
+            return
+        ui.notify("That check-in event doesn't exist any more.", color='warning')
+    open_events = await service.list_open_events()
+    if len(open_events) == 1:
+        await _render_desk(service, user, open_events[0])
+        return
+
+    with ui.column().classes('page-container-narrow w-full q-pa-md gap-3'):
+        with page_header('Check-in Desk'):
+            await help_icon('check-in-desk', user=user)
+        if not open_events:
+            empty_panel('No event is open for check-in right now.', icon='how_to_reg')
+            if await AuthService.can_manage_check_in(user):
+                ui.label('Open one from Admin → Check-in Roster.').classes('text-caption text-grey-7')
+            return
+        ui.label('Pick the event you are checking people in for.').classes('text-caption text-grey-7')
+        for item in open_events:
+            ui.button(item.name, icon='how_to_reg',
+                      on_click=lambda _, e=item: ui.navigate.to(volunteer_check_in_url(e.id))) \
+                .props('unelevated no-caps color=primary size=lg align=left').classes('w-full')
 
 
 def create() -> None:
+    # The desk moved into the Volunteer hub; links already in DMs, bookmarks
+    # and printed signs still land on it.
     @protected_page('/checkin', roles=DESK_ROLES, feature=FeatureFlag.EVENT_CHECK_IN)
     async def check_in_index(request: Request):
-        service = CheckInService()
-        open_events = await service.list_open_events()
-        if len(open_events) == 1:
-            root_path = request.scope.get('root_path', '') or ''
-            return RedirectResponse(f'{root_path}/checkin/{open_events[0].id}')
-
-        user = await _desk_page_frame('Check-in')
-        with ui.column().classes('page-container-narrow w-full q-pa-md gap-3'):
-            page_header('Check-in')
-            if not open_events:
-                empty_panel('No event is open for check-in right now.', icon='how_to_reg')
-                if await AuthService.can_manage_check_in(user):
-                    ui.label('Open one from Admin → Check-in.').classes('text-caption text-grey-7')
-                return
-            ui.label('Pick the event you are checking people in for.').classes('text-caption text-grey-7')
-            for event in open_events:
-                ui.button(event.name, icon='how_to_reg',
-                          on_click=lambda _, e=event: ui.navigate.to(f'/checkin/{e.id}')) \
-                    .props('unelevated no-caps color=primary size=lg align=left').classes('w-full')
+        root_path = request.scope.get('root_path', '') or ''
+        return RedirectResponse(f'{root_path}{volunteer_check_in_url()}')
 
     @protected_page('/checkin/{event_id}', roles=DESK_ROLES, feature=FeatureFlag.EVENT_CHECK_IN)
-    async def check_in_desk(event_id: int):
-        user = await _desk_page_frame('Check-in desk')
-        service = CheckInService()
-        event = await service.get_event(event_id)
-        if event is None:
-            with ui.column().classes('page-container-narrow w-full q-pa-md gap-2'):
-                ui.label("That check-in event doesn't exist any more.").classes('text-body1')
-                ui.button('See open events', on_click=lambda: ui.navigate.to('/checkin')) \
-                    .props('flat no-caps color=primary')
-            return
-        await _render_desk(service, user, event)
+    async def check_in_desk(request: Request, event_id: str):
+        root_path = request.scope.get('root_path', '') or ''
+        return RedirectResponse(f'{root_path}{volunteer_check_in_url(event_id)}')
 
 
 async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> None:

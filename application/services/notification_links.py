@@ -284,15 +284,15 @@ async def profile_notifications(*, label: str = 'Notification settings') -> Opti
     return await link_for(label, '/home/profile?focus=notifications')
 
 
-async def volunteer_my_shifts(*, label: str = 'My Shifts') -> Optional[DMLink]:
-    """My Shifts, for a DM whose own buttons already carry the actions."""
+async def volunteer_my_shifts(*, label: str = 'Your shifts') -> Optional[DMLink]:
+    """My Schedule at your shifts, for a DM whose own buttons already carry the actions."""
     return await link_for(label, volunteer_my_shifts_url())
 
 
 async def volunteer_release(
     assignment_id: int, *, label: str = "Can't make it",
 ) -> Optional[DMLink]:
-    """My Shifts with this shift's give-back dialog open, for the volunteer on it."""
+    """My Schedule with this shift's give-back dialog open, for the volunteer on it."""
     return await link_for(label, volunteer_release_url(assignment_id))
 
 

@@ -2,23 +2,40 @@
 
 from fastapi import Request
 from nicegui import app, ui
+from starlette.responses import RedirectResponse
 
-from application.services import AuthService, TenantService, get_user_from_session
+from application.services import (
+    AuthService,
+    CheckInService,
+    TenantService,
+    get_user_from_session,
+)
+from application.utils.app_links import HOME_MY_SCHEDULE, VOLUNTEER_CHECK_IN, VOLUNTEER_MY_SHIFTS, home_url
 from middleware.auth import protected_tab_page
 from models import FeatureFlag, Role
+from pages.check_in import check_in_desk_tab
 from pages.volunteer_tabs.availability import availability_tab
 from pages.volunteer_tabs.full_schedule import full_schedule_tab
-from pages.volunteer_tabs.my_shifts import my_shifts_tab
 from pages.volunteer_tabs.proctor_station import proctor_station_tab
 from theme.base import BaseLayout
 
 
 def create() -> None:
-    @protected_tab_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF],
-                        feature=FeatureFlag.VOLUNTEERS)
+    # Two features share the hub: the volunteer tabs and the check-in desk. Either
+    # one opens it, and each tab below keeps its own gate.
+    @protected_tab_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF, Role.CHECK_IN_DESK],
+                        feature=(FeatureFlag.VOLUNTEERS, FeatureFlag.EVENT_CHECK_IN))
     async def volunteer_page(
         section: str | None = None, request: Request = None, release: str | None = None,
-    ) -> None:
+        event: str | None = None,
+    ):
+        root_path = request.scope.get('root_path', '') if request else ''
+        # My Shifts folded into My Schedule; the reminder DMs already sent carry
+        # this address, and ``?release=`` still opens the give-back dialog.
+        if section == VOLUNTEER_MY_SHIFTS:
+            params = {'release': release} if release else {'shifts': 1}
+            return RedirectResponse(f'{root_path}{home_url(HOME_MY_SCHEDULE, **params)}')
+
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Volunteer')
         user = await get_user_from_session(app.storage.user)
 
@@ -28,31 +45,53 @@ def create() -> None:
         is_staff = await AuthService.is_staff(user)
         is_proctor = Role.PROCTOR in roles
         is_volunteer = Role.VOLUNTEER in roles
+        volunteers_live = await AuthService.can_view_volunteer(user)
+        desk = await AuthService.can_view_check_in_desk(user)
 
         tabs = []
-        # The two self-service tabs read the *signed-in* user's own availability
-        # and shifts, so they are safe (and empty) for someone who volunteers for
-        # nothing; the role gate above is the only guard on saving availability.
-        # This tab is when you can *work*, and it is opt-in — the player one on
-        # Home is when you can't *play*, opt-out.
-        if is_volunteer or is_staff:
-            tabs.append({'label': 'My Availability', 'icon': 'edit_calendar', 'content': availability_tab})
-            # ``?release=<assignment id>`` comes from the reminder DM's "Can't
-            # make it" button and opens that shift's give-back dialog.
-            tabs.append({'label': 'My Shifts', 'icon': 'assignment_ind',
-                         'content': (my_shifts_tab, (), {'release': release})})
-        # Everyone the hub admits reads the whole published schedule: knowing who
-        # is at the next station over is the point, and volunteers may see what
-        # staff see.
-        tabs.append({'label': 'Full Schedule', 'icon': 'calendar_view_week', 'content': full_schedule_tab})
-        if is_proctor or is_staff:
-            # Bound to the viewer: the tab's help icons read role-gated snippets
-            # from the event handbook, and the page has already resolved who is
-            # looking.
-            tabs.append({'label': 'Proctor Station', 'icon': 'sports_esports',
-                         'content': (proctor_station_tab, (user,))})
-        base_path = f"{request.scope.get('root_path', '')}/volunteer" if request else '/volunteer'
+        if volunteers_live:
+            # Reads the *signed-in* user's own availability, so it is safe (and
+            # empty) for someone who volunteers for nothing; the role gate above
+            # is the only guard on saving it. This tab is when you can *work*,
+            # and it is opt-in — the player one on Home is when you can't
+            # *play*, opt-out. Their shifts are on Home → My Schedule.
+            if is_volunteer or is_staff:
+                tabs.append({'label': 'My Availability', 'icon': 'edit_calendar', 'content': availability_tab})
+            # Everyone the volunteer roles admit reads the whole published
+            # schedule: knowing who is at the next station over is the point,
+            # and volunteers may see what staff see.
+            tabs.append({'label': 'Full Schedule', 'icon': 'calendar_view_week', 'content': full_schedule_tab})
+            if is_proctor or is_staff:
+                # Bound to the viewer: the tab's help icons read role-gated
+                # snippets from the event handbook, and the page has already
+                # resolved who is looking.
+                tabs.append({'label': 'Proctor Station', 'icon': 'sports_esports',
+                             'content': (proctor_station_tab, (user,))})
+        # Offered while an event is open, as the menu item it replaced was. A
+        # link straight to it (``/checkin``, an old bookmark) still lands, so the
+        # tab can say nothing is open rather than drop the visitor elsewhere.
+        if desk and (
+            section == VOLUNTEER_CHECK_IN or event is not None or not tabs
+            or await CheckInService().has_open_event()
+        ):
+            tabs.append({'label': 'Check-in Desk', 'icon': 'how_to_reg', 'slug': VOLUNTEER_CHECK_IN,
+                         'content': (check_in_desk_tab, (user,), {'event': event})})
+        if not tabs:
+            # A desk-only role in a community whose check-in is off: the role
+            # gate let them in, but nothing here is theirs.
+            from theme.error_page import prepared_layout, render_error_page
+            render_error_page(
+                status_code=403,
+                headline='Not available to you',
+                message="You don't have access to this page. If you think that's wrong, ask a staff member to check your role.",
+                user=user,
+                layout=await prepared_layout(user),
+            )
+            return
+        if event is not None and section is None:
+            section = VOLUNTEER_CHECK_IN
+        base_path = f"{root_path}/volunteer"
         await BaseLayout(
             tabs=tabs, section=section, base_path=base_path, page_name='volunteer', user=user,
-            show_volunteer=True,
+            show_volunteer=volunteers_live,
         ).render()
