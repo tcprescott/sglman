@@ -3138,6 +3138,60 @@ body:has(.wiz-header) .q-notifications__list--top {
     animation: wizRowFlash 1.6s ease-out;
 }
 
+/* Hold still (docs/style-guide.md#hold-still): a row changed by someone else
+   keeps its place until the viewer tidies the board. The tag is absolutely
+   placed so adding or dropping it never changes the row's height. */
+.run-sheet__card,
+.player-sheet__card,
+.match-grid-card {
+    position: relative;
+}
+.wiz-held-tag {
+    position: absolute;
+    top: -0.6rem;
+    right: 0.75rem;
+    z-index: 1;
+    padding: 0 0.4rem;
+    font-size: var(--text-xs, 0.75rem);
+    font-weight: 600;
+    line-height: 1.15rem;
+    white-space: nowrap;
+    color: var(--status-info);
+    background: color-mix(in srgb, var(--status-info) 12%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--status-info) 40%, transparent);
+    border-radius: 999px;
+    pointer-events: none;
+}
+/* A table row can't anchor an absolute child, so on desktop the tag sits
+   under the time; the match cell is always taller than that column. */
+.run-sheet__row .wiz-held-tag {
+    position: static;
+    display: table;
+    margin-top: 0.25rem;
+    white-space: normal;
+    border-radius: var(--radius-sm, 6px);
+}
+.wiz-held-tag--removed {
+    color: var(--fg-muted);
+    background: var(--surface-alt);
+    border-color: var(--border-subtle);
+}
+.wiz-row-removed {
+    opacity: 0.5;
+    cursor: default;
+}
+.wiz-row-removed .wiz-held-tag {
+    opacity: 1;
+}
+.wiz-tidy-pill.q-btn {
+    position: fixed;
+    top: calc(var(--wiz-header-height, 56px) + env(safe-area-inset-top, 0px) + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9000;
+    box-shadow: var(--shadow-3);
+}
+
 /* The card a DM's link button was about, so the reader's eye lands on it. */
 .wiz-deep-link-target {
     outline: 2px solid var(--q-primary);

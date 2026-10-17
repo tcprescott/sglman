@@ -346,10 +346,15 @@ correct states is wrong for the frames in between, and screenshots never show it
 - **Reserve the space for what will arrive.** A spinner, an empty state or a
   placeholder takes the height of what replaces it. A banner or count that can
   appear after load gets a slot that is already there.
-- **Other people's changes update rows where they sit.** A changed row redraws in
-  place and a removed row leaves a placeholder of the same height; the board only
-  re-sorts when the viewer asks for it. Never insert a row above what someone is
-  looking at.
+- **Changes update rows where they sit, the viewer's own included.** On a match
+  board (`MatchTableView`, via `theme/tables/match_hold.py`) a row that now
+  belongs in another group stays put with a "Now Ready to start" tag, a removed
+  match fades in place with a "Removed" tag and no working buttons, and a new
+  match waits off the board. A "N changes held · Tidy up" pill counts them, and
+  the board re-sorts in one step when the viewer taps it, scrolls, or leaves the
+  board untouched for a minute. Never insert a row above what someone is
+  looking at. A tag is absolutely placed (or sits under the time on desktop), so
+  adding it never changes a row's height.
 - **A row's state change never swaps its controls' sides.** A badge that replaces
   a button takes that button's slot (see [Actions and menus](#actions-and-menus)).
 
@@ -358,7 +363,9 @@ correct states is wrong for the frames in between, and screenshots never show it
 section with unchanged data (`theme/layout_probe.py`, only installed when the app
 runs with `WIZ_LAYOUT_PROBE=1`), and fails any element that moves more than 2px.
 A failure names the element and how far it moved; the usual cause is a section
-that went empty, or changed height, while it rebuilt.
+that went empty, or changed height, while it rebuilt. Targets with `live` steps then
+change matches from a second session (check one in, delete one) and fail when a
+board row moves by more than the rows above it grew.
 
 ## Words
 

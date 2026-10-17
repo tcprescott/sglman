@@ -18,9 +18,13 @@
  * spinner swapped in for content, and a placeholder of the wrong height.
  *
  * Config "live" steps then change real data from a second session, as another
- * staff member would, and fail if what the viewer already sees moves. Each step
- * is a REST call: { "method": "POST", "path": "/api/...", "body": {...} },
- * sent with the seeded bearer token named by "liveToken".
+ * staff member would, and fail if a row the viewer already sees moves. Each step
+ * is a REST call: { "method": "POST", "path": "/api/matches/{id}/seat" },
+ * sent with the bearer token in "liveToken". "{id}" is a match picked from
+ * GET /api/matches by the step's "pick" ("unplayed" or "checkable", see
+ * pick()), never one an earlier step used. A row that changes
+ * may grow or shrink in place, so a live step checks each board row against
+ * where it should sit given the rows above it, not against any movement.
  *
  * Prereqs: the app booted with WIZ_LAYOUT_PROBE=1 and seeded (see the
  * ui-validation skill), Playwright resolvable as for ui_a11y_scan.js.
@@ -88,6 +92,45 @@ function startRecording() {
   }).observe({ type: 'layout-shift', buffered: false });
 }
 
+const ROW_SELECTOR = '[data-wiz-row]';
+
+// Remembers every visible board row (theme/tables marks each with its match id)
+// and where it sits.
+function snapshotRows(selector) {
+  const rows = [...document.querySelectorAll(selector)].filter((e) => e.offsetParent);
+  window.__wizRowSnap = rows.map((el) => {
+    const r = el.getBoundingClientRect();
+    return { id: el.dataset.wizRow, board: el.closest('.q-table__container'), top: r.top + window.scrollY, height: r.height,
+      text: (el.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 50) };
+  });
+}
+
+// A row may move only by how much the rows above it on the same board grew.
+function rowsOutOfPlace(selector) {
+  const snap = window.__wizRowSnap || [];
+  const now = snap.map((s) => {
+    const el = [...(s.board || document).querySelectorAll(selector)]
+      .find((e) => e.dataset.wizRow === s.id && e.offsetParent);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { top: r.top + window.scrollY, height: r.height };
+  });
+  const out = [];
+  snap.forEach((s, i) => {
+    if (!now[i]) {
+      out.push(`row "${s.text}" left the board`);
+      return;
+    }
+    let grew = 0;
+    snap.forEach((o, j) => {
+      if (j !== i && now[j] && o.board === s.board && o.top < s.top) grew += now[j].height - o.height;
+    });
+    const dy = now[i].top - s.top - grew;
+    if (Math.abs(dy) > 2) out.push(`row "${s.text}" moved ${Math.round(dy)}px`);
+  });
+  return out;
+}
+
 function collect(ignoreSelectors) {
   const out = [];
   for (const s of window.__wizShifts || []) {
@@ -122,13 +165,32 @@ function collect(ignoreSelectors) {
   const storageState = await loginCtx.storageState();
   await loginCtx.close();
 
-  async function live(step) {
-    const res = await fetch(`${baseUrl}${withTenant(step.path)}`, {
-      method: step.method || 'POST',
+  const used = new Set();
+  async function api(method, p, body) {
+    const res = await fetch(`${baseUrl}${p}`, {
+      method,
       headers: { Authorization: `Bearer ${cfg.liveToken}`, 'Content-Type': 'application/json' },
-      body: step.body ? JSON.stringify(step.body) : undefined,
+      body: body ? JSON.stringify(body) : undefined,
     });
-    if (!res.ok) throw new Error(`${step.method || 'POST'} ${step.path} -> ${res.status} ${(await res.text()).slice(0, 200)}`);
+    if (!res.ok) throw new Error(`${method} ${p} -> ${res.status} ${(await res.text()).slice(0, 200)}`);
+    return res.status === 204 ? null : res.json();
+  }
+  // "unplayed": has players, not yet checked in or finished. "checkable" also
+  // leaves out racetime.gg tournaments, whose matches refuse a manual check-in.
+  async function pick(kind) {
+    const racetime = new Set((await api('GET', '/api/tournaments'))
+      .filter((t) => t.racetime_bot_id != null).map((t) => t.id));
+    const matches = await api('GET', '/api/matches?limit=500');
+    const hit = matches.find((m) => !used.has(m.id)
+      && m.players && m.players.length && !m.seated_at && !m.finished_at
+      && (kind !== 'checkable' || !racetime.has(m.tournament && m.tournament.id)));
+    if (!hit) throw new Error(`no ${kind} match left to pick`);
+    used.add(hit.id);
+    return hit.id;
+  }
+  async function live(step) {
+    const p = step.pick ? step.path.replace('{id}', await pick(step.pick)) : step.path;
+    await api(step.method || 'POST', p, step.body);
   }
 
   async function scan(page, vp, t) {
@@ -167,15 +229,15 @@ function collect(ignoreSelectors) {
     for (const s of redraw) failures.push(`[${label}] redraw moved ${s.el} by ${s.dx},${s.dy}px (height ${s.dh >= 0 ? '+' : ''}${s.dh})`);
 
     for (const step of t.live || []) {
+      await page.evaluate(snapshotRows, ROW_SELECTOR);
       try {
         await live(step);
       } catch (e) {
         failures.push(`[${label}] live step failed: ${e.message}`);
         break;
       }
-      await page.waitForTimeout(1500);
-      const moved = await page.evaluate(collect, selectors);
-      for (const s of moved) failures.push(`[${label}] "${step.label || step.path}" moved ${s.el} by ${s.dx},${s.dy}px`);
+      await page.waitForTimeout(2000);
+      for (const m of await page.evaluate(rowsOutOfPlace, ROW_SELECTOR)) failures.push(`[${label}] after "${step.label || step.path}": ${m}`);
     }
     if (failures.length) await page.screenshot({ path: path.join(outDir, `${label.replace(/\s+/g, '-')}.png`) });
     return { label, failures, summary: `moved=${failures.length}` };

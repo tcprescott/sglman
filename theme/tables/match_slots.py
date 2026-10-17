@@ -58,27 +58,27 @@ def crew_wanted_js(role: str) -> str:
 # — "click the 17 to edit this match" — which is both a database value on screen
 # and a control nobody can guess is a control. A labelled pencil in the same
 # first-column slot costs the same width and says what it does.
-EDIT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+EDIT_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <q-btn flat round dense icon="edit" color="primary"
            @click="$parent.$emit('edit_match', props)" aria-label="Edit this match">
         <q-tooltip>Edit this match</q-tooltip>
     </q-btn>
 </q-td>'''
 
-ID_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+ID_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <a href="#" @click="$parent.$emit('edit_match', props)" class="table-link cell-id">{{ props.value }}</a>
 </q-td>'''
 
 # Plain id for viewers without an edit callback (e.g. proctors) — a link that
 # emits an unhandled event reads as broken.
-ID_SLOT_READONLY = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+ID_SLOT_READONLY = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <span class="cell-id">{{ props.value }}</span>
 </q-td>'''
 
 # A bracket-scheduled match links to the stage it settles. The link emits rather
 # than carrying an href: `ui.navigate.to` prepends the tenant's root_path, which
 # a hand-built href in a slot template would miss under path-mode multitenancy.
-TOURNAMENT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+TOURNAMENT_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <div class="cell-tournament">{{ props.value }}</div>
     <a v-if="props.row.bracket" href="#" class="table-link cell-bracket-link"
        @click.prevent="$parent.$emit('open_bracket', props.row)">
@@ -91,14 +91,14 @@ TOURNAMENT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-fl
 # ``is_overdue`` (set by MatchDisplayService) means the scheduled time has passed
 # and nobody has checked the match in — the proctor board leans on it, every
 # other board simply never sees a truthy value.
-SCHEDULED_AT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+SCHEDULED_AT_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <span class="cell-time" :class="props.row.is_overdue ? 'st-pending' : ''">{{ props.value }}</span>
     <q-icon v-if="props.row.is_overdue" name="schedule" class="st-pending q-ml-xs" size="xs">
         <q-tooltip>Past its scheduled time and not checked in</q-tooltip>
     </q-icon>
 </q-td>'''
 
-WATCH_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+WATCH_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <q-btn :icon="props.row._watching ? 'notifications' : 'notifications_none'"
            :color="props.row._watching ? 'primary' : 'grey'"
            size="sm" flat round
@@ -126,7 +126,7 @@ STREAM_VOLUNTEER_ACTIONABLE = (
     " || ['Scheduled', 'Checked In'].includes(props.row.state)"
 )
 
-STREAM_VOLUNTEER_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+STREAM_VOLUNTEER_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <q-btn v-if="__ACTIONABLE__ && props.row.players && props.row.players.some(p => p.discord_id == __DID__)"
            :icon="props.row._stream_volunteer ? 'videocam' : 'videocam_off'"
            :color="props.row._stream_volunteer ? 'primary' : 'grey'"
@@ -154,7 +154,7 @@ STREAM_VOLUNTEER_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-
 # preset name is public between them), and the choice itself. A row whose
 # tournament offers no harder preset renders nothing at all, which is what keeps
 # the column invisible to every community that does not use the feature.
-HARD_PRESET_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+HARD_PRESET_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <template v-if="props.row._hard_offered && props.row.players && props.row.players.some(p => p.discord_id == __DID__)">
         <span v-if="props.row._hard_override" class="wiz-chip wiz-chip--candidate">
             <q-icon name="gavel" size="12px" />
@@ -198,7 +198,7 @@ RESCHEDULE_TOOLTIP = (
     "changes until they answer."
 )
 
-RESCHEDULE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+RESCHEDULE_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <q-btn v-if="props.row._can_reschedule && props.row.state === 'Scheduled'
                  && props.row.players && props.row.players.some(p => p.discord_id == __DID__)"
            icon="edit_calendar" color="grey" size="sm" flat round
@@ -222,7 +222,7 @@ RESCHEDULE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-fl
 # card reads this column as standing for all four (match_grid.render_grid_slot).
 MY_ACTIONS_COLUMN = 'my_actions'
 
-MY_ACTIONS_SLOT = """<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+MY_ACTIONS_SLOT = """<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <div class="wiz-my-actions">
         <template v-if="props.row.players && props.row.players.some(p => p.discord_id == __DID__)">
             <q-btn v-if="props.row._can_reschedule && props.row.state === 'Scheduled'"
@@ -321,7 +321,7 @@ SEED_ROLLABLE = ("props.row.tournament_seed_generator && !props.row.is_racetime"
                  " && props.row.players && props.row.players.length"
                  " && !['Finished', 'Confirmed'].includes(props.row.state)")
 
-SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+SEED_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <span v-if="props.row.seed_rolling_since && !props.value" class="st-pending">
         <q-spinner size="16px" class="q-mr-xs" />{{ props.row.seed_rolling_label }}
         <q-tooltip>This randomizer generates seeds on a queue, which takes a few minutes. The players are DMed as soon as it lands — you can leave this page.</q-tooltip>
@@ -347,7 +347,7 @@ SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
 </q-td>'''.replace('__ROLLABLE__', SEED_ROLLABLE).replace('__SEED_VALUE__', seed_value_template('props.value'))
 
 # Carries the capability flags — must be registered through ``_fill``, not raw.
-STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+STATE_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <!-- Scheduled state: show Check In button (on-site only, and only once the
          match has players; racetime rooms drive the lifecycle, so racetime
          matches show a note instead). A viewer who cannot run the match reads
@@ -476,7 +476,7 @@ STAGE_VALUE_JS = (
 # rather than a clear button — "none" is one of the answers, not the absence of
 # one, and a clear affordance that only appears once something is chosen cannot
 # be found by someone looking for it.
-STAGE_ADMIN_SLOT = f'''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+STAGE_ADMIN_SLOT = f'''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <div style="display: flex; align-items: center; gap: 4px;">
         <q-select :model-value="{STAGE_VALUE_JS}" :options="props.row.stage_options || []"
                   @update:model-value="val => $parent.$emit('set_stage', {{ key: props.row.id, stage: val }})"
@@ -491,7 +491,7 @@ STAGE_ADMIN_SLOT = f'''<q-td :props="props" :class="props.row._flash ? 'wiz-row-
     </div>
 </q-td>'''
 
-STAGE_READONLY_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+STAGE_READONLY_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <a v-if="props.value && props.row.stage_url" :href="props.row.stage_url" target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.value }}</a>
     <span v-else-if="props.value">{{ props.value }}</span>
     <span v-else>-</span>
@@ -501,7 +501,7 @@ STAGE_READONLY_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-ro
 # Read-only seed cell (no Generate button) — the variant the home schedule /
 # player dashboards embed via ``extra_slots``. Identical to ``SEED_SLOT`` minus
 # the roll button, so a viewer without a roll callback sees the value only.
-SEED_SLOT_READONLY = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+SEED_SLOT_READONLY = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <span v-if="props.value">
         __SEED_VALUE__
     </span>
@@ -514,7 +514,7 @@ SEED_SLOT_READONLY = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row
 # renders an icon + timestamp (``scheduled_detailed=True``); the player board
 # renders a plain label (``scheduled_detailed=False``). Everything else matches
 # byte-for-byte so pages can drop their inline templates.
-_STATE_READONLY_HEAD = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+_STATE_READONLY_HEAD = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
                 <!-- Confirmed state -->
                 <div v-if="props.value === 'Confirmed'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                     <div style="display: flex; align-items: center; gap: 4px;">
@@ -584,7 +584,7 @@ def state_readonly_slot(*, scheduled_detailed: bool = True) -> str:
 # fact about check-in they need and the only place the app holds it. It is a
 # venue seat number, not private data, so it renders for every viewer of the
 # board; setting it stays behind `__RUN__`.
-PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+PLAYERS_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <div style="display: flex; align-items: center; gap: 8px;">
         <div>
             <template v-for="(player, idx) in props.value">
@@ -677,7 +677,7 @@ def crew_signup_section(list_expr: str, *, name_the_role: bool = False) -> str:
 # name that opens the user (the same split players already have — a name reads as
 # a name, not as a control that mutates approval); everyone else a plain name.
 # Non-admins get crew_signup_section's Sign up / Withdraw above the names + self-ack.
-CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+CREW_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <div class="wrap">''' + crew_signup_section('props.value') + '''
         <template v-for="(item, idx) in props.value">
             <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">

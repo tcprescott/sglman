@@ -1,9 +1,11 @@
 {
   "_comment": [
-    "Pages the layout-stability gate (scripts/ui_layout_shift.js) redraws at desktop and phone width. See docs/style-guide.md#hold-still."
+    "Pages the layout-stability gate (scripts/ui_layout_shift.js) redraws at desktop and phone width. See docs/style-guide.md#hold-still.",
+    "Targets with \"live\" steps also change matches from a second session (the seeded dev token) and fail if a row the viewer sees moves; they run last, one at a time."
   ],
   "loginAs": "staff_user",
   "tenant": "default",
+  "liveToken": "wizzrobe_pat_devseed_default_local_only_do_not_use",
   "outDir": "/tmp/ui-smoke-ci",
   "viewports": [
     {
@@ -205,6 +207,24 @@
       "name": "platform",
       "path": "/platform",
       "platform": true
+    },
+    {
+      "name": "proctor-live",
+      "path": "/volunteer/proctor-station",
+      "live": [
+        {
+          "label": "someone checks a match in",
+          "method": "POST",
+          "path": "/api/matches/{id}/seat",
+          "pick": "checkable"
+        },
+        {
+          "label": "someone deletes a match",
+          "method": "DELETE",
+          "path": "/api/matches/{id}",
+          "pick": "unplayed"
+        }
+      ]
     }
   ]
 }
