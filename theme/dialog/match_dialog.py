@@ -21,6 +21,7 @@ from theme.dialog.match_dialog_base import (
     enrolment_preview,
 )
 from theme.help import resolve_help
+from theme.tables.admin_crud import capture_render_context, scoped_background
 
 # The empty-Tournament hints differ by audience: an admin can go and make one, a
 # player requesting a match cannot.
@@ -579,8 +580,17 @@ class UserMatchDialog(BaseMatchDialog):
                         selected_opponent.disable()
 
                 await update_selection_options()
-                selected_tournament.on('update:model-value', lambda: background_tasks.create(update_selection_options()))
-                show_all_tournaments.on('update:model-value', lambda: background_tasks.create(update_selection_options()))
+                # Sentry SGLMAN-16: the re-run is a background task with no tenant
+                # bound, so picking a tournament raised and left Opponent empty.
+                render_context = capture_render_context()
+                selected_tournament.on(
+                    'update:model-value',
+                    lambda: scoped_background(render_context, update_selection_options()),
+                )
+                show_all_tournaments.on(
+                    'update:model-value',
+                    lambda: scoped_background(render_context, update_selection_options()),
+                )
 
                 date, time = self._render_date_time_inputs(defaults['date'], defaults['time'])
 
