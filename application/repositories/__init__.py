@@ -50,6 +50,7 @@ from .match_watcher_repository import MatchWatcherRepository
 from .matcherino_login_repository import MatcherinoLoginRepository
 from .mcp_auth_repository import McpAuthRepository
 from .notification_channel_repository import NotificationChannelRepository
+from .oauth_app_repository import OAuthAppRepository
 from .player_availability_repository import PlayerAvailabilityRepository
 from .preset_repository import PresetRepository
 from .profile_nudge_repository import ProfileNudgeRepository
@@ -127,6 +128,7 @@ __all__ = [
     'MatcherinoLoginRepository',
     'McpAuthRepository',
     'NotificationChannelRepository',
+    'OAuthAppRepository',
     'PlayedPermalinks',
     'PlayerAvailabilityRepository',
     'PresetRepository',
