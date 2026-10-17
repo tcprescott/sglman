@@ -7,6 +7,8 @@ community the approving person picked. The grant itself is an
 :class:`~models.ApiToken` with ``origin='app'``.
 """
 
+from typing import Optional
+
 from tortoise import fields
 from tortoise.models import Model
 
@@ -25,7 +27,10 @@ class OAuthApp(Model):
     """
 
     id = fields.IntField(pk=True)
-    owner = fields.ForeignKeyField('models.User', related_name='oauth_apps', on_delete=fields.CASCADE)
+    owner: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.User', related_name='oauth_apps', on_delete=fields.CASCADE,
+    )
+    owner_id: int
     name = fields.CharField(max_length=60)
     description = fields.CharField(max_length=300, default='')
     homepage_url = fields.CharField(max_length=512, null=True)
@@ -39,10 +44,11 @@ class OAuthApp(Model):
     previous_secret_hash = fields.CharField(max_length=64, null=True)
     secret_rotated_at = fields.DatetimeField(null=True)
     # Exact-match allowlist, checked at authorize and again at the token endpoint.
-    redirect_uris = fields.JSONField(default=list)
+    # mypy cannot infer a JSONField's type parameter, as with every sibling.
+    redirect_uris = fields.JSONField(default=list)  # type: ignore[var-annotated]
     # ApiScope values the app may ask for. Asking is not getting: the person
     # approving decides what the grant carries.
-    allowed_scopes = fields.JSONField(default=list)
+    allowed_scopes = fields.JSONField(default=list)  # type: ignore[var-annotated]
     # Set by a platform admin (abuse); every grant stops working while set.
     disabled_at = fields.DatetimeField(null=True)
     disabled_reason = fields.CharField(max_length=300, null=True)
@@ -68,17 +74,27 @@ class OAuthAppCode(Model):
 
     id = fields.IntField(pk=True)
     code_hash = fields.CharField(max_length=64, unique=True, index=True)
-    app = fields.ForeignKeyField('models.OAuthApp', related_name='codes', on_delete=fields.CASCADE)
-    user = fields.ForeignKeyField('models.User', related_name='oauth_app_codes', on_delete=fields.CASCADE)
-    tenant = fields.ForeignKeyField('models.Tenant', related_name='oauth_app_codes', on_delete=fields.CASCADE)
+    app: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.OAuthApp', related_name='codes', on_delete=fields.CASCADE,
+    )
+    app_id: int
+    user: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.User', related_name='oauth_app_codes', on_delete=fields.CASCADE,
+    )
+    user_id: int
+    tenant: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Tenant', related_name='oauth_app_codes', on_delete=fields.CASCADE,
+    )
+    tenant_id: int
     redirect_uri = fields.CharField(max_length=2048)
     code_challenge = fields.CharField(max_length=128)
     scope = fields.CharField(max_length=255)
     expires_at = fields.DatetimeField()
     consumed_at = fields.DatetimeField(null=True)
-    grant = fields.ForeignKeyField(
+    grant: fields.ForeignKeyNullableRelation = fields.ForeignKeyField(
         'models.ApiToken', related_name='oauth_app_codes', on_delete=fields.SET_NULL, null=True
     )
+    grant_id: Optional[int]
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:

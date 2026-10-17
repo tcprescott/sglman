@@ -74,13 +74,18 @@ def _error_page(message: str) -> HTMLResponse:
     return HTMLResponse(body, status_code=400, headers=_NO_STORE)
 
 
+def _field(form, name: str) -> Optional[str]:
+    value = form.get(name)
+    return value if isinstance(value, str) else None
+
+
 def _client_credentials(request: Request, form) -> Tuple[Optional[str], Optional[str]]:
     """Client id and secret from HTTP Basic (RFC 6749 §2.3.1) or the form body.
 
     Using both at once is refused: a client must pick one method.
     """
     header = request.headers.get('authorization', '')
-    form_id, form_secret = form.get('client_id'), form.get('client_secret')
+    form_id, form_secret = _field(form, 'client_id'), _field(form, 'client_secret')
     if header.lower().startswith('basic '):
         try:
             decoded = base64.b64decode(header[6:].strip(), validate=True).decode('utf-8')
@@ -127,13 +132,13 @@ async def token(request: Request) -> Response:
         if grant_type == 'authorization_code':
             result = await service.exchange_code(
                 app,
-                code=form.get('code'),
-                redirect_uri=form.get('redirect_uri'),
-                code_verifier=form.get('code_verifier'),
+                code=_field(form, 'code'),
+                redirect_uri=_field(form, 'redirect_uri'),
+                code_verifier=_field(form, 'code_verifier'),
             )
         elif grant_type == 'refresh_token':
             result = await service.exchange_refresh(
-                app, refresh_token=form.get('refresh_token'), scope=form.get('scope'),
+                app, refresh_token=_field(form, 'refresh_token'), scope=_field(form, 'scope'),
             )
         else:
             raise OAuthError('unsupported_grant_type', 'Use authorization_code or refresh_token.')
@@ -149,7 +154,7 @@ async def revoke(request: Request) -> Response:
     try:
         client_id, secret = _client_credentials(request, form)
         app = await service.authenticate_client(client_id, secret)
-        await service.revoke_token(app, form.get('token'))
+        await service.revoke_token(app, _field(form, 'token'))
     except OAuthError as exc:
         return _token_error(exc)
     return Response(status_code=200, headers=_NO_STORE)

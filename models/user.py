@@ -1,3 +1,5 @@
+from typing import Optional
+
 from tortoise import fields
 from tortoise.models import Model
 
@@ -180,6 +182,8 @@ class ApiToken(Model):
         'models.Tenant', related_name='api_tokens', on_delete=fields.CASCADE, null=True
     )
     user = fields.ForeignKeyField('models.User', related_name='api_tokens')
+    user_id: int
+    tenant_id: Optional[int]
     name = fields.CharField(max_length=100)
     token_hash = fields.CharField(max_length=64, unique=True, index=True)
     token_prefix = fields.CharField(max_length=24)
@@ -188,9 +192,10 @@ class ApiToken(Model):
     oauth_client = fields.ForeignKeyField(
         'models.McpOAuthClient', related_name='tokens', on_delete=fields.CASCADE, null=True
     )
-    oauth_app = fields.ForeignKeyField(
+    oauth_app: fields.ForeignKeyNullableRelation = fields.ForeignKeyField(
         'models.OAuthApp', related_name='grants', on_delete=fields.CASCADE, null=True
     )
+    oauth_app_id: Optional[int]
     # Refresh tokens are hashed like access tokens and rotate on every use.
     refresh_token_hash = fields.CharField(max_length=64, null=True, unique=True, index=True)
     # The refresh hash this row rotated away from. Presenting it again means a
