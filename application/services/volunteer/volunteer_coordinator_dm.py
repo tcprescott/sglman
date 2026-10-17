@@ -1,32 +1,28 @@
 """DMs to the people who staff the volunteer schedule.
 
 A volunteer giving a shift back and a volunteer running late both have to reach
-whoever is covering the roster: every ``VOLUNTEER_COORDINATOR`` and ``STAFF``
-holder in the community. Both land on the schedule on the day of the shift.
+whoever is covering the roster: every ``VOLUNTEER_COORDINATOR`` plus the admin
+on duty (all ``STAFF`` when nobody is). Both land on the schedule on the day of
+the shift.
 """
-
-from typing import Dict
 
 import discord
 
-from application.repositories import UserRoleRepository
 from application.services.discord import discord_queue
 from application.services.discord.discord_service import DiscordService
 from application.services.timezone_service import TimezoneService
 from application.utils.timezone import to_local
-from models import Role, User, VolunteerShift
+from models import VolunteerShift
 
 
 async def notify_coordinators(
     shift: VolunteerShift, message: str, embed: discord.Embed, *, link_label: str,
 ) -> None:
-    """Queue the DM to every coordinator and staff member. Never raises on delivery."""
+    """Queue the DM to the coordinators and whoever is on duty. Never raises on delivery."""
     from application.services import notification_links
+    from application.services.staff_alert_service import StaffAlertService
 
-    recipients: Dict[int, User] = {}
-    for role in (Role.VOLUNTEER_COORDINATOR, Role.STAFF):
-        for candidate in await UserRoleRepository.list_users_with_role(role):
-            recipients[candidate.id] = candidate
+    recipients = await StaffAlertService.volunteer_alert_recipients()
     if not recipients:
         return
 
@@ -39,7 +35,7 @@ async def notify_coordinators(
         day = local.date() if local else None
     link = await notification_links.admin_volunteer_schedule(day, label=link_label)
     discord_service = DiscordService()
-    for coordinator in recipients.values():
+    for coordinator in recipients:
         discord_id = getattr(coordinator, 'discord_id', None)
         if not discord_id:
             continue

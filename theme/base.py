@@ -12,6 +12,7 @@ from theme.assets import asset_url
 from theme.chrome import apply_brand_palette, cookie_dark_pref, dark_mode_button, install_timezone_detection
 from theme.connection import install_connection_watch
 from theme.nav_badges import bottom_nav_tab, drawer_tab_badge, nav_icon
+from theme.nav_section import mark_nav_section, nav_section_matches
 from theme.notice import drain_notice
 from theme.page_header import heading_fallback
 from theme.usage_telemetry import install_usage_capture, record_tab_view
@@ -483,13 +484,16 @@ class BaseLayout:
         with ui.left_drawer(value=False).props(
             'breakpoint=1023 show-if-above bordered width=224'
         ) as self._drawer:
+            current_path = current_local_url().split('?', 1)[0]
             with ui.list().props('padding'):
                 for item in self.top_menu:
-                    with ui.item(on_click=lambda u=item['url']: ui.navigate.to(u)).props('clickable v-ripple'):
+                    with ui.item(on_click=lambda u=item['url']: ui.navigate.to(u)).props('clickable v-ripple') as top_item:
                         with ui.item_section().props('avatar'):
                             ui.icon(nav_icon(item['icon'])).props('size=sm')
                         with ui.item_section():
                             ui.item_label(item['label'])
+                    if nav_section_matches(item['url'], current_path):
+                        mark_nav_section(top_item)
 
             if not self.tabs and self._is_member:
                 # A tab-less page has no section list of its own, so a member
@@ -550,6 +554,7 @@ class BaseLayout:
         """
         from theme.dialog import FeedbackDialog
 
+        current_path = current_local_url().split('?', 1)[0]
         ui.separator()
         with ui.list().props('padding'):
             # Above Help, and ungated on ``self.user`` for the same reason:
@@ -558,20 +563,24 @@ class BaseLayout:
             if self._show_event_info:
                 with ui.item(
                     on_click=lambda: ui.navigate.to('/event-info')
-                ).props('clickable v-ripple'):
+                ).props('clickable v-ripple') as event_item:
                     with ui.item_section().props('avatar'):
                         ui.icon(nav_icon('menu_book')).props('size=sm')
                     with ui.item_section():
                         ui.item_label('Event Guide')
+                if nav_section_matches('/event-info', current_path):
+                    mark_nav_section(event_item)
 
             if self._show_qualifiers:
                 with ui.item(
                     on_click=lambda: ui.navigate.to('/qualifiers')
-                ).props('clickable v-ripple'):
+                ).props('clickable v-ripple') as qualifiers_item:
                     with ui.item_section().props('avatar'):
                         ui.icon(nav_icon('timer')).props('size=sm')
                     with ui.item_section():
                         ui.item_label('Qualifiers')
+                if nav_section_matches('/qualifiers', current_path):
+                    mark_nav_section(qualifiers_item)
 
             # Not gated on ``self.user``: /help is a public page, and a
             # signed-out visitor on any framed public surface is exactly the
@@ -580,11 +589,13 @@ class BaseLayout:
             # drawer is that way in.
             with ui.item(
                 on_click=lambda: ui.navigate.to('/help')
-            ).props('clickable v-ripple'):
+            ).props('clickable v-ripple') as help_item:
                 with ui.item_section().props('avatar'):
                     ui.icon(nav_icon('help')).props('size=sm')
                 with ui.item_section():
                     ui.item_label('Help')
+            if nav_section_matches('/help', current_path):
+                mark_nav_section(help_item)
 
             # Members only, and flag-gated: the service refuses a submit
             # from anyone else, so the item would open a dialog that fails.

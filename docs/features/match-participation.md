@@ -574,6 +574,11 @@ pass the caller's permission check (`can_run_match` for comments,
 the role is skipped rather than sent to a control that refuses them.
 Community-wide requests (join, ADA, community events) still go to all staff.
 
+The volunteer alerts (running late, gave a shift back) reuse the same on-duty
+set through `StaffAlertService.volunteer_alert_recipients`: every volunteer
+coordinator plus whoever is on duty and `can_manage_volunteers`, with all STAFF
+standing in when nobody is.
+
 ## Models
 
 | Model | Holds |

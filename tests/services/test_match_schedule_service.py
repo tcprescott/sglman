@@ -302,6 +302,11 @@ class TestConfirmMatch:
         await service.confirm_match(match)
         service.match_repository.stamp_if_unset.assert_awaited_once()
 
+    async def test_dm_reaches_everyone_but_goes_out_silent(self, service):
+        await service.confirm_match(self._played_out())
+        kwargs = service.notify_match_participants.call_args.kwargs
+        assert kwargs == {'silent': True, 'players': True, 'player_copies': None}
+
     async def test_raises_if_not_finished(self, service):
         match = MockMatch()
         with pytest.raises(ValueError, match="finished before confirming"):
@@ -414,7 +419,7 @@ class TestNotifyTournamentSubscribersScheduled:
         # the kwarg must still be passed, since it is what carries the DM's way
         # back into the app.
         service.discord_service.send_dm_with_crew_buttons.assert_awaited_once_with(
-            999, "msg", match.id, embed=None, link=None,
+            999, "msg", match.id, embed=None, link=None, silent=True,
         )
 
     async def test_excludes_already_notified_discord_ids(self, service):

@@ -935,11 +935,24 @@ body:has(.wiz-header) .q-notifications__list--top {
     color: var(--accent);
 }
 
+/* The section the viewer is in (Home, Volunteer, Admin, Help...): an accent
+   tint, so it reads apart from the grey "this page" row in the tab list. */
+.q-drawer .q-item.wiz-nav-section--active {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--fg);
+    font-weight: 700;
+}
+
+.q-drawer .q-item.wiz-nav-section--active .q-icon {
+    color: var(--accent);
+}
+
 .q-drawer .q-item .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
 }
 
 .q-drawer .q-item--active .material-symbols-outlined,
+.q-drawer .wiz-nav-section--active .material-symbols-outlined,
 .wiz-bottom-nav .q-tab--active .material-symbols-outlined {
     font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
