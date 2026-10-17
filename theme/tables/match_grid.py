@@ -461,7 +461,7 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
         .replace('__ROLLABLE__', SEED_ROLLABLE)
         .replace('__SEED_VALUE__', seed_value_template('props.row.generated_seed'))
         .replace('__IA__', ia)
-        .replace('__RUN__', _bool_js(access.run))
+        .replace('__RUN__', access.run_js())
         .replace('__CONFIRM__', _bool_js(access.confirm))
         .replace('__CREW__', _bool_js(access.approve_crew))
         .replace('__STREAM__', _bool_js(access.assign_stream))

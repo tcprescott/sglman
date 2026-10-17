@@ -64,7 +64,7 @@ Drafts don't count. Unassigning them, them giving the shift back, or deleting th
 shift or position takes the role away. A role someone was given by hand is never
 touched.
 
-Only operational roles can be mapped: Proctor, Stream Manager, Triforce
+Only operational roles can be mapped: Proctor, Broadcast Tech, Triforce
 Submitter, Equipment Manager, Volunteer and Check-in Desk. Staff and the roles
 that run a subsystem are left off on purpose, or whoever assigns shifts could
 hand those out.

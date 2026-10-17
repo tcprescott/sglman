@@ -257,8 +257,8 @@ async def render_edit_info_tab(focus: str | None = None):
                 # "who you are *here*"; a player with no grants gets nothing.
                 if roles:
                     with ui.row().classes('items-center gap-1 wrap q-mt-xs'):
-                        for role in sorted(r.value for r in roles):
-                            ui.badge(role.replace('_', ' ').title()).props('outline color=primary')
+                        for role in sorted(roles, key=lambda r: r.value):
+                            ui.badge(role.label).props('outline color=primary')
 
         # Auto-save status indicator (updated by the on_change handlers above).
         with ui.row().classes('items-center gap-1 q-mt-sm'):

@@ -35,10 +35,12 @@ class AuthService:
       so they never operate a feature the tenant has not enabled.
     """
 
-    # Per-tenant roles that grant access to the Admin dashboard. Excludes PROCTOR
-    # and VOLUNTEER, whose workflows live on the Volunteer page instead.
+    # Per-tenant roles that pass ``can_view_admin``: the admin REST API, the MCP
+    # admin scope, the reports and staff help. Excludes PROCTOR and VOLUNTEER,
+    # whose workflows live on the Volunteer page, and STREAM_MANAGER (Broadcast
+    # Tech), which is held to its own stage and match-running gates.
     _ADMIN_ROLES: ClassVar[set[Role]] = {
-        Role.STAFF, Role.STREAM_MANAGER, Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR,
+        Role.STAFF, Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR,
     }
 
     @staticmethod
@@ -170,7 +172,7 @@ class AuthService:
         if await AuthService.is_super_admin(user):
             return True
         roles = await AuthService.get_roles(user)
-        # Schedule has no flag: staff, a stream manager, a TA and a CC always land on it.
+        # Schedule has no flag: staff, a broadcast tech, a TA and a CC always land on it.
         if roles & {Role.STAFF, Role.STREAM_MANAGER}:
             return True
         admin_q, cc_q = AuthService._tournament_relations(user)
@@ -329,10 +331,14 @@ class AuthService:
         """Run a match on the floor: seat, start, finish, record the result,
         roll its seed, assign stations.
 
-        Admits PROCTOR — this is the proctor's whole job. Confirming is
-        deliberately *not* here; see ``can_confirm_match``.
+        Admits PROCTOR — this is the proctor's whole job — and a Broadcast Tech
+        (STREAM_MANAGER) for a match on a stage, since running the broadcast
+        match is theirs. Confirming is deliberately *not* here; see
+        ``can_confirm_match``.
         """
         if await AuthService.is_staff(user) or await AuthService.is_proctor(user):
+            return True
+        if match.stage_id is not None and await AuthService.is_stream_manager(user):
             return True
         return await AuthService.is_tournament_admin(user, match.tournament_id)
 
@@ -439,7 +445,7 @@ class AuthService:
     @staticmethod
     async def can_assign_match_stream(user: Optional[User], match: Match) -> bool:
         """Set a match's stage or is_stream_candidate flag.
-        Stream Managers can do this globally; TAs can do it for their own tournaments.
+        Broadcast Techs (STREAM_MANAGER) can do this globally; TAs can do it for their own tournaments.
         """
         if await AuthService.can_manage_stages(user):
             return True
