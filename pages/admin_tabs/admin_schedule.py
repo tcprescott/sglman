@@ -48,6 +48,7 @@ async def admin_schedule_page(
     match_id: int | None = None,
     tournament_ids: list[int] | None = None,
     reschedule_request: int | None = None,
+    comments: int | None = None,
 ) -> None:
     """The admin Schedule board.
 
@@ -61,6 +62,9 @@ async def admin_schedule_page(
 
     ``reschedule_request`` is a request id arriving from the staff DM's button;
     its decision dialog opens once the board has rendered.
+
+    ``comments`` is a match id from a staff alert DM; that match's sheet opens
+    on its comments once the board's first load brings the row.
     """
     access = access or MatchBoardAccess()
     with ui.column().classes('page-container-wide') as page_container:
@@ -119,6 +123,8 @@ async def admin_schedule_page(
 
         handlers = MatchLifecycleHandlers(page_container, access=access)
         sheet = MatchSheet(handlers, access=access)
+        if comments:
+            sheet.open_when_loaded(int(comments))
 
         async def _open_decision(request_id: int, client) -> None:
             """Open one request's decision dialog, from the inbox or a DM link.

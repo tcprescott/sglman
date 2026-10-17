@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
-from models import Bracket, Match, Tournament, TournamentGrant, TournamentPlayers, TriforceText
+from models import Bracket, Match, Tournament, TournamentGrant, TournamentPlayers, TriforceText, User
 
 
 class TournamentRepository(TenantScopedRepository[Tournament]):
@@ -41,6 +41,11 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
             query = query.prefetch_related('players', 'players__user')
         return await query.first()
     
+    @staticmethod
+    async def active_admin_tournaments(user: User) -> List[Tournament]:
+        """Active tournaments in this tenant that ``user`` admins, by name."""
+        return await scoped(Tournament.filter(admins__id=user.id, is_active=True)).distinct().order_by('name')
+
     @staticmethod
     async def get_by_ids(tournament_ids: List[int]) -> List[Tournament]:
         """

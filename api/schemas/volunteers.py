@@ -23,6 +23,7 @@ class VolunteerPositionResponse(BaseModel):
     is_active: bool = Field(..., description="Whether the position is in use. `active_only` on the list hides inactive ones.")
     shift_length_minutes: Optional[int] = Field(None, description="Length of each generated shift in minutes when shifts are staggered; empty for back-to-back blocks.")
     stagger_minutes: Optional[int] = Field(None, description="Minutes between the start times of overlapping generated shifts; empty for back-to-back blocks.")
+    staff_alerts: bool = Field(False, description="Whoever holds one of this position's shifts gets match alerts (player comments, reschedule requests) instead of every staff member.")
     created_at: datetime = Field(..., description="When the position was created (UTC).")
     updated_at: datetime = Field(..., description="When the position was last changed (UTC).")
 
@@ -35,6 +36,7 @@ class VolunteerPositionCreate(BaseModel):
     is_active: bool = Field(True, description="Whether the position is in use.")
     shift_length_minutes: Optional[int] = Field(None, description="Length of each generated shift in minutes. Set together with `stagger_minutes`, or leave both empty.")
     stagger_minutes: Optional[int] = Field(None, description="Minutes between the start times of overlapping generated shifts. Positive and no longer than `shift_length_minutes`.")
+    staff_alerts: bool = Field(False, description="Whoever holds one of this position's shifts gets match alerts (player comments, reschedule requests) instead of every staff member.")
 
 
 class VolunteerPositionUpdate(BaseModel):
@@ -45,6 +47,7 @@ class VolunteerPositionUpdate(BaseModel):
     is_active: Optional[bool] = Field(None, description="Whether the position is in use.")
     shift_length_minutes: Optional[int] = Field(None, description="Length of each generated shift in minutes. Set together with `stagger_minutes`, or leave both empty.")
     stagger_minutes: Optional[int] = Field(None, description="Minutes between the start times of overlapping generated shifts. Positive and no longer than `shift_length_minutes`.")
+    staff_alerts: Optional[bool] = Field(None, description="Whoever holds one of this position's shifts gets match alerts (player comments, reschedule requests) instead of every staff member.")
 
 
 # --- Assignments ----------------------------------------------------------

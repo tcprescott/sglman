@@ -4,7 +4,8 @@ Three kinds, one per audience (``MatchCommentKind``):
 
 * a **player** comment goes to staff only. The other player never sees it,
   because a note like "I'll be late" is between the player and the people
-  running the event;
+  running the event. It DMs the match's alert recipients: the admin on duty
+  and the tournament's admins (``StaffAlertService``);
 * a **private** staff note stays with staff and proctors;
 * a **staff message to players** is read by staff and by the match's players,
   and DMs each player who has the "Staff comments on your matches"
@@ -15,6 +16,7 @@ staff, the tournament's admins and proctors. Authors may delete their own
 comments; staff may delete any.
 """
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -34,6 +36,8 @@ MAX_COMMENT_LENGTH = 2000
 #: open staff board, so one player holding Send down can churn the floor's
 #: screens mid-event; nobody genuine posts this fast. Staff are not limited.
 PLAYER_COMMENTS_PER_MINUTE = 10
+
+logger = logging.getLogger(__name__)
 
 _STAFF_KINDS = (MatchCommentKind.STAFF_PRIVATE, MatchCommentKind.STAFF_TO_PLAYERS)
 
@@ -74,7 +78,9 @@ class MatchCommentService:
         since = datetime.now(timezone.utc) - timedelta(minutes=1)
         if await self.repository.count_by_author_since(match.id, user.id, since) >= PLAYER_COMMENTS_PER_MINUTE:
             raise ValueError('Slow down, try again in a minute.')
-        return await self._add(match, user, MatchCommentKind.PLAYER, self._clean(body))
+        comment = await self._add(match, user, MatchCommentKind.PLAYER, self._clean(body))
+        await self._notify_staff(match, user, comment.body)
+        return comment
 
     async def add_staff_comment(
         self, match_id: int, user: User, body: str, *, to_players: bool,
@@ -108,6 +114,34 @@ class MatchCommentService:
         )
         match_live.publish(match.id)
         return comment
+
+    async def _notify_staff(self, match: Match, author: User, body: str) -> None:
+        """DM the on-duty admin and the tournament's admins. Never raises."""
+        from application.services.discord import discord_queue
+        from application.services.match._comment_notifications import notify_staff_of_player_comment
+        from application.services.staff_alert_service import StaffAlertService
+
+        try:
+            # Resolved here, in the request's tenant scope; the queue worker
+            # that sends the DMs runs outside it.
+            recipients = await StaffAlertService.match_alert_recipients(
+                match, can_act=AuthService.can_run_match, exclude=(author.id,),
+            )
+        except Exception:
+            logger.exception('player comment on match %s: resolving staff alerts failed', match.id)
+            return
+        if not recipients:
+            return
+        players = [p.user for p in match.players]  # type: ignore[attr-defined]
+        discord_queue.enqueue(notify_staff_of_player_comment(
+            match_id=match.id,
+            tournament_name=match.tournament.name if match.tournament else '',
+            author_name=author.preferred_name,
+            body=body,
+            when=match.scheduled_at,
+            player_names=[u.preferred_name for u in players],
+            recipients=recipients,
+        ))
 
     def _notify_players(self, match: Match, author: User, body: str) -> None:
         from application.services.discord import discord_queue

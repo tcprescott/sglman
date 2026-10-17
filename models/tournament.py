@@ -255,6 +255,9 @@ class TournamentNotificationPreference(Model):
     user = fields.ForeignKeyField('models.User', related_name='tournament_notifications')
     tournament = fields.ForeignKeyField('models.Tournament', related_name='notification_preferences')
     match_notifications = fields.CharEnumField(MatchNotificationLevel, default=MatchNotificationLevel.NONE, max_length=30)
+    # A tournament admin's opt-out from its match alerts (player comments,
+    # reschedule requests). No row means on.
+    staff_alerts = fields.BooleanField(default=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

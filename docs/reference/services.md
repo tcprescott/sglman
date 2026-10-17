@@ -109,6 +109,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `TenantLogoService` | [tenant_logo_service.py](../../application/services/tenant_logo_service.py) | Per-tenant logo upload: re-encode a bitmap to WebP or sanitise an SVG, store in `TenantLogo`, serve by hash, feed the QR codes | [§ below](#tenant_logo_servicepy--tenantlogoservice) |
 | `TenantThemeService` | [tenant_theme_service.py](../../application/services/tenant_theme_service.py) | Per-tenant brand palette (STAFF-editable colours on `Tenant.config['theme']`) | [frontend.md](../reference/frontend.md#per-tenant-theme-colours) |
 | `TimezoneService` | [timezone_service.py](../../application/services/timezone_service.py) | Per-tenant display-timezone policy (pin vs. follow-the-viewer) and per-viewer resolution | [timezone-handling.md](../timezone-handling.md) |
+| `StaffAlertService` | [staff_alert_service.py](../../application/services/staff_alert_service.py) | Match-alert recipients: the admin on duty (a published shift on a `staff_alerts` position) plus the tournament's opted-in admins, falling back to all STAFF; a tournament admin's per-tournament opt-out | [match-participation.md](../features/match-participation.md) |
 | `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [match-participation.md](../features/match-participation.md) |
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
@@ -1298,6 +1299,17 @@ STAFF-picked profile items each member should have done, and the banner rows a m
 | `dismiss(actor, check)` | `None` | Records an acknowledgement; refuses a rule that is off or mandatory; audits `profile_nudge.dismissed` once. |
 
 Collaborators: `ProfileNudgeRepository`, `TenantRepository`, `AuthService`, `AuditService`, `FeatureFlagService`, `TimezoneService`, and the Challonge/Twitch/racetime services' `is_configured`.
+
+### staff_alert_service.py — StaffAlertService
+
+Who hears about a *match alert*: a staff-facing DM about one match that someone must pick up (a player's comment, a reschedule request). Community-wide requests (join, ADA, community events) are not match alerts and still go to every STAFF member.
+
+| Method | Returns | Description |
+|---|---|---|
+| `on_duty_now(at=None)` | `List[User]` | Holders of a published shift at `at` on a position with `staff_alerts` on. |
+| `match_alert_recipients(match, *, can_act=AuthService.can_run_match, exclude=(), at=None)` | `List[User]` | On-duty users, falling back to all STAFF when none who `can_act` is on duty, plus the tournament's admins minus opt-outs. Every recipient passes `can_act`, so nobody is linked to a control that refuses them. Reschedule requests pass `can_crud_match`. |
+| `admin_tournaments(user)` | `List[(Tournament, bool)]` | Active tournaments the user admins, with whether alerts are on. |
+| `set_tournament_alerts(user, tournament_id, on)` | `None` | The opt-out. Raises `ValueError` unless the user admins that tournament. |
 
 ### tournament_notification_service.py — TournamentNotificationService
 

@@ -110,6 +110,7 @@ from .seedgen_service import SeedGenerationService
 from .service_health_service import ProbeResult, ServiceHealthService, ServiceStatus
 from .speedgaming_etl_service import SpeedGamingETLService
 from .speedgaming_sync_service import SpeedGamingSyncService
+from .staff_alert_service import StaffAlertService
 from .stage_service import StageService
 from .startgg_link_service import StartggLinkService
 from .startgg_service import StartggService
@@ -229,6 +230,7 @@ __all__ = [
     'SetupStep',
     'SpeedGamingETLService',
     'SpeedGamingSyncService',
+    'StaffAlertService',
     'StageService',
     'StartggLinkService',
     'StartggService',

@@ -199,6 +199,11 @@ class MatchSheet:
             pending, self._pending_open = self._pending_open, None
             if any(r.get('id') == pending for r in rows):
                 self.view._bg(self.open(pending))
+            else:
+                # A DM outlives its match: a deleted or filtered-out one must
+                # say so rather than leave a link that silently does nothing.
+                with self.dialog:
+                    ui.notify("That match isn't on this board any more.", color='warning')
         if self.row is None:
             return
         fresh = next((r for r in rows if r.get('id') == self.row.get('id')), None)
