@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -191,6 +192,13 @@ def _row(match, stage_name: str = '') -> WatchMatch:
     )
 
 
+def _stage_order(stage: WatchStage) -> tuple:
+    """Channel name in natural order (SpeedGaming, SpeedGaming2 … SpeedGaming10), unstreamed stages last."""
+    channel = (stage.channel or '').lower()
+    parts = tuple((0, int(p), '') if p.isdigit() else (1, 0, p) for p in re.split(r'(\d+)', channel) if p)
+    return (not channel, parts, stage.name.lower())
+
+
 def _status(tournament, stages: List) -> tuple[str, str]:
     if stages:
         states = {b.state for b in stages}
@@ -266,6 +274,7 @@ async def build_watch_view(tenant_id: int) -> WatchView:
             ))
             overflow.extend(waiting[UP_NEXT_LIMIT:])
 
+        watch_stages.sort(key=_stage_order)
         stage_name = {s.id: s.name for s in stages}
         coming: List[WatchDay] = []
         upcoming = sorted(overflow, key=lambda m: m.scheduled_at) + later

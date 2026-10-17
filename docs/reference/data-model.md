@@ -520,16 +520,15 @@ Constraints: `unique_together (('tenant', 'user', 'check'),)`.
 
 #### `WatchLayoutVote`
 
-One browser's view of one Watch page layout (`/live`), and its thumbs up or
-down. Created when the browser first sees the layout (`vote` null), so the
-Admin → Settings → Watch page tally counts who saw a layout as well as who
-rated it. Tenant-scoped (`WatchLayoutRepository`, `WatchLayoutService`).
+One browser's rating of one Watch page layout (`/live`) from the layout trial.
+Retired: the community kept the one-page layout, so only the dev seed writes it;
+the table keeps the trial's votes. Tenant-scoped.
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
 | `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='watch_layout_votes'` |
 | `session_id` | `CharField(64)` | not null | NiceGUI `app.storage.browser` id; most viewers never sign in |
-| `layout` | `CharField(16)` | not null | A `WATCH_LAYOUTS` key: `one_page`, `tabs`, `rail` |
+| `layout` | `CharField(16)` | not null | `one_page`, `tabs` or `rail` |
 | `vote` | `CharField(8)` | null | `up`, `down`, or null for seen but not rated |
 | `updated_at` | `DatetimeField` | `auto_now` | |
 

@@ -732,7 +732,7 @@ async def seed_profile_reminders(tenant: Tenant, users: dict[str, User]) -> None
 
 
 async def seed_watch_layout_votes(tenant: Tenant) -> None:
-    """A few browsers' ratings of the Watch page layouts, so the tally isn't empty."""
+    """A few rows in the retired layout-trial table, which the seed-coverage test still counts."""
     for session_id, layout, vote in (
         ('seed-browser-1', 'one_page', 'up'),
         ('seed-browser-1', 'rail', 'down'),
