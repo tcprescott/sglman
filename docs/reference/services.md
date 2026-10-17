@@ -243,7 +243,7 @@ Stateless authorization policy: every check is a `@staticmethod async def` takin
 | `is_check_in_desk(user)` | `bool` | Holds `Role.CHECK_IN_DESK` in the current tenant. |
 | `can_manage_check_in(user)` | `bool` | Staff — gates check-in event CRUD, bounty lookup, and adding/removing walk-ups. |
 | `can_run_check_in_desk(user)` | `bool` | System actor, Staff, or `CHECK_IN_DESK` — gates check-in/undo, link/unlink, and sync. |
-| `can_view_check_in_desk(user)` | `bool` | `FeatureFlag.EVENT_CHECK_IN` live **and** `can_run_check_in_desk`. The nav's source of truth for the **Check-in** link, mirroring the `/checkin` page gate (`BaseLayout` additionally requires an open event). |
+| `can_view_check_in_desk(user)` | `bool` | `FeatureFlag.EVENT_CHECK_IN` live **and** `can_run_check_in_desk`. Decides the Volunteer hub's **Check-in Desk** tab and, for a desk role with no volunteer role, the Volunteer menu link (`BaseLayout` additionally requires an open event). |
 | `can_assign_match_stream(user, match)` | `bool` | Staff or Stream Manager globally, or TA of the match's tournament — gates stage assignment and the stream-candidate flag. |
 | `can_grant_roles(user)` | `bool` | Staff only — gates role grants and TA/CC membership changes. |
 | `is_system(user)` | `bool` | Field check (`User.is_system`) — the reserved automation actor. Sync (no DB). The `can_manage_*`/`can_admin_qualifier` gates short-circuit on it so workers/bots never hit a `PermissionError`. |

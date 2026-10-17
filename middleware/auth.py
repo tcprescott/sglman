@@ -32,6 +32,9 @@ from application.timezone_context import (
 from application.utils.hostname import effective_request_host
 from models import FeatureFlag, Role
 
+#: A page's feature gate: one flag, or several of which any one opens it.
+FeatureGate = FeatureFlag | tuple[FeatureFlag, ...] | None
+
 
 def _bind_display_timezone(name: str) -> None:
     """Make ``name`` the display clock for this page build and this connection.
@@ -274,7 +277,7 @@ def _tenant_page(
     *,
     roles: Optional[Iterable[Role]] = None,
     allow_tournament_membership: bool = False,
-    feature: Optional[FeatureFlag] = None,
+    feature: FeatureGate = None,
     telemetry_path: Optional[str] = None,
     require_auth: bool = True,
     **page_kwargs,
@@ -289,6 +292,9 @@ def _tenant_page(
     """
     role_list = list(roles) if roles else None
     view_path = telemetry_path or path
+    flags: tuple[FeatureFlag, ...] = (
+        () if feature is None else (feature,) if isinstance(feature, FeatureFlag) else tuple(feature)
+    )
 
     gated = role_list is not None or allow_tournament_membership
 
@@ -334,7 +340,7 @@ def _tenant_page(
             # Feature gate (before the role gate): a subsystem the tenant hasn't
             # enabled is hidden from everyone — 404, like an unknown route — so a
             # not-yet-released feature never leaks and role has no bearing.
-            if feature is not None and not await FeatureFlagService().is_enabled(feature):
+            if flags and not any([await FeatureFlagService().is_enabled(f) for f in flags]):
                 # The unknown-route page, word for word and status for status:
                 # anything more specific would say the feature exists here.
                 from theme.error_page import render_not_found
@@ -401,7 +407,7 @@ def protected_page(
     *,
     roles: Optional[Iterable[Role]] = None,
     allow_tournament_membership: bool = False,
-    feature: Optional[FeatureFlag] = None,
+    feature: FeatureGate = None,
     telemetry_path: Optional[str] = None,
     **page_kwargs,
 ):
@@ -417,6 +423,8 @@ def protected_page(
         feature: If set, the page is gated behind a per-tenant feature flag —
             when the flag is not live for the current tenant the page 404s
             (hidden, like an unknown route), independent of the user's roles.
+            A tuple of flags opens the page when any one of them is live: a
+            hub whose tabs belong to different features.
         telemetry_path: Page-view path recorded for engagement telemetry. Lets
             sibling routes that render the same page (e.g. ``/admin`` and
             ``/admin/{section}``) report under one stable path.

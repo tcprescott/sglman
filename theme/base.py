@@ -278,10 +278,9 @@ class BaseLayout:
         self.top_menu = [{'label': 'Home', 'icon': 'home', 'url': '/'}]
         if self._tenant_id is not None:
             self.top_menu.append({'label': 'Watch', 'icon': 'live_tv', 'url': '/live'})
-        if self._show_volunteer:
+        # The desk is a Volunteer tab, so desk workers get Volunteer too.
+        if self._show_volunteer or self._show_check_in:
             self.top_menu.append({'label': 'Volunteer', 'icon': 'volunteer_activism', 'url': '/volunteer'})
-        if self._show_check_in:
-            self.top_menu.append({'label': 'Check-in Desk', 'icon': 'how_to_reg', 'url': '/checkin'})
         if self._show_admin:
             self.top_menu.append({'label': 'Admin', 'icon': 'admin_panel_settings', 'url': '/admin'})
 
@@ -692,7 +691,8 @@ class BaseLayout:
         drawer — so a page that does not qualify renders no footer at all rather
         than an empty strip.
         """
-        if not self.tabs or len(self.tabs) > self.BOTTOM_NAV_CAPACITY:
+        # One tab (a desk-only Volunteer hub) has nowhere to switch to.
+        if not self.tabs or len(self.tabs) < 2 or len(self.tabs) > self.BOTTOM_NAV_CAPACITY:
             return
 
         # Tells styles.css this page actually reserves bottom-nav clearance —

@@ -38,8 +38,8 @@ members, or turn Discord DMs back on under
 ## The desk
 
 :::snippet check-in-desk
-The desk is **Check-in Desk** in the menu. It shows there while an event is open, for
-anyone with the Check In Desk role and for staff. It's built for a phone.
+The desk is **Volunteer → Check-in Desk**. It shows there while an event is open,
+for anyone with the Check In Desk role and for staff. It's built for a phone.
 
 The top of the desk stays pinned as you scroll: the event name with its sync
 button, then the search box, which takes a name or a badge code. The progress bar

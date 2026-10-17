@@ -4,14 +4,15 @@ slug: volunteering
 icon: volunteer_activism
 order: 60
 feature: VOLUNTEERS
-summary: Setting your availability, how shifts reach you, My Shifts, your hours, and giving a shift back.
+summary: Setting your availability, how shifts reach you, your shifts on My Schedule, your hours, and giving a shift back.
 ---
 
 Volunteering is the shift-based work that keeps the event running. It is separate
 from [crew](/help/crew), which is per match rather than per shift.
 
-The **Volunteer** tab is where all of it lives. If you cannot see it, you have
-not been given a volunteer role yet, so ask a coordinator. Some positions hand
+Your shifts are on **Home → My Schedule**. Everything else lives under
+**Volunteer**. If you cannot see it, you have not been given a volunteer role
+yet, so ask a coordinator. Some positions hand
 you the role they need (Proctor, say, or Check-in Desk) as soon as a coordinator
 puts you on one of their shifts, so a new tab can turn up after you are
 scheduled.
@@ -59,7 +60,7 @@ A coordinator builds the schedule, either by hand or with the auto-scheduler,
 which fits people to shifts using the availability everyone entered. Whatever it
 drafts, **the coordinator decides**: the auto-scheduler proposes and they sign
 off. A drafted shift is not yours yet. You hear nothing about it, and it does not
-show on My Shifts, until the coordinator publishes it.
+show on My Schedule, until the coordinator publishes it.
 
 It also weighs more than availability: it will not put you on two shifts at once,
 and it respects a cap on how many hours anyone works. If a coordinator has
@@ -74,47 +75,43 @@ Once a shift is yours, the bot tells you in a Discord DM:
 | **Volunteer shift reminder** | Before it starts (an hour, unless your community set a different lead). | Nothing, if you're coming. If you can't, its **Can't make it** button opens that shift's give-back dialog. |
 | **Your shift is starting** | When the shift starts, unless you've already said you're here. | Tap **I'm here** once you're at your post. **Running late** asks how late (about 10, about 20, or 30 minutes or more) and tells your coordinator, and you keep the shift. **I can't make it** asks for an optional reason and gives the shift back. |
 | **Volunteer shift moved** | Its start or end time changes. | Tap **Acknowledge** again. Agreeing to the old time doesn't count for the new one. |
-| **Volunteer shift removed** | A coordinator takes you off it. | Nothing. It has gone from My Shifts. |
+| **Volunteer shift removed** | A coordinator takes you off it. | Nothing. It has gone from My Schedule. |
 
-If your DMs are off you still have the shift. My Shifts is the place to check.
+If your DMs are off you still have the shift. My Schedule is the place to check.
 
-## My Shifts
+## Your shifts
 
 :::snippet my-shifts
-**My Shifts** is your own list of assigned shifts, soonest first, with times in
-your local clock. Each card shows:
+Your shifts are on **Home → My Schedule** under **Your volunteer shifts**, next
+to your matches and crew slots. They're grouped by day, soonest first, with times
+in your local clock. Each row shows the position and the shift's label, when it
+runs, and where it stands (**Needs your OK**, **Acknowledged**, **On now**,
+**Arrived**).
 
-- the position and the shift's label, and when it runs
-- who scheduled you, and when you acknowledged it
-- what the position involves, and any **For this shift** notes the coordinator
-  left
-- who else is on the same slot (**With:**), or that you are the only one
+The line under the heading is your hours: everything you are scheduled for this
+event, past and upcoming, with overlapping shifts counted once. Where your
+community comps volunteers by hours worked, it also says which level you have
+cleared and how many more hours reach the next one.
 
-The line at the top is your hours: everything you are scheduled for this event,
-past and upcoming, with overlapping shifts counted once. Where your community
-comps volunteers by hours worked, it also says which level you have cleared and
-how many more hours reach the next one.
+A row's button is **Acknowledge** until you've pressed it, which does the same as
+the button in the DM. From 30 minutes before a shift until it ends, **I'm here**
+takes its place, and a banner with the same button shows at the top of every
+page. Tap it when you reach your post so your coordinator knows you've arrived.
+The row then says **Arrived** with the time.
 
-Each card has **Can't make it** on the left and **Acknowledge** on the right.
-**Acknowledge** does the same as the button in the DM; once you've pressed it,
-an **Acknowledged** marker takes its place.
+The row's ⋮ menu has the rest:
 
-From 30 minutes before a shift until it ends, **I'm here** takes that place
-instead, and a banner with the same button shows at the top of every page. Tap
-it when you reach your post so your coordinator knows you've arrived. The card
-then says **Arrived** with the time. Tapped it by mistake? **Undo check-in**
-takes it back until the shift ends, unless a coordinator checked you in.
+- **Shift details**: what the position involves, any **For this shift** notes
+  the coordinator left, and who else is on the same slot.
+- **Undo check-in**, if you tapped **I'm here** by mistake. It works until the
+  shift ends, unless a coordinator checked you in.
+- **Can't make it…**, to give the shift back.
 
-Shifts that have finished drop off the list. Turn on **Show all shifts** to see
-them again.
-
-Your upcoming shifts also show on **My Schedule** under **Your volunteer
-shifts**, one row each, grouped by day, next to your matches and crew slots.
-Each row has the same **I'm here** or **Acknowledge** button, and its ⋮ menu
-has **Shift details** and **Can't make it…**.
+Shifts that have ended fold into **Finished shifts** at the bottom of the
+section. Tap it to see them, newest first.
 :::
 
-![My Shifts on a phone: the hours line, the Show all shifts switch marked 3, then a Broadcast Tech shift card with its notes, Can't make it marked 1 and Acknowledge marked 2](/static/help/volunteering/my-shifts-phone.webp "One upcoming shift: **Can't make it** (1), **Acknowledge** (2), and **Show all shifts** (3) for the ones that have finished.")
+![Your volunteer shifts on a phone: the hours line, a shift with I'm here marked 1, and the folded Finished shifts row marked 2](/static/help/volunteering/my-shifts-phone.webp "**I'm here** (1) on a shift that's on now, and **Finished shifts** (2) for the ones that have ended.")
 
 ## Full Schedule
 
@@ -142,7 +139,7 @@ end, and a dot on **Columns** means you've changed something.
 
 :::snippet shift-release
 If you cannot work a shift, give it back rather than not turning up. Press
-**Can't make it** on its card or in the reminder DM. Your coordinator is told immediately and can look for cover.
+**Can't make it…** in the shift's ⋮ menu on My Schedule, or **Can't make it** in the reminder DM. Your coordinator is told immediately and can look for cover.
 
 You can add a reason. It is optional, and your coordinator sees it.
 

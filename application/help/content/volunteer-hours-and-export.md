@@ -55,7 +55,7 @@ These are scheduled hours, not hours someone checked in for. A volunteer who
 gives a shift back loses those hours straight away.
 
 The chip beside the number is the highest reward tier they've reached. Each
-volunteer sees the same total on their own My Shifts, with how far they are from
+volunteer sees the same total on their own My Schedule, with how far they are from
 the next tier.
 :::
 

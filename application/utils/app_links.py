@@ -28,12 +28,14 @@ COMMUNITY_EVENTS = 'community-events'
 
 # Home tab slugs.
 HOME_PLAYER = 'player'
+HOME_MY_SCHEDULE = 'my-schedule'
 HOME_SCHEDULE = 'schedule'
 HOME_MY_CREW = 'my-crew'
 HOME_TOURNAMENTS = 'tournaments'
 
-# Volunteer hub tab slugs.
+# Volunteer hub tab slugs. My Shifts is retired: the hub sends it to My Schedule.
 VOLUNTEER_MY_SHIFTS = 'my-shifts'
+VOLUNTEER_CHECK_IN = 'check-in-desk'
 
 
 def _query(params: dict) -> str:
@@ -94,13 +96,18 @@ def home_url(section: Optional[str] = None, **params) -> str:
 
 
 def volunteer_my_shifts_url() -> str:
-    """My Shifts, where the volunteer's "I'm here" and give-back live."""
-    return f'/volunteer/{VOLUNTEER_MY_SHIFTS}'
+    """My Schedule scrolled to your shifts, where "I'm here" and give-back live."""
+    return home_url(HOME_MY_SCHEDULE, shifts=1)
 
 
 def volunteer_release_url(assignment_id: int) -> str:
-    """My Shifts with one assignment's "Give this shift back?" dialog open."""
-    return f'/volunteer/{VOLUNTEER_MY_SHIFTS}{_query({"release": assignment_id})}'
+    """My Schedule with one assignment's "Give this shift back?" dialog open."""
+    return home_url(HOME_MY_SCHEDULE, release=assignment_id)
+
+
+def volunteer_check_in_url(event_id: Optional[int | str] = None) -> str:
+    """Volunteer → Check-in Desk, on one check-in event when given."""
+    return f'/volunteer/{VOLUNTEER_CHECK_IN}{_query({"event": event_id})}'
 
 
 def player_match_comments_url(match_id: int) -> str:

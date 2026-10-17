@@ -25,7 +25,7 @@ Each side has a surface of its own for the work it owns:
 The crew list is on Home rather than the Volunteer hub deliberately: crew signup
 is behind neither a role nor `FeatureFlag.VOLUNTEERS`, so anyone who can sign up
 must be able to see what they signed up for. It is the crew twin of
-**My Shifts**, which volunteers who work shifts have had all along. It was its
+the volunteer shifts section beside it, which replaced Volunteer → **My Shifts**. It was its
 own **My Crew** tab until Home came down to four tabs; `/home/my-crew` still
 resolves, onto My Schedule.
 
