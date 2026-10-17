@@ -131,11 +131,7 @@ class AdminMatchDialog(BaseMatchDialog):
             with client:
                 actor = await get_user_from_session(app.storage.user)
                 try:
-                    await AuthService.ensure(
-                        await AuthService.can_manage_sync(actor),
-                        'You do not have permission to cancel a racetime room.',
-                    )
-                    await RaceRoomService().cancel_room(room, actor=actor)
+                    await RaceRoomService().cancel_room_as(room, actor=actor)
                 except (ValueError, PermissionError) as e:
                     ui.notify(str(e), color='warning')
                     return

@@ -270,8 +270,8 @@ owning service (`TenantService`, `FeatureFlagService`, `PasswordAuthService.set_
 - `GET /platform/log-levels` · `PUT` (`{logger, level}`) · `DELETE ?logger=`.
 
 ### Race rooms (`/api/race-rooms`) · `race_rooms.py`
-- `GET /race-rooms/open` (Staff; filtered to your tenant) · `GET /race-rooms/by-match/{match_id}`.
-- `POST /race-rooms` (`{match_id}`, manual create) · `POST /{id}/cancel` (`{reason?}`) · `PATCH /{id}/status` (`{status}`). Cancel/status add an explicit `can_manage_sync` gate (the service transitions are system-path/ungated). System internals (`get_by_slug`, `record_finish`, websocket event dispatch, auto-create) are **not** exposed.
+- `GET /race-rooms/open` (Staff or Sync admin, checked in the service; filtered to your tenant) · `GET /race-rooms/by-match/{match_id}`.
+- `POST /race-rooms` (`{match_id}`, manual create) · `POST /{id}/cancel` (`{reason?}`) · `PATCH /{id}/status` (`{status}`). Cancel/status go through `cancel_room_as` / `set_status_as`, which check `can_manage_sync`; the plain transitions stay ungated for system paths (match cancellation, the racetime handler). System internals (`get_by_slug`, `record_finish`, websocket event dispatch, auto-create) are **not** exposed.
 
 ### SpeedGaming (`/api/speedgaming`) · `speedgaming.py`
 SpeedGaming schedule ETL event links (service gate `can_manage_sync`).
