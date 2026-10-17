@@ -52,7 +52,6 @@ from theme.tables.match_slots import (
     SEED_ROLLABLE,
     STAGE_VALUE_JS,
     STREAM_VOLUNTEER_ACTIONABLE,
-    _bool_js,
     crew_signup_section,
     crew_wanted_js,
     seed_value_template,
@@ -399,9 +398,11 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
     # The card's edit affordance mirrors the desktop first cell: a pencil where
     # the board declares an `edit` column, the plain number where it declares
     # `id` (the proctor's, who calls matches out by number).
+    # Only a scoped board narrows edit per row; otherwise has_edit is the answer.
+    edit_js = access.edit_js() if access.edit_scope is not None else 'true'
     if 'edit' in present and has_edit:
         caption_inner += (
-            '<q-btn flat round dense icon="edit" color="primary" size="sm" class="q-ml-xs"'
+            f'<q-btn v-if="{edit_js}" flat round dense icon="edit" color="primary" size="sm" class="q-ml-xs"'
             ' aria-label="Edit this match"'
             ' @click="$parent.$emit(\'edit_match\', { row: props.row })">'
             '<q-tooltip>Edit this match</q-tooltip></q-btn>'
@@ -409,8 +410,9 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
     if 'id' in present:
         if has_edit:
             caption_inner += (
-                '<a href="#" class="mgc-id-link q-ml-sm"'
+                f'<a v-if="{edit_js}" href="#" class="mgc-id-link q-ml-sm"'
                 ' @click="$parent.$emit(\'edit_match\', { row: props.row })">#{{ props.row.id }}</a>'
+                '<span v-else class="q-ml-sm">#{{ props.row.id }}</span>'
             )
         else:
             caption_inner += '<span class="q-ml-sm">#{{ props.row.id }}</span>'
@@ -462,9 +464,9 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
         .replace('__SEED_VALUE__', seed_value_template('props.row.generated_seed'))
         .replace('__IA__', ia)
         .replace('__RUN__', access.run_js())
-        .replace('__CONFIRM__', _bool_js(access.confirm))
-        .replace('__CREW__', _bool_js(access.approve_crew))
-        .replace('__STREAM__', _bool_js(access.assign_stream))
+        .replace('__CONFIRM__', access.confirm_js())
+        .replace('__CREW__', access.crew_js())
+        .replace('__STREAM__', access.stream_js())
         # Shared with the desktop stage cell so both boards read the same row
         # keys for "which stage is this on" (match_slots.STAGE_VALUE_JS).
         .replace('__STAGEVAL__', STAGE_VALUE_JS)

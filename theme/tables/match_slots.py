@@ -32,8 +32,8 @@ def _fill(template: str, *, admin_controls: bool, access: MatchBoardAccess,
         template
         .replace('__IA__', _bool_js(admin_controls))
         .replace('__RUN__', access.run_js())
-        .replace('__CONFIRM__', _bool_js(access.confirm))
-        .replace('__CREW__', _bool_js(access.approve_crew))
+        .replace('__CONFIRM__', access.confirm_js())
+        .replace('__CREW__', access.crew_js())
         .replace('__DID__', discord_id_js)
         .replace('__WANTED__', crew_wanted_js(role))
         .replace('__KEY__', role)
@@ -59,14 +59,15 @@ def crew_wanted_js(role: str) -> str:
 # and a control nobody can guess is a control. A labelled pencil in the same
 # first-column slot costs the same width and says what it does.
 EDIT_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
-    <q-btn flat round dense icon="edit" color="primary"
+    <q-btn v-if="__EDIT__" flat round dense icon="edit" color="primary"
            @click="$parent.$emit('edit_match', props)" aria-label="Edit this match">
         <q-tooltip>Edit this match</q-tooltip>
     </q-btn>
 </q-td>'''
 
 ID_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
-    <a href="#" @click="$parent.$emit('edit_match', props)" class="table-link cell-id">{{ props.value }}</a>
+    <a v-if="__EDIT__" href="#" @click="$parent.$emit('edit_match', props)" class="table-link cell-id">{{ props.value }}</a>
+    <span v-else class="cell-id">{{ props.value }}</span>
 </q-td>'''
 
 # Plain id for viewers without an edit callback (e.g. proctors) — a link that
@@ -476,8 +477,15 @@ STAGE_VALUE_JS = (
 # rather than a clear button — "none" is one of the answers, not the absence of
 # one, and a clear affordance that only appears once something is chosen cannot
 # be found by someone looking for it.
+_STAGE_READONLY_BODY = (
+    '<a __IF__="props.value && props.row.stage_url" :href="props.row.stage_url" target="_blank" '
+    'rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.value }}</a>\n'
+    '    <span v-else-if="props.value">{{ props.value }}</span>\n'
+    '    <span v-else>-</span>'
+)
+
 STAGE_ADMIN_SLOT = f'''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
-    <div style="display: flex; align-items: center; gap: 4px;">
+    <div v-if="__STREAM__" style="display: flex; align-items: center; gap: 4px;">
         <q-select :model-value="{STAGE_VALUE_JS}" :options="props.row.stage_options || []"
                   @update:model-value="val => $parent.$emit('set_stage', {{ key: props.row.id, stage: val }})"
                   dense options-dense borderless emit-value map-options
@@ -489,13 +497,12 @@ STAGE_ADMIN_SLOT = f'''<q-td :props="props" :class="[props.row._flash ? 'wiz-row
             <q-tooltip>Open the stream</q-tooltip>
         </a>
     </div>
-</q-td>'''
+    __STAGE_READONLY_BODY__
+</q-td>'''.replace('__STAGE_READONLY_BODY__', _STAGE_READONLY_BODY.replace('__IF__', 'v-else-if'))
 
 STAGE_READONLY_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
-    <a v-if="props.value && props.row.stage_url" :href="props.row.stage_url" target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.value }}</a>
-    <span v-else-if="props.value">{{ props.value }}</span>
-    <span v-else>-</span>
-</q-td>'''
+    __STAGE_READONLY_BODY__
+</q-td>'''.replace('__STAGE_READONLY_BODY__', _STAGE_READONLY_BODY.replace('__IF__', 'v-if'))
 
 
 # Read-only seed cell (no Generate button) — the variant the home schedule /
@@ -750,9 +757,13 @@ def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess
     value, which for a seed is an untruncated URL.
     """
     discord_id_js = f"'{discord_id}'" if discord_id else 'null'
+    # Only a scoped board narrows these per row; otherwise the callback the
+    # caller wired is the whole answer, as it always was.
+    edit_js = access.edit_js() if access.edit_scope is not None else 'true'
+    stream_js = access.stream_js() if access.stream_scope is not None else 'true'
 
-    table.add_slot('body-cell-edit', EDIT_SLOT)
-    table.add_slot('body-cell-id', ID_SLOT if has_edit else ID_SLOT_READONLY)
+    table.add_slot('body-cell-edit', EDIT_SLOT.replace('__EDIT__', edit_js))
+    table.add_slot('body-cell-id', ID_SLOT.replace('__EDIT__', edit_js) if has_edit else ID_SLOT_READONLY)
     table.add_slot('body-cell-tournament', TOURNAMENT_SLOT)
     table.add_slot('body-cell-scheduled_at', SCHEDULED_AT_SLOT)
 
@@ -794,6 +805,6 @@ def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess
             discord_id_js=discord_id_js,
         ))
     if want_stage_admin:
-        table.add_slot('body-cell-stage', STAGE_ADMIN_SLOT)
+        table.add_slot('body-cell-stage', STAGE_ADMIN_SLOT.replace('__STREAM__', stream_js))
     if want_stage_readonly:
         table.add_slot('body-cell-stage', STAGE_READONLY_SLOT)
