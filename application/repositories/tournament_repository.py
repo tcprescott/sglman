@@ -201,6 +201,7 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
     async def create(
         name: str,
         description: Optional[str] = None,
+        short_name: Optional[str] = None,
         seed_generator: Optional[str] = None,
         is_active: bool = True,
         is_test: bool = False,
@@ -256,6 +257,7 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         return await Tournament.create(
             tenant_id=current_tenant_id(),
             name=name,
+            short_name=short_name,
             description=description,
             seed_generator=seed_generator,
             is_active=is_active,

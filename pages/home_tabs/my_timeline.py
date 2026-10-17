@@ -1,0 +1,166 @@
+"""My Schedule's Timeline view: one day of the viewer's commitments on a clock.
+
+Matches they play, matches they crew and their volunteer shifts share one
+column on an hour scale, the volunteer grid's scale, so a clash between a
+shift and a match is two boxes side by side rather than two lines on two
+different panels. A day at a time, chosen from chips for the days that have
+anything on. Tapping a block opens it: a match or crew slot in the List view,
+narrowed to that match; a shift in its details dialog.
+"""
+
+from datetime import date, datetime, timedelta, timezone
+
+from nicegui import app, ui
+
+from application.services import MyTimelineService, get_user_from_session
+from application.services.my_timeline_service import (
+    CREW,
+    MATCH,
+    SHIFT,
+    TimelineItem,
+    event_day,
+    opening_day,
+    place_in_lanes,
+)
+from application.utils.app_links import crew_match_url, player_match_url
+from application.utils.timezone import combine_local, format_local_time
+from pages.home_tabs.my_volunteer_shifts import open_shift_details
+from theme.empty_state import empty_panel
+from theme.section import section_panel
+from theme.timer_teardown import PageTimer
+from theme.volunteer_grid import HOUR_PX, day_label, render_day_bar
+
+_KINDS = {
+    MATCH: ('sports_esports', 'Your matches'),
+    CREW: ('headset_mic', 'Crew'),
+    SHIFT: ('volunteer_activism', 'Volunteer shifts'),
+}
+
+
+def _px(hours: float) -> str:
+    return f'{hours * HOUR_PX:.1f}px'
+
+
+def hour_range(items: list[TimelineItem], midnight: datetime) -> tuple[int, int]:
+    """The hours the day's grid shows: an hour either side of what is on."""
+    first = min((i.starts_at - midnight).total_seconds() / 3600 for i in items)
+    last = max((i.ends_at - midnight).total_seconds() / 3600 for i in items)
+    return max(0, int(first) - 1), min(30, -int(-last // 1) + 1)
+
+
+def _open(item: TimelineItem) -> None:
+    if item.kind == SHIFT and item.assignment is not None:
+        open_shift_details(item.assignment)
+    elif item.kind == CREW:
+        ui.navigate.to(crew_match_url(item.match_id))
+    else:
+        ui.navigate.to(player_match_url(item.match_id))
+
+
+def _legend(kinds: set, now_shown: bool) -> None:
+    with ui.row().classes('wiz-vgrid-legend items-center'):
+        for kind, (_, words) in _KINDS.items():
+            if kind in kinds:
+                with ui.row().classes('items-center gap-1 no-wrap'):
+                    ui.element('span').classes(f'wiz-tl-swatch wiz-tl--{kind}')
+                    ui.label(words)
+        if now_shown:
+            with ui.row().classes('items-center gap-1 no-wrap'):
+                ui.element('span').classes('wiz-vgrid-legend__now')
+                ui.label('Now')
+
+
+def _render_day(items: list[TimelineItem], day: date) -> None:
+    midnight = combine_local(day, datetime.min.time()).astimezone(timezone.utc)
+    first, last = hour_range(items, midnight)
+    now = datetime.now(timezone.utc)
+    now_hour = (now - midnight).total_seconds() / 3600
+    now_shown = first <= now_hour < last
+    _legend({i.kind for i in items}, now_shown)
+    height = _px(last - first)
+    with ui.element('div').classes('wiz-vgrid wiz-tl').props(
+        f'role=region aria-label="Your schedule for {day_label(day)}"'
+    ):
+        with ui.element('div').classes('wiz-vgrid__times'):
+            ui.element('div').classes('wiz-vgrid__head')
+            with ui.element('div').classes('wiz-vgrid__body').style(f'height: {height};'):
+                for hour in range(first, last):
+                    ui.label(format_local_time(midnight + timedelta(hours=hour))) \
+                        .classes('wiz-vgrid__hour').style(f'top: {_px(hour - first)};')
+        with ui.element('div').classes('wiz-vgrid__col'):
+            ui.label(f'{day:%A, %B} {day.day}').classes('wiz-vgrid__head')
+            with ui.element('div').classes('wiz-vgrid__body wiz-vgrid__body--lines') \
+                    .style(f'height: {height};'):
+                for placed in place_in_lanes(items):
+                    _render_block(placed.item, placed.lane, placed.lanes, midnight, first)
+                if now_shown:
+                    ui.element('div').classes('wiz-vgrid__now').style(f'top: {_px(now_hour - first)};')
+
+
+def _render_block(item: TimelineItem, lane: int, lanes: int, midnight: datetime, first: int) -> None:
+    icon, _ = _KINDS[item.kind]
+    top = (item.starts_at - midnight).total_seconds() / 3600 - first
+    span = (item.ends_at - item.starts_at).total_seconds() / 3600
+    when = f'{format_local_time(item.starts_at)} – {format_local_time(item.ends_at)}'
+    block = ui.element('div').classes(f'wiz-tl-block wiz-tl--{item.kind}').style(
+        f'top: calc({_px(top)} + 3px); height: calc({_px(span)} - 6px); '
+        f'left: calc(4px + (100% - 8px) * {lane} / {lanes}); '
+        f'width: calc((100% - 8px) / {lanes} - {4 if lanes > 1 else 0}px);'
+    )
+    block.props(f'tabindex=0 role=button aria-label="{item.title}, {when}"')
+    block.on('click', lambda i=item: _open(i))
+    block.on('keydown.enter', lambda i=item: _open(i))
+    with block:
+        ui.label(when).classes('wiz-tl-block__time')
+        with ui.row().classes('wiz-tl-block__title items-center no-wrap'):
+            ui.icon(icon, size='14px')
+            ui.label(item.title)
+        if item.detail:
+            ui.label(item.detail).classes('wiz-tl-block__detail')
+
+
+async def my_timeline_view(*, include_shifts: bool) -> None:
+    user = await get_user_from_session(app.storage.user)
+    if user is None:
+        return
+    service = MyTimelineService()
+    state: dict = {'day': None}
+
+    panel = await section_panel(
+        'Your timeline',
+        icon='view_timeline',
+        subtitle='Your matches, crew slots and volunteer shifts, hour by hour.',
+        help_topics=[('my-schedule-timeline', 'The timeline')],
+        user=user,
+    )
+
+    @ui.refreshable
+    async def view() -> None:
+        try:
+            items = await service.items(user, include_shifts=include_shifts)
+        except ValueError as e:
+            ui.label(str(e)).classes('text-muted')
+            return
+        by_day: dict[date, list[TimelineItem]] = {}
+        for item in items:
+            by_day.setdefault(event_day(item.starts_at), []).append(item)
+        days = sorted(by_day)
+        if not days:
+            empty_panel('Nothing on your schedule yet.', icon='event_available')
+            return
+        day = state['day'] if state['day'] in by_day else opening_day(
+            days, event_day(datetime.now(timezone.utc)),
+        )
+        if day is None:
+            return
+        state['day'] = day
+        render_day_bar(days, day, pick_day)
+        _render_day(by_day[day], day)
+
+    def pick_day(d: date) -> None:
+        state['day'] = d
+        view.refresh()
+
+    with panel.body:
+        await view()
+    PageTimer(300, view.refresh)

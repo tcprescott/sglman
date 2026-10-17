@@ -28,8 +28,8 @@ def make_match(**overrides):
         scheduled_at=datetime(2025, 1, 15, 19, 30),
         comment=None,
         tournament=SimpleNamespace(
-            name="Test Tournament", seed_generator=None, is_racetime_enabled=False,
-            required_commentators=1, required_trackers=1,
+            name="Test Tournament", short_label="Test", seed_generator=None,
+            is_racetime_enabled=False, required_commentators=1, required_trackers=1,
         ),
         stage=None,
         stage_id=None,
@@ -189,6 +189,7 @@ class TestFormatMatchForDisplay:
     def test_tournament_name_in_result(self, display_service):
         result = display_service._format_match_for_display(make_match())
         assert result["tournament"] == "Test Tournament"
+        assert result["tournament_short"] == "Test"
 
     def test_tournament_empty_when_none(self, display_service):
         match = make_match(tournament=None)
@@ -425,7 +426,8 @@ class TestFormatMatchIsRacetime:
     def test_is_racetime_true_when_tournament_racetime_enabled(self, display_service):
         match = make_match(
             tournament=SimpleNamespace(
-                name="Online Cup", seed_generator=None, is_racetime_enabled=True,
+                name="Online Cup", short_label="Online Cup", seed_generator=None,
+                is_racetime_enabled=True,
                 required_commentators=1, required_trackers=1,
             )
         )

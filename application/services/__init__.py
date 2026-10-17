@@ -88,6 +88,7 @@ from .match import (
 from .match_reschedule_service import MatchRescheduleService
 from .matcherino_login_service import MatcherinoLoginService, MatcherinoLoginStatus
 from .mcp_auth_service import McpAuthService
+from .my_timeline_service import MyTimelineService
 from .notification_channel_service import NotificationChannelService
 from .password_auth_service import PasswordAuthService
 from .payout_service import PayoutService
@@ -204,6 +205,7 @@ __all__ = [
     'MatcherinoLoginService',
     'MatcherinoLoginStatus',
     'McpAuthService',
+    'MyTimelineService',
     'NotFoundError',
     'NotificationChannelService',
     'PasswordAuthService',

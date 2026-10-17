@@ -164,7 +164,7 @@ Each page module exposes a `create()` function that registers its routes; `front
 | Tab | Content function | Holds | Absorbed slugs |
 |---|---|---|---|
 | Event | `home_tabs/event.py:event_tab` | Schedule board and Brackets, as a view switcher (`on-air` redirects to `/live`) | `schedule`, `brackets` |
-| My Schedule | `home_tabs/my_schedule.py:my_schedule_tab` | Your matches, crew commitments, availability, equipment checkouts | `player`, `my-crew`, `availability`, `equipment` |
+| My Schedule | `home_tabs/my_schedule.py:my_schedule_tab` | List / Timeline switch; List is your matches, crew commitments, volunteer shifts, availability, equipment checkouts | `player`, `my-crew`, `availability`, `equipment` |
 | Tournaments | `home_tabs/tournaments.py:tournaments_tab` | Signup cards; triforce text submission hangs off the matching card | `triforce-texts` |
 | Profile | `home_tabs/player_edit_info.py:render_edit_info_tab` | Profile, notifications, linked accounts, API tokens | — |
 
@@ -181,7 +181,9 @@ Only the signed-in shape is listed because it is the only shape: `enforce_member
 | [`event.py`](../../pages/home_tabs/event.py) | Event | The view switcher. `available_views` / `resolve_view` are pure (unit-tested); a view whose flag is off is absent, and a lone view renders no switcher. Styled `.wiz-segmented` and **never given `color=`** — on a `q-btn-toggle` that prop paints the *inactive* segments, so `color=primary` made all three gold and none of them look chosen |
 | [`schedule.py`](../../pages/home_tabs/schedule.py) | Event → Schedule | Event schedule with crew signup, watch toggles |
 | [`brackets.py`](../../pages/home_tabs/brackets.py) | Event → Brackets | Browse path into the public bracket pages: one card per tournament with stages. `group_by_tournament` is pure (unit-tested); the single read is `BracketService.list_all_brackets` |
-| [`my_schedule.py`](../../pages/home_tabs/my_schedule.py) | My Schedule | Stacks the four sections below in commitment order, each a [section panel](#section-panels-themesectionpy) (Equipment only while `EQUIPMENT` is live). Passes the `schedule`/`reschedule`/`match`/`hard` deep-link params through to the matches section |
+| [`my_schedule.py`](../../pages/home_tabs/my_schedule.py) | My Schedule | A List / Timeline segmented switch (remembered in `app.storage.user['my_schedule_view']`; any deep-link param forces List for that visit). List stacks the sections below in commitment order, each a [section panel](#section-panels-themesectionpy) (Volunteer shifts only while `VOLUNTEERS` is live, Equipment only while `EQUIPMENT` is). Passes the `schedule`/`reschedule`/`match`/`hard` deep-link params through to the matches section |
+| [`my_volunteer_shifts.py`](../../pages/home_tabs/my_volunteer_shifts.py) | My Schedule → Your volunteer shifts | Upcoming shifts by day: one button (I'm here / Acknowledge) and a ⋮ (Shift details, Undo check-in, Can't make it…). Not built when the viewer has no upcoming shift |
+| [`my_timeline.py`](../../pages/home_tabs/my_timeline.py) | My Schedule → Timeline | One event day (06:00–06:00) of `MyTimelineService.items` in a single column on the volunteer grid's hour scale, clashes in lanes. A match or crew block links to the List view's `?match=`; a shift opens its details |
 | [`player.py`](../../pages/home_tabs/player.py) | My Schedule → Your matches | The player's own match list and match requests; bracket matches to schedule |
 | [`my_crew.py`](../../pages/home_tabs/my_crew.py) | My Schedule → Crew | The commentator and tracker slots the viewer signed up for |
 | [`availability.py`](../../pages/home_tabs/availability.py) | My Schedule → When you can't play | Self-service *blocked-out* windows (opt-out) with a live effective-availability graph |

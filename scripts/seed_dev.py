@@ -335,6 +335,9 @@ async def seed_for_tenant(
             },
         )
         await backfill(tournament, **dev_tournament_meta)
+        # A short name, so the run sheets and the My Schedule timeline show the
+        # abbreviation; the other fixtures leave it blank to show the fallback.
+        await backfill(tournament, short_name="Dev Tourney")
         # An inactive tournament, so the Tournaments board shows its Inactive chip
         # and the row menu's Delete (offered only once a tournament is inactive).
         await Tournament.get_or_create(

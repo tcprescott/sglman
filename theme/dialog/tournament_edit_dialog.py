@@ -89,6 +89,14 @@ class TournamentDialog:
                 name_input.props(
                     'hint="Everything below has a sensible default — you can come back to it."'
                 )
+                short_name_input = ui.input(
+                    'Short name',
+                    value=(self.tournament.short_name or '') if self.tournament else '',
+                ).props('maxlength=40 counter').classes('input-full-width')
+                short_name_input.props(
+                    'hint="Shown on the run sheets and timeline, where the full name won\'t fit. '
+                    'Leave blank to use the full name."'
+                )
                 description_input = MarkdownEditor(
                     'Description',
                     value=self.tournament.description if self.tournament and self.tournament.description else '',
@@ -529,6 +537,7 @@ class TournamentDialog:
                             await self.tournament_service.update_tournament(
                                 self.tournament,
                                 name=name_input.value,
+                                short_name=short_name_input.value,
                                 description=description_input.value,
                                 bracket_url=bracket_url_input.value,
                                 rules_url=rules_url_input.value,
@@ -558,6 +567,7 @@ class TournamentDialog:
                     else:
                         new_tournament = await self.tournament_service.create_tournament(
                             name=name_input.value,
+                            short_name=short_name_input.value,
                             description=description_input.value,
                             bracket_url=bracket_url_input.value,
                             rules_url=rules_url_input.value,

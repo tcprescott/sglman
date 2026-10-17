@@ -26,8 +26,12 @@ from models import FeatureFlag
 from pages.home_tabs.availability import availability_tab
 from pages.home_tabs.equipment import equipment_checkouts_section
 from pages.home_tabs.my_crew import my_crew_tab
+from pages.home_tabs.my_timeline import my_timeline_view
 from pages.home_tabs.my_volunteer_shifts import my_volunteer_shifts_section
 from pages.home_tabs.player import render_player_dashboard
+
+#: Where the viewer's List / Timeline choice is remembered.
+VIEW_KEY = 'my_schedule_view'
 
 
 async def my_schedule_tab(
@@ -57,7 +61,12 @@ async def my_schedule_tab(
     plays = bool(user and await TournamentService().get_enrolled_players_by_user(user))
     volunteer = user if FeatureFlag.VOLUNTEERS in live else None
 
-    with ui.column().classes('page-container wiz-section-stack'):
+    deep_link = any(v is not None for v in (schedule, reschedule, match, hard, agree, book, startgg, comments))
+    # A DM's link names something to open in the List view, so it wins over a
+    # remembered Timeline for this visit without changing the remembered choice.
+    state = {'view': 'list' if deep_link else app.storage.user.get(VIEW_KEY, 'list')}
+
+    async def list_view() -> None:
         if not plays:
             if volunteer:
                 await my_volunteer_shifts_section(volunteer)
@@ -73,3 +82,24 @@ async def my_schedule_tab(
         await availability_tab()
         if FeatureFlag.EQUIPMENT in live:
             await equipment_checkouts_section()
+
+    @ui.refreshable
+    async def body() -> None:
+        if state['view'] == 'timeline':
+            await my_timeline_view(include_shifts=volunteer is not None)
+        else:
+            await list_view()
+
+    async def switch(value: str) -> None:
+        state['view'] = value
+        app.storage.user[VIEW_KEY] = value
+        await body.refresh()
+
+    with ui.column().classes('page-container wiz-section-stack'):
+        ui.toggle(
+            {'list': 'List', 'timeline': 'Timeline'},
+            value=state['view'],
+            on_change=lambda e: switch(e.value),
+        ).props('dense unelevated no-caps aria-label="Show My Schedule as"') \
+            .classes('wiz-segmented wiz-schedule-view')
+        await body()

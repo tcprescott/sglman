@@ -307,6 +307,8 @@ class MatchDisplayService:
             # instead of quoting a primary key (``match_labels.match_row_label``).
             'title': match.title or '',
             'tournament': match.tournament.name if match.tournament else '',
+            # The run sheets' label; the full name rides along as its tooltip.
+            'tournament_short': match.tournament.short_label if match.tournament else '',
             # None unless a bracket scheduled this match; drives the schedule's
             # link into the (publicly readable) bracket view.
             'bracket': self._bracket_ref(match),

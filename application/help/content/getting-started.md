@@ -102,6 +102,16 @@ More on windows, withdrawing and Challonge rosters:
 Every member sees the same four tabs: **Event** is the whole schedule, **My Schedule** is only what you're
 in, **Tournaments** is where you sign up, and **Profile** is you.
 
+:::snippet my-schedule-timeline
+**My Schedule** has two views, switched at the top. **List** is the page as
+sections: your matches, crew slots, volunteer shifts, when you can't play and
+any gear you have out. **Timeline** puts your matches, crew slots and shifts for
+one day on a clock, one column, so anything that clashes sits side by side.
+Pick a day from the chips above it. Tap a block to open it: a match or crew
+slot opens in the List view, a shift shows its details. The page remembers
+which view you used last; a link from a DM always opens the List.
+:::
+
 ## Turn on notifications
 
 Wizzrobe sends you a Discord DM when something happens to a match you're in.

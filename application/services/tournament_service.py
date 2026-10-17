@@ -164,6 +164,17 @@ class TournamentService(TournamentSignupMixin):
             return None
         return SystemConfigService.validate_hours_mapping(tournament_hours) or None
 
+    #: Matches ``Tournament.short_name``'s column width.
+    SHORT_NAME_MAX = 40
+
+    @classmethod
+    def _short_name(cls, value: Optional[str]) -> Optional[str]:
+        """Blank clears it (the full name shows instead)."""
+        cleaned = (value or '').strip()
+        if len(cleaned) > cls.SHORT_NAME_MAX:
+            raise ValueError(f'Keep the short name to {cls.SHORT_NAME_MAX} characters or fewer.')
+        return cleaned or None
+
     @staticmethod
     def _crew_requirement(value: Any, role: str) -> int:
         """Coerce a crew-requirement count, rejecting negatives.
@@ -209,6 +220,7 @@ class TournamentService(TournamentSignupMixin):
         self,
         name: str,
         description: Optional[str] = None,
+        short_name: Optional[str] = None,
         seed_generator: Optional[str] = None,
         bracket_url: Optional[str] = None,
         rules_url: Optional[str] = None,
@@ -276,6 +288,7 @@ class TournamentService(TournamentSignupMixin):
 
         tournament = await self.repository.create(
             name=name.strip(),
+            short_name=self._short_name(short_name),
             description=description.strip() if description else None,
             seed_generator=seed_generator,
             bracket_url=normalize_http_url(bracket_url, 'The bracket link'),
@@ -321,6 +334,7 @@ class TournamentService(TournamentSignupMixin):
         tournament: Tournament,
         name: Optional[str] = None,
         description: Optional[str] = None,
+        short_name: Optional[str] = None,
         seed_generator: Optional[str] = None,
         bracket_url: Optional[str] = None,
         rules_url: Optional[str] = None,
@@ -366,6 +380,8 @@ class TournamentService(TournamentSignupMixin):
         update_data: Dict[str, Any] = {}
         if name is not None:
             update_data['name'] = name.strip()
+        if short_name is not None:
+            update_data['short_name'] = self._short_name(short_name)
         if description is not None:
             update_data['description'] = description.strip() if description else None
         if seed_generator is not None:
