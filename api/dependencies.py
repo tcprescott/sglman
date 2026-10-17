@@ -149,10 +149,18 @@ async def require_write_actor(
 
 
 async def require_admin(actor: User = Depends(require_api_actor)) -> User:
-    """Authenticated user who can view the admin area (any admin role in this community or
-    tournament admin/crew-coordinator membership)."""
+    """Authenticated user who can read the community's reports: staff, or a
+    tournament admin or crew coordinator here (``can_view_admin``)."""
     await AuthService.ensure(
         await AuthService.can_view_admin(actor), "Admin access required"
+    )
+    return actor
+
+
+async def require_volunteer_admin(actor: User = Depends(require_api_actor)) -> User:
+    """``require_admin`` plus a volunteer coordinator, for the admin-side volunteer reads."""
+    await AuthService.ensure(
+        await AuthService.can_view_volunteer_admin(actor), "Admin access required"
     )
     return actor
 

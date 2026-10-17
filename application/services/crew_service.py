@@ -210,6 +210,20 @@ class CrewService:
         if was_approved:
             await self._notify_crew_withdrawal(match, user, role, approved_by_id)
 
+    async def get_match_crew(self, match_id: int, actor: Optional[User]):
+        """A match with every crew signup on it, pending ones included.
+
+        Pending crew are the approver's working view, so this is gated like
+        approving them (``can_approve_crew``): staff, or a TA or CC of *this*
+        match's tournament, not any tournament's.
+        """
+        match = require_found(await self.match_repository.get_by_id(match_id), 'Match')
+        await AuthService.ensure(
+            await AuthService.can_approve_crew(actor, match),
+            "You can't see crew signups for this match.",
+        )
+        return match
+
     async def get_crew_member_by_id(
         self,
         crew_id: int,

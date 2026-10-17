@@ -92,7 +92,7 @@ One module per group under [`api/routers/`](../../api/routers/), named after the
 - Watching: `GET /matches/watching` (matches you watch) · `POST /matches/{id}/watch` · `DELETE /matches/{id}/watch`.
 - Stream offer: `POST /matches/{id}/stream-offer` · `DELETE /matches/{id}/stream-offer` — a player offers their own match for stream coverage, or takes it back. `400` for someone not in the match, or for an offer once it has started (withdrawing is allowed after). Stream managers see the offer; it does not set `is_stream_candidate`.
 
-- `GET /matches/{id}/crew` — the coordinator's crew list, **including unapproved signups** (admin). `GET /matches/{id}` hides those from everyone, so this sits behind a higher gate than the match itself; the peer of the MCP `list_match_crew` tool.
+- `GET /matches/{id}/crew` — the coordinator's crew list, **including unapproved signups** (staff, or a TA/CC of the match's tournament: `can_approve_crew`, checked in `CrewService.get_match_crew`). `GET /matches/{id}` hides those from everyone, so this sits behind a higher gate than the match itself; the peer of the MCP `list_match_crew` tool.
 
 ### Reschedule requests · `reschedule_requests.py`
 Players asking staff to move or call off a match. Approving **performs** the change, so a `POST /approve` is a reschedule or a cancellation, not a status update.
@@ -175,7 +175,7 @@ In-app feedback: submit, read your own, and the staff queue.
 The programmatic peer of the Admin → Reports tab, at that tab's own gate (`can_view_admin`: staff, tournament admin, or crew coordinator). All reads, so a read-only token works throughout. A window is `start`/`end` (UTC ISO 8601, both required); `end` before `start` is `400`, and `bucket` accepts `week` or `month`.
 - `GET /reports/capacity-forecast` · `/stage-utilization` · `/match-operations` · `/crew-coverage` · `/tournament-health` · `/crew-participation-trends` · `/activity-trends`.
 - `GET /reports/matches-active-at?instant=&limit=` — what is in progress at one moment.
-- `GET /reports/volunteer-hour-trends` — carries the `VOLUNTEERS` flag **at the route** rather than the router, because `AnalyticsService` has no flag of its own; without it a community with volunteers off could still read its volunteer hours. Its siblings on the same router stay reachable.
+- `GET /reports/volunteer-hour-trends` — carries the `VOLUNTEERS` flag **at the route** rather than the router, because `AnalyticsService` has no flag of its own; without it a community with volunteers off could still read its volunteer hours. Its siblings on the same router stay reachable. It is also the one report a volunteer coordinator may read (`require_volunteer_admin`), so the router puts its gate on each route rather than on the router.
 
 Two are **reshaped rather than passed through**, exactly as the matching MCP tools are: `ReportsService` builds its payloads for a chart, and `stage_utilization`'s even contains ORM `Match` rows. `capacity-forecast` returns peaks and headroom instead of the per-interval series; `stage-utilization` returns per-room totals plus `unplaced_candidate_count` instead of every booking.
 

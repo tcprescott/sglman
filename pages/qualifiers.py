@@ -143,7 +143,7 @@ def create() -> None:
     async def qualifiers_list() -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Async Qualifiers')
         user = await get_user_from_session(app.storage.user)
-        show_admin = await AuthService.can_view_admin(user)
+        show_admin = await AuthService.can_open_admin(user)
         await BaseLayout(user=user, show_admin=show_admin).render()
 
         with ui.column().classes('page-container'):
@@ -172,7 +172,7 @@ def create() -> None:
     async def qualifier_detail(qualifier_id: int, focus: str | None = None) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Async Qualifier')
         user = await get_user_from_session(app.storage.user)
-        show_admin = await AuthService.can_view_admin(user)
+        show_admin = await AuthService.can_open_admin(user)
         await BaseLayout(user=user, show_admin=show_admin).render()
 
         if user is None:

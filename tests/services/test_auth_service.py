@@ -458,6 +458,20 @@ class TestViewAdmin:
         patch_roles({Role.STREAM_MANAGER})
         assert await AuthService.can_view_admin(make_user()) is False
 
+    @pytest.mark.parametrize('role', [Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR])
+    async def test_a_single_tab_admin_role_cannot_view_admin(self, patch_roles, role):
+        """Held to their own Admin tabs, not the reports and crew reads."""
+        patch_roles({role})
+        assert await AuthService.can_view_admin(make_user()) is False
+
+    async def test_a_volunteer_coordinator_reads_the_volunteer_admin_data(self, patch_roles):
+        patch_roles({Role.VOLUNTEER_COORDINATOR})
+        assert await AuthService.can_view_volunteer_admin(make_user()) is True
+
+    async def test_an_equipment_manager_does_not_read_volunteer_admin_data(self, patch_roles):
+        patch_roles({Role.EQUIPMENT_MANAGER})
+        assert await AuthService.can_view_volunteer_admin(make_user()) is False
+
     async def test_volunteer_alone_cannot_view_admin(self, patch_roles):
         patch_roles({Role.VOLUNTEER})
         assert await AuthService.can_view_admin(make_user()) is False
