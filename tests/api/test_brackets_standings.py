@@ -221,8 +221,8 @@ class TestAdvancingPreview:
             )
             assert r.status_code == 404
 
-    async def test_preview_readable_with_role_less_token(self, db, app):
-        """The dry run writes nothing, so it stays on the any-token read dep."""
+    async def test_preview_is_staff_only(self, db, app):
+        """The next stage is a draft, so even its existence is staff-only."""
         _, plain = await create_user_token(username='plain')
         t = await tournament()
         async with client_for(app, plain) as c:
@@ -230,4 +230,24 @@ class TestAdvancingPreview:
                 f'/api/brackets/advancing-preview'
                 f'?tournament_id={t.id}&from_stage_order=0'
             )
-            assert r.status_code == 404
+            assert r.status_code == 403
+
+
+class TestMatchupInUnpublishedStage:
+    async def test_a_cancelled_stage_matchup_reads_as_absent(self, db, app):
+        from models import Bracket, BracketState
+
+        _, staff = await staff_token()
+        t = await tournament()
+        async with client_for(app, staff) as c:
+            stage = await draft(c, t, name='Main', format='single_elim')
+            await enroll(c, stage, t, ('Alice', 'Bob'))
+            await c.post(f'/api/brackets/{stage}/start')
+            match_id = (await c.get(f'/api/brackets/{stage}/matches')).json()[0]['id']
+        await Bracket.filter(id=stage).update(state=BracketState.CANCELLED)
+
+        _, plain = await create_user_token(username='plain')
+        async with client_for(app, plain) as c:
+            assert (await c.get(f'/api/brackets/matches/{match_id}')).status_code == 404
+        async with client_for(app, staff) as c:
+            assert (await c.get(f'/api/brackets/matches/{match_id}')).status_code == 200

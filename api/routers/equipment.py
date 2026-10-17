@@ -94,8 +94,8 @@ async def _load_asset(equipment_id: int) -> Equipment:
     summary="List the equipment inventory",
     description=(
         "Lists every asset in the community, ordered by asset number, with who currently "
-        "holds each one. `private_notes` is filled in only for Staff and Equipment managers."
-        "\n\n**Who can call this:** Any member."
+        "holds each one. Other members look assets up one at a time with `GET /equipment/{id}`."
+        "\n\n**Who can call this:** Staff or Equipment manager."
     ),
 )
 async def list_equipment(
@@ -105,13 +105,12 @@ async def list_equipment(
     actor: User = Depends(require_api_actor),
 ):
     service = EquipmentService()
-    assets = await service.list_assets()
+    assets = await service.list_register(actor)
     open_loans = await service.open_loans_by_equipment_id()
-    can_manage = await AuthService.can_manage_equipment(actor)
     return [
         _serialize_asset(
             asset,
-            can_manage=can_manage,
+            can_manage=True,
             borrower=getattr(open_loans.get(asset.id), 'borrower', None),
         )
         for asset in assets

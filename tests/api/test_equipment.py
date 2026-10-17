@@ -23,8 +23,8 @@ async def _asset(asset_number=1, name='Console', **kwargs):
 
 
 class TestReads:
-    async def test_list_is_open_to_any_member(self, db, app):
-        _, raw = await create_user_token(username='plain')
+    async def test_list_is_for_equipment_managers(self, db, app):
+        _, raw = await create_user_token(username='em', roles=[Role.EQUIPMENT_MANAGER])
         await _asset(1, 'CRT')
         await _asset(2, 'SNES')
         async with client_for(app, raw) as c:
@@ -32,12 +32,18 @@ class TestReads:
             assert resp.status_code == 200
             assert {a['name'] for a in resp.json()} == {'CRT', 'SNES'}
 
+    async def test_list_is_refused_to_a_plain_member(self, db, app):
+        """The register is the admin tab's; members look one asset up from its QR page."""
+        _, raw = await create_user_token(username='plain')
+        asset = await _asset(1, 'CRT')
+        async with client_for(app, raw) as c:
+            assert (await c.get('/api/equipment')).status_code == 403
+            assert (await c.get(f'/api/equipment/{asset.id}')).status_code == 200
+
     async def test_private_notes_are_hidden_from_a_plain_member(self, db, app):
         _, raw = await create_user_token(username='plain')
         asset = await _asset(1, 'CRT', private_notes='cracked case')
         async with client_for(app, raw) as c:
-            listed = (await c.get('/api/equipment')).json()
-            assert listed[0]['private_notes'] is None
             detail = (await c.get(f'/api/equipment/{asset.id}')).json()
             assert detail['private_notes'] is None
 
@@ -49,7 +55,7 @@ class TestReads:
             assert detail['private_notes'] == 'cracked case'
 
     async def test_status_filter_narrows_the_inventory(self, db, app):
-        _, raw = await create_user_token(username='plain')
+        _, raw = await create_user_token(username='staff', roles=[Role.STAFF])
         await _asset(1, 'CRT')
         await _asset(2, 'Retired CRT', status=EquipmentStatus.RETIRED)
         async with client_for(app, raw) as c:

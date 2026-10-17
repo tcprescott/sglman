@@ -57,13 +57,28 @@ class TestReads:
             body = resp.json()
             assert [p['name'] for p in body] == ['Standard']
 
-    async def test_list_selectable_is_ungated(self, db, app):
+    async def test_list_selectable_is_ungated_but_hides_settings(self, db, app):
+        """A tournament editor needs the name; the settings can be race-day secret."""
         _, raw = await create_user_token(username='plain')
-        await _make_preset(name='Standard')
+        await _make_preset(name='Standard', settings={'goal': 'ganon'})
         async with client_for(app, raw) as c:
-            resp = await c.get('/api/presets/selectable')
-            assert resp.status_code == 200
-            assert [p['name'] for p in resp.json()] == ['Standard']
+            for resp in (
+                await c.get('/api/presets/selectable'),
+                await c.get('/api/presets', params={'randomizer': 'alttpr'}),
+            ):
+                assert resp.status_code == 200
+                assert [p['name'] for p in resp.json()] == ['Standard']
+                assert resp.json()[0]['settings'] == {}
+
+    async def test_preset_managers_see_settings_in_the_picker_reads(self, db, app):
+        _, raw = await create_user_token(username='pm', roles=[Role.PRESET_MANAGER])
+        await _make_preset(name='Standard', settings={'goal': 'ganon'})
+        async with client_for(app, raw) as c:
+            for resp in (
+                await c.get('/api/presets/selectable'),
+                await c.get('/api/presets', params={'randomizer': 'alttpr'}),
+            ):
+                assert resp.json()[0]['settings'] == {'goal': 'ganon'}
 
     async def test_get_preset_happy_path(self, db, app):
         _, raw = await _staff_token()

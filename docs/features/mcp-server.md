@@ -245,8 +245,8 @@ discover the clash after creating the match.
 | `get_player_availability` | ACTOR (self, or staff for anyone else) | — |
 | `list_users` | STAFF | — |
 | `list_match_crew`, `crew_coverage_report` | ADMIN | — |
-| `list_volunteer_positions`, `list_volunteer_shifts` | ADMIN | `VOLUNTEERS` |
-| `volunteer_coverage`, `volunteer_hour_trends` | ADMIN | `VOLUNTEERS` |
+| `list_volunteer_positions`, `list_volunteer_shifts`, `volunteer_coverage` | ACTOR (service: `can_view_volunteer_schedule` — the Volunteer hub's roles plus coordinators; drafts hidden from non-coordinators) | `VOLUNTEERS` |
+| `volunteer_hour_trends` | ADMIN | `VOLUNTEERS` |
 | `my_volunteer_shifts` | ACTOR | `VOLUNTEERS` |
 | `list_join_requests` | STAFF | — |
 
@@ -282,7 +282,8 @@ every booking.
 ### Equipment
 | Tool | Gate | Flag |
 |---|---|---|
-| `list_equipment`, `get_equipment` | ACTOR | `EQUIPMENT` |
+| `list_equipment` | ACTOR (service: `can_manage_equipment`) | `EQUIPMENT` |
+| `get_equipment` | ACTOR | `EQUIPMENT` |
 | `my_equipment_checkouts` | ACTOR | `EQUIPMENT` |
 
 Mirrors `api/routers/equipment.py`. The inventory carries no role check at all:
