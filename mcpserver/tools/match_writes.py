@@ -370,7 +370,7 @@ async def set_crew_approval(
     actor = current_actor().user
     service = CrewService()
     crew_member = require_found(await service.get_crew_member_by_id(crew_id, role), 'Crew signup')
-    await service.update_crew_approval(crew_member, role, approved, actor=actor)
+    await service.update_crew_approval(crew_member, role, approved, actor=actor)  # type: ignore[arg-type]
     verdict = 'Approved' if approved else 'Rejected'
     return OperationResult(detail=f'{verdict} {role} signup {crew_id}.')
 
