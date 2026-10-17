@@ -21,6 +21,7 @@ from theme.matcherino_login_card import matcherino_login_card
 from theme.menu import SlotItem, slot_more_menu, slot_name_link, slot_row_button
 from theme.notify import notify_error
 from theme.page_header import page_header
+from theme.steady import steady_refreshable
 from theme.tables.admin_crud import current_actor, refresh_button
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -95,7 +96,7 @@ async def admin_check_in_page() -> None:
             ui.space()
             refresh_button(lambda: _render_table.refresh(), tooltip='Refresh').classes(REQUIRES_SOCKET_CLASS)
 
-        @ui.refreshable
+        @steady_refreshable
         async def _render_table() -> None:
             events = await service.list_events()
             rows = [

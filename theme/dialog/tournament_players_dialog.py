@@ -12,6 +12,7 @@ from nicegui import app, ui
 from application.services import TournamentService, UserService, get_user_from_session
 from theme.dialog._helpers import dialog_header, mobile_sheet
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.steady import steady_refreshable
 
 
 class TournamentPlayersDialog:
@@ -36,7 +37,7 @@ class TournamentPlayersDialog:
                         "linked entrants and removes anyone who isn't on it."
                     ).classes('text-caption text-muted')
 
-                @ui.refreshable
+                @steady_refreshable
                 async def roster() -> None:
                     players = await service.get_enrolled_players(self.tournament)
                     if not players:

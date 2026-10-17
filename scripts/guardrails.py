@@ -60,6 +60,7 @@ FILE_CHECKS = [
     "check_native_datetime_inputs",
     "check_secret_leak",
     "check_slot_context",
+    "check_steady_refresh",
     "check_syntax",
     "check_table_grid",
     "check_table_prefs",

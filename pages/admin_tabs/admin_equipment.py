@@ -8,6 +8,7 @@ from theme.dialog import ConfirmationDialog, EquipmentDialog, QrLabelDialog, ope
 from theme.help import help_icon
 from theme.notify import notify_error
 from theme.page_header import page_header
+from theme.steady import steady_refreshable
 from theme.tables.admin_crud import capture_render_context, scoped_background
 from theme.tables.preferences import (
     TableKeys,
@@ -145,7 +146,7 @@ async def admin_equipment_page() -> None:
             # Filled from inside _render_table, which owns the table.
             gear_slot = ui.row().classes('items-center no-wrap equipment-search')
 
-        @ui.refreshable
+        @steady_refreshable
         async def _render_table() -> None:
             assets = await service.list_assets()
             open_loans = await service.open_loans_by_equipment_id()

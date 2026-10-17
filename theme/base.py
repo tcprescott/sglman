@@ -11,6 +11,7 @@ from models import FeatureFlag, User
 from theme.assets import asset_url
 from theme.chrome import apply_brand_palette, cookie_dark_pref, dark_mode_button, install_timezone_detection
 from theme.connection import install_connection_watch
+from theme.layout_probe import install_layout_probe
 from theme.nav_badges import bottom_nav_tab, drawer_tab_badge, nav_icon
 from theme.notice import drain_notice
 from theme.page_header import heading_fallback
@@ -392,6 +393,7 @@ class BaseLayout:
         ui.add_head_html(f'<script defer src="{asset_url("js/a11y.js")}"></script>')
         ui.add_head_html(f'<script defer src="{asset_url("js/dialog-keyboard.js")}"></script>')
         install_usage_capture(self._tenant_id)
+        install_layout_probe()
         # Phoenix brand palette: gold primary, ember secondary — overridable per
         # tenant (theme/base loads TenantThemeService.get_current_theme).
         apply_brand_palette(colors)

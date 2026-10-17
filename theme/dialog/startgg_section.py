@@ -11,6 +11,7 @@ from application.utils.timezone import format_local_display
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.dialog.startgg_entrants_dialog import StartggEntrantsDialog
 from theme.notify import notify_error
+from theme.steady import steady_refreshable
 
 _LAST_PHASE = ''
 
@@ -20,7 +21,7 @@ async def render_startgg_section(tournament, dialog) -> None:
     ui.separator()
     ui.label('start.gg').classes('text-bold')
 
-    @ui.refreshable
+    @steady_refreshable
     async def body() -> None:
         actor = await get_user_from_session(app.storage.user)
         if not tournament.startgg_event_slug:

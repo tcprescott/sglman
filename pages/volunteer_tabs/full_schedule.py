@@ -25,6 +25,7 @@ from theme.empty_state import empty_panel
 from theme.help import help_icon
 from theme.notify import notify_error
 from theme.page_header import page_header
+from theme.steady import steady_refreshable
 from theme.tables.preferences import TableKeys
 from theme.timer_teardown import PageTimer
 from theme.volunteer_grid import (  # noqa: F401 — re-exported for the grid tests
@@ -98,7 +99,7 @@ async def full_schedule_tab() -> None:
             customized=is_customized(state.roles, positions),
         )
 
-    @ui.refreshable
+    @steady_refreshable
     async def grid_view() -> None:
         if state.day is None:
             empty_panel('No event dates are set yet.', icon='event_busy')

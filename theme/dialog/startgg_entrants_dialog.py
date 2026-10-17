@@ -12,6 +12,7 @@ from nicegui import app, ui
 from application.services import StartggService, UserService, get_user_from_session
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
 from theme.notify import notify_error
+from theme.steady import steady_refreshable
 
 
 def _person(user) -> str:
@@ -49,7 +50,7 @@ class StartggEntrantsDialog:
                     "book. A name match is only a suggestion until you confirm it."
                 ).classes('text-caption text-muted')
 
-                @ui.refreshable
+                @steady_refreshable
                 async def roster() -> None:
                     try:
                         entrants = await service.list_entrants(self.tournament.id, actor)

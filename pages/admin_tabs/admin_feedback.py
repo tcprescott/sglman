@@ -7,6 +7,7 @@ from application.utils.timezone import format_local_display
 from theme.empty_state import no_data_slot
 from theme.notify import notify_error
 from theme.page_header import page_header
+from theme.steady import steady_refreshable
 from theme.tables.admin_crud import refresh_button
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -63,7 +64,7 @@ async def admin_feedback_page() -> None:
             refresh_button(lambda: _render_table.refresh(), tooltip='Refresh')
 
 
-        @ui.refreshable
+        @steady_refreshable
         async def _render_table() -> None:
             actor = await get_user_from_session(app.storage.user)
             try:

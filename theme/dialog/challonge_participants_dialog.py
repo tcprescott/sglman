@@ -11,6 +11,7 @@ from nicegui import app, ui
 from application.services import ChallongeService, UserService, get_user_from_session
 from theme.dialog._helpers import dialog_header, mobile_sheet
 from theme.notify import notify_error
+from theme.steady import steady_refreshable
 
 _STATUS = {
     'unlinked': ('Not linked', 'warning'),
@@ -46,7 +47,7 @@ class ChallongeParticipantsDialog:
                     "entrant is removed on Challonge."
                 ).classes('text-caption text-muted')
 
-                @ui.refreshable
+                @steady_refreshable
                 async def roster() -> None:
                     try:
                         rows = await service.list_bracket_participants(self.tournament.id, actor)

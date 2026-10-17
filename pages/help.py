@@ -24,6 +24,7 @@ from theme.base import BaseLayout
 from theme.error_page import render_not_found
 from theme.help.article import render_article
 from theme.page_header import page_header
+from theme.steady import steady_refreshable
 
 __all__ = ['create']
 
@@ -90,7 +91,7 @@ def create() -> None:
             with search.add_slot('prepend'):
                 ui.icon('search')
 
-            @ui.refreshable
+            @steady_refreshable
             async def results() -> None:
                 matches = await HelpService.search(state['query'], user)
                 if not matches:

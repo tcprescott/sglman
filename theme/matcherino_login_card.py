@@ -25,6 +25,7 @@ from application.utils.timezone import format_local_display
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog
 from theme.notify import notify_error
+from theme.steady import steady_refreshable
 from theme.tables.admin_crud import current_actor
 
 BOOKMARK_LABEL = 'Copy Matcherino login'
@@ -126,7 +127,7 @@ async def matcherino_login_card() -> None:
             who = status.alert_user or 'nobody'
             ui.notify(f'Refused-login alerts now go to {who}.', color='positive')
 
-    @ui.refreshable
+    @steady_refreshable
     async def login_section() -> None:
         actor = await current_actor()
         try:

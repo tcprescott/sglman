@@ -36,6 +36,7 @@ from theme.menu import menu_action, more_menu
 from theme.notify import notify_error
 from theme.section import section_panel
 from theme.shift_arrival_banner import arrival_changed, on_arrival_change
+from theme.steady import steady_refreshable
 
 #: The section's DOM id, so a link can scroll to it.
 SHIFTS_SECTION_ID = 'my-shifts'
@@ -179,7 +180,7 @@ async def my_volunteer_shifts_section(user: User) -> None:
                         menu_action('event_busy', "Can't make it…",
                                     lambda a=assignment: release(a), negative=True)
 
-    @ui.refreshable
+    @steady_refreshable
     async def rows() -> None:
         now = datetime.now(timezone.utc)
         current = await service.assignments_for_user(user, upcoming_after=now, with_shiftmates=True)

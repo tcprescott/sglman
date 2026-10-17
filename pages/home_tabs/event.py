@@ -19,7 +19,9 @@ from models import FeatureFlag, User
 from pages.community_events import EVENT_TAB, community_events_view
 from pages.home_tabs.brackets import brackets_tab
 from pages.home_tabs.schedule import schedule as schedule_view
+from theme.layout_probe import skip_layout_probe
 from theme.nav_badges import nav_count_badge
+from theme.steady import steady_refreshable
 
 
 class EventView(NamedTuple):
@@ -100,13 +102,15 @@ async def event_tab(view: Optional[str] = None, community_new: int = 0) -> None:
     views = available_views(live)
     state = {'slug': resolve_view(views, view).slug}
 
-    @ui.refreshable
+    @steady_refreshable
     async def body() -> None:
         await resolve_view(views, state['slug']).build()
 
     def switch(value: str) -> None:
         state['slug'] = value
         body.refresh()
+
+    skip_layout_probe(body)
 
     with ui.column().classes('w-full'):
         # A switcher over one option is just a label taking up room.

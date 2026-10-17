@@ -20,6 +20,7 @@ from theme.help import help_icon, resolve_help
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.shift_arrival_banner import arrival_changed, on_arrival_change
+from theme.steady import steady_refreshable
 
 
 def release_warning(starts_at: datetime, lead_minutes: int) -> Optional[str]:
@@ -167,7 +168,7 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
             ui.space()
 
 
-        @ui.refreshable
+        @steady_refreshable
         async def hours_panel() -> None:
             try:
                 summary = await hours_service.for_user(user)
@@ -201,7 +202,7 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
             ui.notify('Check-in taken back.', color='info')
             await arrival_changed()
 
-        @ui.refreshable
+        @steady_refreshable
         async def shift_list() -> None:
             after = datetime.now(timezone.utc) if state['upcoming_only'] else None
             assignments = await service.assignments_for_user(

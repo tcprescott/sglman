@@ -17,6 +17,7 @@ from theme.dialog._helpers import native_date_input, native_time_input
 from theme.notify import notify_error
 from theme.save_footer import SaveFooter
 from theme.section import section_panel
+from theme.steady import steady_refreshable
 
 
 async def event_settings_pane(can_edit: bool) -> None:
@@ -25,7 +26,7 @@ async def event_settings_pane(can_edit: bool) -> None:
     # an admin abroad is not silently reading the numbers as their own time.
     tenant_tz_label = timezone_label(await TimezoneService.tenant_timezone_name())
 
-    @ui.refreshable
+    @steady_refreshable
     async def hours_rows() -> None:
         tournament_hours = await SystemConfigService.get_tournament_hours()
         event_start, event_end = await SystemConfigService.get_event_window()

@@ -40,6 +40,7 @@ from theme.qualifier_copy import (
     SCORE_EXPLAINER,
     STATUS_LABELS,
 )
+from theme.steady import steady_refreshable
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys, row_count_label, search_input, sticky_header
 from theme.timer_teardown import PageTimer
@@ -186,7 +187,7 @@ def create() -> None:
 
         container = ui.column().classes('page-container')
 
-        @ui.refreshable
+        @steady_refreshable
         async def render() -> None:
             container.clear()
             with container:

@@ -28,6 +28,7 @@ from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.empty_state import no_data_slot
 from theme.help import help_icon
 from theme.notify import notify_error
+from theme.steady import steady_refreshable
 from theme.tables.admin_crud import current_actor, refresh_button
 from theme.tables.export import csv_export_button
 from theme.tables.mobile_grid import enable_mobile_grid
@@ -190,7 +191,7 @@ async def render_accommodation_panel(
             row = _row(request)
         await open_editor(row)
 
-    @ui.refreshable
+    @steady_refreshable
     async def _render_table() -> None:
         actor = await current_actor()
         try:

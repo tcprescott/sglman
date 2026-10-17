@@ -49,6 +49,7 @@ from theme.help.render import render_user_blocks
 from theme.nav_badges import set_nav_count
 from theme.notify import notify_error
 from theme.page_header import page_header
+from theme.steady import steady_refreshable
 
 __all__ = ['create']
 
@@ -216,7 +217,7 @@ async def community_events_view() -> None:
                 ).open(),
             ).props('color=primary')
 
-        @ui.refreshable
+        @steady_refreshable
         async def upcoming() -> None:
             events = await service.list_upcoming(user)
             if not events:
@@ -229,7 +230,7 @@ async def community_events_view() -> None:
                     for event in group:
                         _event_card(service, user, event, state, refresh_all, new=event.id in new_ids)
 
-        @ui.refreshable
+        @steady_refreshable
         async def submissions() -> None:
             events = await service.list_mine(user)
             if not events:
@@ -280,7 +281,7 @@ def create() -> None:
         can_manage = event.host_id == user.id or await AuthService.is_staff(user)
         is_staff = await AuthService.is_staff(user)
 
-        @ui.refreshable
+        @steady_refreshable
         async def body() -> None:
             current = await service.get_event(user, event_id)
             with ui.column().classes('page-container-narrow w-full gap-3'):

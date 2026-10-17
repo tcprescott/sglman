@@ -20,6 +20,7 @@ from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.section import section_panel
+from theme.steady import steady_refreshable
 
 
 async def render_room_tokens_section(can_edit: bool) -> None:
@@ -34,7 +35,7 @@ async def render_room_tokens_section(can_edit: bool) -> None:
         tenant = await TenantService.get_by_id(require_tenant_id())
         return tenant_url(tenant, room_seeds_path(raw_token))
 
-    @ui.refreshable
+    @steady_refreshable
     async def token_list() -> None:
         try:
             tokens = await service.list_tokens(await _actor())
