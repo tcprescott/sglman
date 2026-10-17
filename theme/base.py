@@ -386,9 +386,8 @@ class BaseLayout:
         install_timezone_detection()
         # A dropped socket eats a click silently; this makes the page say so.
         install_connection_watch()
-        # Drag-to-resize headers on any table carrying data-wiz-table-key. In the
-        # head, not the body, for the same reason as install_connection_watch:
-        # markup added from a lazy tab build never executes its <script>.
+        # Drag-to-resize headers on any table carrying data-wiz-table-key. In the head, not
+        # the body, as for install_connection_watch: a lazy tab's markup never runs its <script>.
         ui.add_head_html(f'<script src="{asset_url("js/table-columns.js")}"></script>')
         ui.add_head_html(f'<script defer src="{asset_url("js/a11y.js")}"></script>')
         ui.add_head_html(f'<script defer src="{asset_url("js/busy.js")}"></script>')

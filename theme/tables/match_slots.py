@@ -329,8 +329,7 @@ SEED_SLOT = ('''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash'
         <q-tooltip>This randomizer generates seeds on a queue, which takes a few minutes. The players are DMed as soon as it lands — you can leave this page.</q-tooltip>
     </span>
     <q-btn v-if="__ROLLABLE__ && !props.value && !props.row.seed_rolling_since"
-           :disable="!!props.row._generating_seed"
-           :class="{'wiz-busy-btn': !!props.row._generating_seed}"
+           :disable="!!props.row._generating_seed" :class="{'wiz-busy-btn': !!props.row._generating_seed}"
            @click="(props.row._generating_seed = true, $parent.$emit('roll', props))"
            :icon="props.row._generating_seed ? undefined : 'casino'" color="primary" size="sm">
         ''' + slot_busy_template('props.row._generating_seed') + '''{{ props.row._generating_seed ? 'Rolling…' : 'Generate' }}
