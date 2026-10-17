@@ -255,12 +255,12 @@ async def list_players(tournament_id: int, actor: User = Depends(require_api_act
 @router.post(
     "/{tournament_id}/players",
     response_model=DetailResponse,
-    summary="Enroll a player (Staff only)",
+    summary="Enroll a player (Staff or Tournament Admin)",
     description=(
         "Adds a member to the tournament's roster. Unlike self-signup this ignores the signup "
         "window. Fails with 400 when the person isn't a member of this community or is already "
         "enrolled.\n\n"
-        "**Who can call this:** Staff."
+        "**Who can call this:** Staff or Admins of this tournament."
     ),
 )
 async def enroll_player(tournament_id: int, body: MembershipRequest, actor: User = Depends(require_write_actor)):
@@ -273,10 +273,10 @@ async def enroll_player(tournament_id: int, body: MembershipRequest, actor: User
 @router.delete(
     "/{tournament_id}/players/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Remove a player from the roster (Staff only)",
+    summary="Remove a player from the roster (Staff or Tournament Admin)",
     description=(
         "Takes the person off the tournament's roster, whatever the signup window says.\n\n"
-        "**Who can call this:** Staff."
+        "**Who can call this:** Staff or Admins of this tournament."
     ),
 )
 async def unenroll_player(tournament_id: int, user_id: int, actor: User = Depends(require_write_actor)):
@@ -288,12 +288,12 @@ async def unenroll_player(tournament_id: int, user_id: int, actor: User = Depend
 @router.put(
     "/{tournament_id}/challonge",
     response_model=TournamentResponse,
-    summary="Link a tournament to a Challonge bracket (Staff or Tournament Admin)",
+    summary="Link a tournament to a Challonge bracket (Staff only)",
     description=(
         "Links the tournament to a Challonge bracket by its URL or ID and imports it. Needs the "
         "Challonge feature on and the community's Challonge connection set up. Fails with 400 "
         "when the tournament already has a native bracket or Challonge can't find the bracket.\n\n"
-        "**Who can call this:** Staff or Admins of this tournament."
+        "**Who can call this:** Staff."
     ),
 )
 async def link_challonge(
@@ -306,11 +306,11 @@ async def link_challonge(
 @router.delete(
     "/{tournament_id}/challonge",
     response_model=TournamentResponse,
-    summary="Unlink a tournament from Challonge (Staff or Tournament Admin)",
+    summary="Unlink a tournament from Challonge (Staff only)",
     description=(
         "Detaches the tournament from Challonge and drops the mirrored bracket here. Nothing on "
         "Challonge is deleted, and linking again re-imports it.\n\n"
-        "**Who can call this:** Staff or Admins of this tournament."
+        "**Who can call this:** Staff."
     ),
 )
 async def unlink_challonge(tournament_id: int, actor: User = Depends(require_write_actor)):
@@ -321,11 +321,11 @@ async def unlink_challonge(tournament_id: int, actor: User = Depends(require_wri
 @router.post(
     "/{tournament_id}/challonge/sync",
     response_model=ChallongeSyncResponse,
-    summary="Sync a tournament's Challonge bracket now (Staff or Tournament Admin)",
+    summary="Sync a tournament's Challonge bracket now (Staff only)",
     description=(
         "Pulls the latest entrants and matches from Challonge, the same as Sync now on the "
         "Challonge tab.\n\n"
-        "**Who can call this:** Staff or Admins of this tournament."
+        "**Who can call this:** Staff."
     ),
 )
 async def sync_challonge(tournament_id: int, actor: User = Depends(require_write_actor)):

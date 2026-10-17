@@ -52,11 +52,14 @@ class TournamentDialog:
         title = 'Add Tournament' if is_create else 'Edit Tournament'
         actor = await get_user_from_session(app.storage.user)
         can_sync = await AuthService.can_manage_sync(actor)
-        can_delete = not is_create and await AuthService.is_staff(actor)
+        is_staff = await AuthService.is_staff(actor)
+        can_delete = not is_create and is_staff
         # This dialog opens from the (ungated) Tournaments tab, so its Challonge
-        # section has to check the flag itself — link_tournament refuses without it.
+        # section has to check the flag itself — link_tournament refuses without it,
+        # and refuses anyone but staff.
         challonge_live = (
-            self.challonge_service.is_configured()
+            is_staff
+            and self.challonge_service.is_configured()
             and await FeatureFlagService().is_enabled(FeatureFlag.CHALLONGE)
         )
         # Racetime room automation is only offered to sync managers of a community

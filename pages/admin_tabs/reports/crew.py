@@ -9,7 +9,6 @@ from nicegui import app, ui
 
 from application.services import AuthService, ReportsService, get_user_from_session
 from application.utils.timezone import format_local_display
-from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.section import section_panel
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -29,6 +28,7 @@ from .shared import (
     report_filter_bar,
     report_jumps,
     report_page_shell,
+    schedule_drill,
     tournament_filter,
 )
 
@@ -50,7 +50,7 @@ async def crew_page(
     # admins and crew coordinators, and all three also have the Schedule tab —
     # but that is the destination's predicate, so ask it rather than assume it.
     viewer = await get_user_from_session(app.storage.user)
-    can_open_board = await AuthService.can_view_schedule_board(viewer)
+    board_drill, can_open_board = schedule_drill(await AuthService.schedule_board_scope(viewer))
 
     def nav(**overrides) -> None:
         params: dict[str, Any] = {
@@ -114,6 +114,7 @@ async def crew_page(
         cov_rows_display = [
             {
                 'match_id': r['match_id'],
+                'tournament_id': r['tournament_id'],
                 'tournament': r['tournament_name'],
                 'scheduled_at': format_local_display(r['scheduled_at']),
                 'stage': r['stage'],
@@ -160,7 +161,7 @@ async def crew_page(
             # this report is the only surface that can see the gap.
             drill_actions = enable_drill_link(
                 cov_table, cov_columns, cov_rows_display,
-                lambda r: admin_url(SCHEDULE, match_id=r['match_id']),
+                board_drill,
                 enabled=can_open_board,
                 hint='Open on the schedule board',
             )

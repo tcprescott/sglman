@@ -197,3 +197,20 @@ class TestChartPalette:
 
     def test_area_wash_is_the_primary_colour(self):
         assert chart_palette_for('#9c6b12').primary_area == 'rgba(156, 107, 18, 0.18)'
+
+
+def test_schedule_drill_links_only_matches_the_viewers_board_shows():
+    """A tournament admin's board holds only their tournaments, so a report row
+    from any other tournament gets no "Open on the schedule board" link."""
+    from pages.admin_tabs.reports.shared import schedule_drill
+
+    url_for, enabled = schedule_drill(frozenset({7}))
+    assert enabled
+    assert url_for({'match_id': 1, 'tournament_id': 7})
+    assert url_for({'match_id': 2, 'tournament_id': 8}) is None
+
+    url_for, enabled = schedule_drill(None)
+    assert enabled and url_for({'match_id': 2, 'tournament_id': 8})
+
+    _url_for, enabled = schedule_drill(frozenset())
+    assert not enabled
