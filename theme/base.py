@@ -12,6 +12,7 @@ from theme.assets import asset_url
 from theme.chrome import apply_brand_palette, cookie_dark_pref, dark_mode_button, install_timezone_detection
 from theme.connection import install_connection_watch
 from theme.nav_badges import bottom_nav_tab, drawer_tab_badge, nav_icon
+from theme.nav_section import mark_nav_section, nav_section_matches
 from theme.notice import drain_notice
 from theme.page_header import heading_fallback
 from theme.usage_telemetry import install_usage_capture, record_tab_view
@@ -42,25 +43,6 @@ def current_local_url() -> str:
     except Exception:
         return '/'
     return f'{url.path}?{url.query}' if url.query else url.path
-
-
-def nav_section_matches(url: str, path: str) -> bool:
-    """Whether the tenant-local ``path`` lies inside the nav section at ``url``.
-
-    Home answers at ``/`` and at its ``/home/<section>`` deep links.
-    """
-    if url == '/':
-        return path == '/' or path == '/home' or path.startswith('/home/')
-    return path == url or path.startswith(f'{url}/')
-
-
-def mark_nav_section(item: ui.item) -> None:
-    """Mark a drawer item as the section the viewer is in.
-
-    A class rather than Quasar's ``active`` prop, which already means "this
-    page" on the tab list below, so the two read differently.
-    """
-    item.classes('wiz-nav-section--active').props('aria-current=true')
 
 
 def tab_slug(label: str) -> str:

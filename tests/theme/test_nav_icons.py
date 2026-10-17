@@ -73,7 +73,7 @@ def test_admin_aliases_cover_every_renamed_slug():
 
 
 def test_nav_section_matches_its_own_pages_only():
-    from theme.base import nav_section_matches
+    from theme.nav_section import nav_section_matches
 
     assert nav_section_matches('/', '/')
     assert nav_section_matches('/', '/home/my-schedule')
