@@ -4349,6 +4349,45 @@ body.wiz-offline .wiz-requires-socket {
     text-overflow: ellipsis;
 }
 
+/* Time the player blocked out: hatched, drawn behind the commitments so a
+   match booked into it still reads as a clash. */
+.wiz-tl-hatch,
+.wiz-tl-hatch:hover {
+    background: repeating-linear-gradient(
+        -45deg,
+        color-mix(in srgb, var(--status-neutral) 30%, transparent) 0 6px,
+        color-mix(in srgb, var(--status-neutral) 10%, transparent) 6px 12px
+    );
+}
+
+.wiz-tl-off {
+    position: absolute;
+    left: 0;
+    right: 0;
+    box-sizing: border-box;
+    padding: 2px 8px;
+    border-top: 1px dashed var(--border-strong);
+    border-bottom: 1px dashed var(--border-strong);
+    cursor: pointer;
+}
+
+.wiz-tl-off:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.wiz-tl-off__label {
+    justify-content: flex-end;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1rem;
+    color: var(--fg-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .wiz-shift-status {
     box-sizing: border-box;
     display: inline-flex;

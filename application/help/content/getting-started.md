@@ -107,6 +107,8 @@ in, **Tournaments** is where you sign up, and **Profile** is you.
 sections: your matches, crew slots, volunteer shifts, when you can't play and
 any gear you have out. **Timeline** puts your matches, crew slots and shifts for
 one day on a clock, one column, so anything that clashes sits side by side.
+Times you said you can't play show as a hatched band behind the blocks, so a
+match booked into one is easy to spot; tap the band to change those times.
 Pick a day from the chips above it. Tap a block to open it: a match or crew
 slot opens in the List view, a shift shows its details. The page remembers
 which view you used last; a link from a DM always opens the List.

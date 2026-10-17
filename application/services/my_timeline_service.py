@@ -8,18 +8,22 @@ are testable without a database.
 """
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any, List, Optional, Sequence, Tuple
 
 from application.repositories import MatchRepository, VolunteerAssignmentRepository
 from application.services.crew_service import CrewService
+from application.services.player_availability_service import PlayerAvailabilityService
 from application.services.system_config_service import SystemConfigService
-from application.utils.timezone import local_day_bounds, to_local, to_utc_aware
-from models import User
+from application.utils.timezone import combine_local, local_day_bounds, to_local, to_utc_aware
+from models import User, VolunteerAvailabilityStatus
 
 MATCH = 'match'
 CREW = 'crew'
 SHIFT = 'shift'
+#: Time the player blocked out under "When you can't play". Not a commitment:
+#: the page draws it behind the blocks rather than in a lane of its own.
+UNAVAILABLE = 'unavailable'
 
 #: An event day runs 06:00 to 06:00, as on the volunteer grids, so a match at
 #: 01:00 sits on the evening it belongs to.
@@ -50,6 +54,18 @@ class Placed:
 def event_day(moment: datetime, tz: Any = None) -> date:
     local = to_local(moment, tz) or moment
     return (local - timedelta(hours=DAY_STARTS_AT_HOUR)).date()
+
+
+def split_by_event_day(starts_at: datetime, ends_at: datetime, tz: Any = None) -> List[Tuple[datetime, datetime]]:
+    """Cut a range at each 06:00 so every piece sits on one event day."""
+    pieces: List[Tuple[datetime, datetime]] = []
+    while starts_at < ends_at:
+        boundary = combine_local(
+            event_day(starts_at, tz) + timedelta(days=1), time(DAY_STARTS_AT_HOUR), tz,
+        )
+        pieces.append((starts_at, min(boundary, ends_at)))
+        starts_at = boundary
+    return pieces
 
 
 def place_in_lanes(items: Sequence[TimelineItem]) -> List[Placed]:
@@ -92,6 +108,7 @@ class MyTimelineService:
         self.match_repository = MatchRepository()
         self.assignment_repository = VolunteerAssignmentRepository()
         self.crew_service = CrewService()
+        self.availability_service = PlayerAvailabilityService()
 
     async def window(self) -> Tuple[datetime, datetime]:
         """The event's days on the viewer's clock, each running 06:00 to 06:00."""
@@ -125,6 +142,23 @@ class MyTimelineService:
                 ))
         items.sort(key=lambda i: i.starts_at)
         return items
+
+    async def unavailable(self, user: User) -> List[TimelineItem]:
+        """The player's "can't play" windows inside the event, one piece per day."""
+        start, end = await self.window()
+        pieces: List[TimelineItem] = []
+        for window in await self.availability_service.availability_for(user):
+            if window.status != VolunteerAvailabilityStatus.UNAVAILABLE:
+                continue
+            lo = max(to_utc_aware(window.starts_at), start)
+            hi = min(to_utc_aware(window.ends_at), end)
+            for a, b in split_by_event_day(lo, hi):
+                pieces.append(TimelineItem(
+                    kind=UNAVAILABLE, starts_at=a, ends_at=b,
+                    title="Can't play", detail=window.note or '',
+                ))
+        pieces.sort(key=lambda i: i.starts_at)
+        return pieces
 
     @staticmethod
     def _match_item(match: Any, user: User, crew_role: Optional[str]) -> TimelineItem:
