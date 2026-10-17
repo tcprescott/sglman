@@ -176,13 +176,16 @@ Two front-matter keys gate an article by **reader**, on top of `feature:`:
 
 | Key | Who may read it |
 |---|---|
-| `audience: staff` | Anyone who can open Admin here (`AuthService.can_view_admin`): any admin role, a tournament admin, a crew coordinator, a super-admin |
+| `audience: staff` | Staff, a tournament admin or crew coordinator here, or a super-admin (`AuthService.can_view_admin`). The other admin roles (volunteer coordinator, equipment manager, broadcast tech, preset/sync/qualifier admin) do **not** pass it |
 | `roles: A, B` | Only holders of one of those roles in this community; a super-admin always qualifies |
 
 Use `audience: staff` for anything a tournament admin or crew coordinator also
 works from (Admin → Match Schedule above all), since those are per-tournament
-assignments, not roles. Use `roles:` to narrow further (volunteer coordination
-to `STAFF, VOLUNTEER_COORDINATOR`). Both together means both must pass.
+assignments, not roles. Use `roles:` alone for a topic owned by a role
+(volunteer coordination is `STAFF, VOLUNTEER_COORDINATOR`, presets `STAFF,
+PRESET_MANAGER`). Both together means both must pass, which would shut a
+volunteer coordinator out of their own article, so don't combine them unless
+the role list is only `STAFF`.
 
 Either key puts the article in the **"For staff"** group, which
 `HelpService.list_articles(user)` orders last and the index and sidebar label.

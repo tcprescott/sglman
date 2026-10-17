@@ -118,8 +118,8 @@ class TableKeys:
     # Player-facing
     # (No equipment.inventory: browsing the register left the player surface
     # when Home came down to four tabs, and the admin table has its own key.
-    # Rows saved against the old key are simply never read.)
-    EQUIPMENT_MINE = 'equipment.mine'
+    # Rows saved against the old key are simply never read. Nor equipment.mine:
+    # your own loans became a short list on Profile.)
     QUALIFIERS_LIST = 'qualifiers.list'
     QUALIFIERS_LEADERBOARD = 'qualifiers.leaderboard'
 

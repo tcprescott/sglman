@@ -19,7 +19,7 @@ from theme.tables.preferences import TableKeys, search_input
 TAB_LABEL = 'Role Mappings'
 
 _ROLE_OPTIONS = {
-    r.value: r.value.replace('_', ' ').title() for r in Role.volunteer_mappable()
+    r.value: r.label for r in Role.volunteer_mappable()
 }
 
 _ROW_ACTIONS = '''

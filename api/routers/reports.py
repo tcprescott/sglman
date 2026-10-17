@@ -1,7 +1,10 @@
 """Reporting endpoints — the programmatic peer of the Admin → Reports tab.
 
 Every route is admin (``can_view_admin``: staff, tournament admin, or crew
-coordinator), which is the tab's own gate. Reads only, so a read-only token
+coordinator), which is the tab's own gate, except ``volunteer_hour_trends``,
+which a volunteer coordinator also reads (``require_volunteer_admin``): the
+hours are theirs to manage in Admin → Volunteers. That split is why the role gate
+sits on each route; the router only authenticates. Reads only, so a read-only token
 works throughout.
 
 Two reports are **reshaped rather than passed through**. ``ReportsService``
@@ -24,7 +27,13 @@ from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
 
-from api.dependencies import ServiceErrorRoute, require_admin, require_feature
+from api.dependencies import (
+    ServiceErrorRoute,
+    require_admin,
+    require_api_actor,
+    require_feature,
+    require_volunteer_admin,
+)
 from api.schemas.reports import (
     ActiveMatchRow,
     ActivityTrendsResponse,
@@ -45,8 +54,9 @@ router = APIRouter(
     prefix="/reports",
     tags=["Reports"],
     route_class=ServiceErrorRoute,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_api_actor)],
 )
+
 
 # How many busiest intervals a forecast reports — enough to see the shape of a
 # day's peak, short enough that the answer is still readable.
@@ -69,6 +79,7 @@ def _window(start: datetime, end: datetime) -> tuple[datetime, datetime]:
 
 @router.get(
     "/capacity-forecast",
+    dependencies=[Depends(require_admin)],
     response_model=CapacityForecastResponse,
     summary="Concurrent-player load against the configured capacity",
     description=(
@@ -76,7 +87,7 @@ def _window(start: datetime, end: datetime) -> tuple[datetime, datetime]:
         "peak with the community's configured maximum. A match counts from check-in (or an hour before its "
         "scheduled time) until it finishes (or its expected length runs out).\n\n"
         "Fails with 400 when `end` is before `start`.\n\n"
-        "**Who can call this:** Admins (any admin role, tournament admin or crew coordinator)."
+        "**Who can call this:** Staff, tournament admins or crew coordinators."
     ),
 )
 async def capacity_forecast(
@@ -110,13 +121,14 @@ async def capacity_forecast(
 
 @router.get(
     "/stage-utilization",
+    dependencies=[Depends(require_admin)],
     response_model=StageUtilizationResponse,
     summary="How hard each stage is worked over a window",
     description=(
         "Totals booked hours, idle gaps and back-to-back matches for each active stage over the window, "
         "and counts stream candidates that still have no stage.\n\n"
         "Fails with 400 when `end` is before `start`.\n\n"
-        "**Who can call this:** Admins (any admin role, tournament admin or crew coordinator)."
+        "**Who can call this:** Staff, tournament admins or crew coordinators."
     ),
 )
 async def stage_utilization(
@@ -148,13 +160,14 @@ async def stage_utilization(
 
 @router.get(
     "/match-operations",
+    dependencies=[Depends(require_admin)],
     response_model=MatchOperationsResponse,
     summary="Per-tournament match operations: scheduling, lifecycle, punctuality",
     description=(
         "Lists every match scheduled in the window with its start delay, length and confirmation lag, "
         "plus per-tournament averages and on-time rate (within 5 minutes of schedule).\n\n"
         "Fails with 400 when `end` is before `start`.\n\n"
-        "**Who can call this:** Admins (any admin role, tournament admin or crew coordinator)."
+        "**Who can call this:** Staff, tournament admins or crew coordinators."
     ),
 )
 async def match_operations(
@@ -170,6 +183,7 @@ async def match_operations(
 
 @router.get(
     "/crew-coverage",
+    dependencies=[Depends(require_admin)],
     response_model=CrewCoverageResponse,
     summary="Per-match crew coverage and per-person contribution",
     description=(
@@ -177,7 +191,7 @@ async def match_operations(
         "candidates short on approved crew, and totals the hours each crew member covered. With `user_id` "
         "set, only that person's matches and contribution are returned.\n\n"
         "Fails with 400 when `end` is before `start`.\n\n"
-        "**Who can call this:** Admins (any admin role, tournament admin or crew coordinator)."
+        "**Who can call this:** Staff, tournament admins or crew coordinators."
     ),
 )
 async def crew_coverage(
@@ -198,12 +212,13 @@ async def crew_coverage(
 
 @router.get(
     "/matches-active-at",
+    dependencies=[Depends(require_admin)],
     response_model=List[ActiveMatchRow],
     summary="Which matches are in progress at one moment",
     description=(
         "Returns the matches running at the given instant, judged the same way as the capacity forecast: "
         "from check-in (or an hour before the scheduled time) until finish (or the expected length).\n\n"
-        "**Who can call this:** Admins (any admin role, tournament admin or crew coordinator)."
+        "**Who can call this:** Staff, tournament admins or crew coordinators."
     ),
 )
 async def matches_active_at(
@@ -228,13 +243,14 @@ async def matches_active_at(
 
 @router.get(
     "/tournament-health",
+    dependencies=[Depends(require_admin)],
     response_model=List[TournamentHealthRow],
     summary="Per-tournament health scorecards",
     description=(
         "Scores each tournament with matches in the window on completion, punctuality, crew coverage "
         "and match length, lowest score first. Matches scheduled in the future never count against completion.\n\n"
         "Fails with 400 when `end` is before `start`.\n\n"
-        "**Who can call this:** Admins (any admin role, tournament admin or crew coordinator)."
+        "**Who can call this:** Staff, tournament admins or crew coordinators."
     ),
 )
 async def tournament_health(
@@ -251,13 +267,14 @@ async def tournament_health(
 
 @router.get(
     "/crew-participation-trends",
+    dependencies=[Depends(require_admin)],
     response_model=CrewParticipationTrendsResponse,
     summary="Crew signups versus approvals over time",
     description=(
         "Buckets commentator and tracker signups and approvals by the week or month their match is "
         "scheduled in, with the top contributors for the window.\n\n"
         "Fails with 400 when `end` is before `start`.\n\n"
-        "**Who can call this:** Admins (any admin role, tournament admin or crew coordinator)."
+        "**Who can call this:** Staff, tournament admins or crew coordinators."
     ),
 )
 async def crew_participation_trends(
@@ -274,13 +291,14 @@ async def crew_participation_trends(
 
 @router.get(
     "/activity-trends",
+    dependencies=[Depends(require_admin)],
     response_model=ActivityTrendsResponse,
     summary="Audit-log volume over time, grouped by action namespace",
     description=(
         "Counts audit-log entries per week or month, split by the part of the action before the dot "
         "(`match`, `crew`, `tournament` and so on).\n\n"
         "Fails with 400 when `end` is before `start`.\n\n"
-        "**Who can call this:** Admins (any admin role, tournament admin or crew coordinator)."
+        "**Who can call this:** Staff, tournament admins or crew coordinators."
     ),
 )
 async def activity_trends(
@@ -300,9 +318,9 @@ async def activity_trends(
         "Buckets volunteer shift hours by the week or month each shift starts in: hours assigned, "
         "hours checked in, hours needed and the fill rate, with a per-position breakdown and the top volunteers.\n\n"
         "Fails with 400 when `end` is before `start`.\n\n"
-        "**Who can call this:** Admins (any admin role, tournament admin or crew coordinator)."
+        "**Who can call this:** Staff, Volunteer coordinators, tournament admins or crew coordinators."
     ),
-    dependencies=[Depends(require_feature(FeatureFlag.VOLUNTEERS))],
+    dependencies=[Depends(require_volunteer_admin), Depends(require_feature(FeatureFlag.VOLUNTEERS))],
 )
 async def volunteer_hour_trends(
     start: datetime = StartQuery,

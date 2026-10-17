@@ -276,7 +276,7 @@ class MatchSheet:
         match_id = row['id']
         state = row.get('state')
         h = self.handlers
-        if self.access.run and row.get('players') and not row.get('is_racetime'):
+        if self.access.can_run_row(row) and row.get('players') and not row.get('is_racetime'):
             if state == 'Scheduled':
                 ui.button('Check in', icon='event_seat',
                           on_click=lambda: self._run(h.on_seat, match_id)).props('color=primary')
@@ -341,7 +341,7 @@ class MatchSheet:
     def _check_stations(self, row: dict, item: dict) -> None:
         with ui.row().classes('items-center no-wrap full-width gap-2'):
             ui.label(item['detail']).classes('match-sheet__note col')
-            if self.access.run and row.get('state') in ('Scheduled', 'Checked In', 'Started'):
+            if self.access.can_run_row(row) and row.get('state') in ('Scheduled', 'Checked In', 'Started'):
                 ui.button('Assign' if item['ready'] is False else 'Change',
                           on_click=lambda: self._run(self.handlers.on_assign_stations, row['id'])) \
                     .props('outline dense no-caps color=primary').classes('match-sheet__check-act')
@@ -380,7 +380,7 @@ class MatchSheet:
             if seed:
                 ui.button('Copy', on_click=lambda: copy_to_clipboard(seed, 'Seed')) \
                     .props('outline dense no-caps color=primary').classes('match-sheet__check-act')
-            elif not row.get('seed_rolling_since') and self.access.run and seed_rollable(row):
+            elif not row.get('seed_rolling_since') and self.access.can_run_row(row) and seed_rollable(row):
                 ui.button('Generate', on_click=lambda: self._run(self.handlers.on_generate_seed, row['id'])) \
                     .props('outline dense no-caps color=primary').classes('match-sheet__check-act')
         if seed and row.get('seed_code'):
@@ -493,7 +493,7 @@ class MatchSheet:
         between a private note and a message the players read. A player reads
         their own comments and staff's messages, and writes to staff.
         """
-        staff = self.access.run
+        staff = self.access.can_run_row(row)
         player = self._plays(row)
         if not (staff or player):
             return

@@ -65,17 +65,17 @@ def test_the_checklist_is_not_offered_to_a_non_admin_role():
     assert _labels(tabs) == ['Match Schedule', 'Stages']
 
 
-def test_the_stream_manager_reaches_the_board_with_only_the_stage_control():
-    """The role ``assign_stage`` names in its own docstring had no surface.
-
-    Granting the tab is only half of it — the board must offer them the one
-    control the service admits and none of the ones it refuses.
+def test_the_broadcast_tech_reaches_the_board_with_the_stage_and_on_stage_run_controls():
+    """The board offers a broadcast tech what the services admit: the stage on
+    any match, and running a match that is on a stage, but never editing,
+    confirming or approving crew.
     """
     tabs = build_admin_tabs(AdminAccess(is_stream_manager=True), set(), {}, None)
     _fn, _args, kwargs = next(t['content'] for t in tabs if t['label'] == 'Match Schedule')
     access = kwargs['access']
     assert access.assign_stream is True
-    assert not access.edit and not access.run and not access.confirm and not access.approve_crew
+    assert access.run is True and access.run_on_stage_only is True
+    assert not access.edit and not access.confirm and not access.approve_crew
     # Community-wide authority, so their board is not narrowed to a tournament set.
     assert kwargs['tournament_ids'] is None
 
@@ -110,3 +110,17 @@ def test_group_order_is_unchanged_by_the_new_tab():
     groups = [t['group'] for t in tabs]
     assert groups == sorted(groups, key=['Operations', 'Online play', 'Community',
                                          'Integrations', 'System'].index)
+
+
+def test_setup_steps_only_link_to_tabs_the_viewer_has():
+    """A tournament admin's checklist linked to Members, Stages and Settings,
+    which are staff's tabs, so every link landed on a refusal."""
+    tabs = build_admin_tabs(AdminAccess(is_tournament_admin=True), set(), {}, _steps(ready=False))
+    _fn, _args, kwargs = next(t['content'] for t in tabs if t['label'] == 'Setup')
+    reachable = kwargs['reachable_tabs']
+    assert 'Tournaments' in reachable
+    assert 'Members' not in reachable and 'Stages' not in reachable
+
+    staff_tabs = build_admin_tabs(STAFF, set(), {}, _steps(ready=False))
+    _fn, _args, staff_kwargs = next(t['content'] for t in staff_tabs if t['label'] == 'Setup')
+    assert {'Members', 'Tournaments', 'Stages'} <= staff_kwargs['reachable_tabs']

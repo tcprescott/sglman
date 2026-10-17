@@ -23,6 +23,12 @@ class Role(str, Enum):
     # inside any tenant request. Not grantable per-tenant.
     SUPER_ADMIN = 'super_admin'
 
+    @property
+    def label(self) -> str:
+        """The name people read. Differs from the value only where a role was
+        renamed in the UI without migrating stored grants and Discord mappings."""
+        return _ROLE_LABELS.get(self, self.value.replace('_', ' ').title())
+
     @classmethod
     def tenant_grantable(cls) -> 'list[Role]':
         """The roles a community may hand out, in declaration order.
@@ -54,6 +60,11 @@ class Role(str, Enum):
             cls.PROCTOR, cls.STREAM_MANAGER, cls.TRIFORCE_SUBMITTER,
             cls.EQUIPMENT_MANAGER, cls.VOLUNTEER, cls.CHECK_IN_DESK,
         ]
+
+
+_ROLE_LABELS: dict[Role, str] = {
+    Role.STREAM_MANAGER: 'Broadcast Tech',
+}
 
 
 class TournamentGrant(str, Enum):

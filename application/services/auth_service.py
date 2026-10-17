@@ -35,12 +35,6 @@ class AuthService:
       so they never operate a feature the tenant has not enabled.
     """
 
-    # Per-tenant roles that grant access to the Admin dashboard. Excludes PROCTOR
-    # and VOLUNTEER, whose workflows live on the Volunteer page instead.
-    _ADMIN_ROLES: ClassVar[set[Role]] = {
-        Role.STAFF, Role.STREAM_MANAGER, Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR,
-    }
-
     @staticmethod
     def is_system(user: Optional[User]) -> bool:
         """The reserved automation actor (``User.is_system``).
@@ -140,18 +134,37 @@ class AuthService:
 
     @staticmethod
     async def can_view_admin(user: Optional[User]) -> bool:
-        """Any admin role in this tenant or any TA/CC tournament membership in this
-        tenant. A platform SUPER_ADMIN can view any tenant's admin."""
+        """Staff, or a TA/CC of any tournament in this tenant: the people the
+        Reports tab and the per-tournament admin reads are for. A platform
+        SUPER_ADMIN passes everywhere.
+
+        Gates the admin REST API, the MCP admin scope, the reports and
+        ``audience: staff`` help. The other admin roles each own one or two
+        Admin tabs and are held to those tabs' own gates instead
+        (``can_manage_volunteers``, ``can_manage_equipment``, ``can_manage_stages``…),
+        so none of them reads the community's reports or crew lists through it.
+        """
         if user is None:
             return False
-        if await AuthService.is_super_admin(user):
-            return True
-        if await AuthService.get_roles(user) & AuthService._ADMIN_ROLES:
+        if await AuthService.is_staff(user):
             return True
         admin_q, cc_q = AuthService._tournament_relations(user)
         if await admin_q.exists():
             return True
         return await cc_q.exists()
+
+    @staticmethod
+    async def can_view_volunteer_admin(user: Optional[User]) -> bool:
+        """The admin-side volunteer reads: positions, shifts, coverage and hours.
+
+        ``can_view_admin`` (whose Reports tab carries Volunteer Coverage and the
+        hours insight) plus a volunteer coordinator, who manages exactly these
+        in Admin → Volunteers and Volunteer Shifts.
+        """
+        return (
+            await AuthService.can_view_admin(user)
+            or await AuthService.can_manage_volunteers(user)
+        )
 
     @staticmethod
     async def can_open_admin(user: Optional[User]) -> bool:
@@ -170,7 +183,7 @@ class AuthService:
         if await AuthService.is_super_admin(user):
             return True
         roles = await AuthService.get_roles(user)
-        # Schedule has no flag: staff, a stream manager, a TA and a CC always land on it.
+        # Schedule has no flag: staff, a broadcast tech, a TA and a CC always land on it.
         if roles & {Role.STAFF, Role.STREAM_MANAGER}:
             return True
         admin_q, cc_q = AuthService._tournament_relations(user)
@@ -338,10 +351,14 @@ class AuthService:
         """Run a match on the floor: seat, start, finish, record the result,
         roll its seed, assign stations.
 
-        Admits PROCTOR — this is the proctor's whole job. Confirming is
-        deliberately *not* here; see ``can_confirm_match``.
+        Admits PROCTOR — this is the proctor's whole job — and a Broadcast Tech
+        (STREAM_MANAGER) for a match on a stage, since running the broadcast
+        match is theirs. Confirming is deliberately *not* here; see
+        ``can_confirm_match``.
         """
         if await AuthService.is_staff(user) or await AuthService.is_proctor(user):
+            return True
+        if match.stage_id is not None and await AuthService.is_stream_manager(user):  # type: ignore[attr-defined]
             return True
         return await AuthService.is_tournament_admin(user, match.tournament_id)
 
@@ -448,7 +465,7 @@ class AuthService:
     @staticmethod
     async def can_assign_match_stream(user: Optional[User], match: Match) -> bool:
         """Set a match's stage or is_stream_candidate flag.
-        Stream Managers can do this globally; TAs can do it for their own tournaments.
+        Broadcast Techs (STREAM_MANAGER) can do this globally; TAs can do it for their own tournaments.
         """
         if await AuthService.can_manage_stages(user):
             return True

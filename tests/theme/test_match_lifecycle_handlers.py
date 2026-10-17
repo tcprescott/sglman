@@ -65,9 +65,10 @@ def test_the_crew_coordinator_is_offered_no_lifecycle_control():
     assert _callbacks(MatchBoardAccess.for_roles(is_crew_coordinator=True)) == set()
 
 
-def test_the_stream_manager_is_offered_exactly_the_stage():
-    """``assign_stage``'s own docstring names this role; nothing offered it."""
-    assert _callbacks(MatchBoardAccess.for_roles(is_stream_manager=True)) == set(STREAM)
+def test_the_broadcast_tech_is_offered_the_stage_and_the_run_controls():
+    """The stage is theirs, and so is running a match on one; the row-level
+    stage check lives in the slot guards and ``can_run_match``."""
+    assert _callbacks(MatchBoardAccess.for_roles(is_stream_manager=True)) == set(STREAM) | set(RUN)
 
 
 def test_an_uncovered_callback_is_omitted_not_none():

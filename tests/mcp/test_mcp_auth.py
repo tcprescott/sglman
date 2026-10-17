@@ -81,6 +81,27 @@ class TestGateMatrix:
                 assert is_error, name
                 assert _forbidden(payload), (name, payload)
 
+    async def test_single_tab_admin_roles_are_refused_admin_tools(self, db):
+        """Equipment managers and volunteer coordinators are held to their own
+        Admin tabs, so the reports and crew reads refuse them."""
+        for role in (Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR):
+            _, raw = await create_oauth_token(username=role.value, roles=[role])
+            async with mcp_session() as client:
+                for name, args in ADMIN_TOOLS.items():
+                    is_error, payload = await call_tool(client, raw, name, tenant=TENANT, **args)
+                    assert is_error and _forbidden(payload), (role, name, payload)
+
+    async def test_volunteer_admin_tools_admit_the_coordinator_only(self, db):
+        args = {'start': '2026-01-01T00:00:00', 'end': '2026-01-02T00:00:00'}
+        _, vc = await create_oauth_token(username='vc', roles=[Role.VOLUNTEER_COORDINATOR])
+        _, em = await create_oauth_token(username='em', roles=[Role.EQUIPMENT_MANAGER])
+        async with mcp_session() as client:
+            for name in ('list_volunteer_shifts', 'volunteer_coverage'):
+                is_error, payload = await call_tool(client, vc, name, tenant=TENANT, **args)
+                assert not is_error, (name, payload)
+                is_error, payload = await call_tool(client, em, name, tenant=TENANT, **args)
+                assert is_error and _forbidden(payload), (name, payload)
+
     async def test_staff_passes_staff_and_admin_gates(self, db):
         """STAFF satisfies can_view_admin too, matching the REST gates."""
         _, raw = await create_oauth_token(roles=[Role.STAFF])

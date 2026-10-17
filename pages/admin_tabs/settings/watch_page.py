@@ -9,7 +9,7 @@ could react.
 
 from nicegui import ui
 
-from application.services import SystemConfigService, WatchLayoutService
+from application.services import SystemConfigService
 from application.services.system_config_service import (
     KEY_WATCH_AUTO_STATIC,
     KEY_WATCH_AUTO_THRESHOLD,
@@ -24,7 +24,6 @@ from theme.banner import banner
 from theme.notify import notify_error
 from theme.save_footer import SaveFooter
 from theme.section import section_panel
-from theme.steady import steady_refreshable
 
 #: New live viewers the app can let in a minute, from docs/scaling-roadmap.md.
 ADMISSIONS_PER_MINUTE = 600
@@ -76,30 +75,6 @@ async def watch_page_settings_pane(can_edit: bool) -> None:
     with now_card.body:
         right_now()
     ui.timer(5.0, right_now.refresh)
-
-    votes_card = await section_panel(
-        'Layout votes', icon='thumbs_up_down',
-        subtitle='Each viewer gets one of the three layouts at random and can switch and rate them. '
-                 'One count per browser.',
-    )
-
-    @steady_refreshable
-    async def votes() -> None:
-        try:
-            tally = await WatchLayoutService().tally(await current_actor())
-        except (ValueError, PermissionError) as e:
-            ui.label(str(e)).classes('text-muted')
-            return
-        with ui.element('div').classes('wiz-watch-stats'):
-            for row in tally:
-                with ui.column().classes('wiz-watch-stat'):
-                    ui.label(row.label).classes('wiz-watch-stat__label')
-                    ui.label(f'{row.up} up · {row.down} down').classes('wiz-watch-stat__num')
-                    ui.label(f'Seen by {row.seen}').classes('wiz-watch-stat__label')
-
-    with votes_card.body:
-        await votes()
-    ui.timer(30.0, votes.refresh)
 
     card = await section_panel(
         'Mode', icon='tune',

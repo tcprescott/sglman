@@ -47,6 +47,23 @@ class TestGate:
         async with client_for(app, raw) as c:
             assert (await c.get('/api/reports/activity-trends', params=WINDOW)).status_code == 200
 
+    async def test_single_tab_admin_roles_are_refused_the_reports(self, db, app):
+        """An equipment manager or volunteer coordinator has no Reports tab for
+        matches, crew or stages, so the API refuses those reports too."""
+        for role in (Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR):
+            _, raw = await create_user_token(username=role.value, roles=[role])
+            async with client_for(app, raw) as c:
+                for path in ('/api/reports/activity-trends', '/api/reports/crew-coverage'):
+                    assert (await c.get(path, params=WINDOW)).status_code == 403, (role, path)
+
+    async def test_a_volunteer_coordinator_reads_volunteer_hours_only(self, db, app):
+        _, raw = await create_user_token(username='vc', roles=[Role.VOLUNTEER_COORDINATOR])
+        async with client_for(app, raw) as c:
+            assert (await c.get('/api/reports/volunteer-hour-trends', params=WINDOW)).status_code == 200
+        _, raw = await create_user_token(username='em', roles=[Role.EQUIPMENT_MANAGER])
+        async with client_for(app, raw) as c:
+            assert (await c.get('/api/reports/volunteer-hour-trends', params=WINDOW)).status_code == 403
+
     async def test_a_read_only_token_still_reads(self, db, app):
         _, raw = await create_user_token(username='staff', roles=[Role.STAFF], read_only=True)
         async with client_for(app, raw) as c:

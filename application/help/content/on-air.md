@@ -23,15 +23,9 @@ On the page you'll find:
 - Coming up on stream, which lists every streamed match for the next week, by
   day.
 - Tournaments, with each one's bracket and rules links and how far along it is.
-- Get involved, which the community fills in.
 :::
 
 ![The Watch page on a phone: three stage cards, each with a Watch stream button and a LIVE match under On now, two of them with the next match under Up next, then a list of brackets](/static/help/on-air/watch-page-phone.webp "The Watch page, signed out.")
-
-The community is still picking a design, so the page comes in three layouts: one
-long page, tabs, or the player with a rail beside it. You start on one at random.
-Switch with the buttons under the page title, and use the thumbs to say which you
-like. Your browser remembers both.
 
 The page updates itself as matches change. Matches without a stage don't appear
 here. You'll find those on the Schedule view of the Event tab.

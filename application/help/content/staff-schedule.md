@@ -61,7 +61,7 @@ Other people use this board too. Each role only gets the controls it can use.
 |---|---|
 | Staff | Everything below |
 | Tournament admin | Everything, but only for their own tournaments. The board shows them nothing else. |
-| Stream manager | Set the Stage on any match |
+| Broadcast tech | Set the Stage on any match, and check in, roll the seed, start and finish any match that's on a stage |
 | Crew coordinator | Approve commentators and trackers on their tournaments |
 | Proctor | Check in, start, finish and roll seeds, from Volunteer → Proctor Station rather than here |
 
@@ -160,7 +160,7 @@ the box or pick Candidate on it.
 :::
 
 The stages themselves (name, stream URL, and whether they're active) are on
-Admin → Stages. Staff and stream managers can add and edit them there. Untick
+Admin → Stages. Staff and broadcast techs can add and edit them there. Untick
 **Active** on a stage you've stopped using.
 
 ## Approving crew

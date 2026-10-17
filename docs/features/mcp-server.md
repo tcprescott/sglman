@@ -246,7 +246,7 @@ discover the clash after creating the match.
 | `list_users` | STAFF | — |
 | `list_match_crew`, `crew_coverage_report` | ADMIN | — |
 | `list_volunteer_positions`, `list_volunteer_shifts`, `volunteer_coverage` | ACTOR (service: `can_view_volunteer_schedule` — the Volunteer hub's roles plus coordinators; drafts hidden from non-coordinators) | `VOLUNTEERS` |
-| `volunteer_hour_trends` | ADMIN | `VOLUNTEERS` |
+| `volunteer_hour_trends` | VOLUNTEER_ADMIN | `VOLUNTEERS` |
 | `my_volunteer_shifts` | ACTOR | `VOLUNTEERS` |
 | `list_join_requests` | STAFF | — |
 

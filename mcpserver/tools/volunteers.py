@@ -86,7 +86,7 @@ async def volunteer_hour_trends(
 ) -> Dict[str, Any]:
     """Scheduled versus checked-in volunteer hours over time, and the fill rate.
 
-    Requires admin access. `bucket` is `week` or `month`. A shift contributes
+    Requires admin access or the volunteer coordinator role. `bucket` is `week` or `month`. A shift contributes
     `duration × assignees` scheduled hours to the bucket it starts in; fill rate
     measures those against the hours the roster actually needed.
 
@@ -163,6 +163,6 @@ def register_tools(mcp: MCPServer) -> None:
         feature=FeatureFlag.VOLUNTEERS, title='Volunteer coverage',
     )
     register(
-        mcp, volunteer_hour_trends, gate=Gate.ADMIN,
+        mcp, volunteer_hour_trends, gate=Gate.VOLUNTEER_ADMIN,
         feature=FeatureFlag.VOLUNTEERS, title='Volunteer hour trends',
     )

@@ -169,6 +169,7 @@ class AdminMatchDialog(BaseMatchDialog):
         users = await self.user_service.get_community_people(include_inactive=True)
         stages = await self.stage_service.get_all_stages()
         tournaments, entrant_counts = await self.tournament_service.list_schedulable(
+            await get_user_from_session(app.storage.user),
             keep_id=self.match.tournament_id if self.match else None,
         )
 

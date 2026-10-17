@@ -20,10 +20,10 @@ Defined in [`models/enums.py`](../../models/enums.py) as `Role(str, Enum)` — t
 |---|---|---|
 | `staff` | Tournament organizers | Full admin dashboard; all CRUD; grant/revoke roles |
 | `proctor` | Race monitors | Race/schedule workflow on `/volunteer`; seat/start/finish, record the result, roll seeds, assign stations (`can_run_match`) — **not** confirming a result, which is the admin's step (`can_confirm_match`). No Admin access |
-| `stream_manager` | Stream desk | Admin dashboard; stage assignment; stream-candidate flag; CRUD on stages |
+| `stream_manager` | Broadcast techs (shown as **Broadcast Tech**; the stored value kept its old name so grants and Discord/volunteer mappings carry over) | Admin → Match Schedule and Stages only; stage assignment and the stream-candidate flag on any match; CRUD on stages; runs a match **on a stage** like a proctor (`can_run_match`), never confirms. Not in `can_view_admin`, so no admin REST/MCP scope, reports or staff help |
 | `triforce_submitter` | Paid submitters | Submit Triforce texts on active tournaments whose generator supports them (no Admin access) |
-| `volunteer_coordinator` | Volunteer leads | Admin dashboard; manage volunteer positions, shifts, assignments |
-| `equipment_manager` | Equipment leads | Admin dashboard; CRUD on lending assets; check equipment in/out; view private notes/owner |
+| `volunteer_coordinator` | Volunteer leads | Admin → Volunteers, Volunteer Shifts and the Volunteer Coverage report; manage volunteer positions, shifts, assignments. Not in `can_view_admin`: over REST/MCP it reads only the volunteer admin data (`can_view_volunteer_admin`) |
+| `equipment_manager` | Equipment leads | Admin → Equipment only; CRUD on lending assets; check equipment in/out; view private notes/owner. Not in `can_view_admin`, so no reports, crew lists or staff help |
 | `volunteer` | General volunteers | Volunteer workflows on `/volunteer` (no Admin access) |
 | `check_in_desk` | Check-in volunteers | Work the event check-in desk at Volunteer → Check-in Desk: check people in, link registrants to accounts, sync (`can_run_check_in_desk`). Walk-ups and event setup stay staff-only. No Admin access |
 | `preset_manager` | Seed-preset authors | Author/edit the tenant's seed-rolling presets (`can_manage_presets`) |
@@ -272,13 +272,14 @@ The `MOCK_DISCORD` production refusal is **not** part of `validate_security_conf
 
 | Method | True when |
 |---|---|
-| `can_view_admin(user)` | Global `SUPER_ADMIN` (checked first), an admin role (`STAFF`, `STREAM_MANAGER`, `EQUIPMENT_MANAGER`, `VOLUNTEER_COORDINATOR`), or TA/CC of at least one tournament **in this tenant** (the reverse relations hang off the global `User`, so they are tenant-filtered). Excludes `PROCTOR`/`VOLUNTEER` |
+| `can_view_admin(user)` | Staff (global `SUPER_ADMIN` included), or TA/CC of at least one tournament **in this tenant** (the reverse relations hang off the global `User`, so they are tenant-filtered). The Reports tab's audience; gates `require_admin`, MCP `Gate.ADMIN` and `audience: staff` help. Every other role (broadcast tech, volunteer coordinator, equipment manager, the online-play roles, proctor, volunteer) is held to its own tab gates |
+| `can_view_volunteer_admin(user)` | `can_view_admin` or `can_manage_volunteers` (staff or `VOLUNTEER_COORDINATOR`): the admin-side volunteer reads. Gates `require_volunteer_admin` and MCP `Gate.VOLUNTEER_ADMIN` |
 | `can_open_admin(user)` | The nav's Admin link: `/admin` has at least one tab for this viewer. Mirrors `build_admin_tabs` flags included: super-admin, `STAFF`/`STREAM_MANAGER`, TA/CC, `PRESET_MANAGER`, `SYNC_ADMIN`; `VOLUNTEER_COORDINATOR` with `VOLUNTEERS`, `EQUIPMENT_MANAGER` with `EQUIPMENT`, `QUALIFIER_ADMIN` or a per-qualifier admin with `ASYNC_QUALIFIERS`. Deliberately separate from `can_view_admin`, which also gates the admin API, MCP admin scope, reports and staff help |
 | `can_view_volunteer(user)` | The `VOLUNTEERS` flag is live **and** (super-admin or one of `VOLUNTEER`/`PROCTOR`/`STAFF`). The nav's source of truth for the volunteer tabs, so the header link and `@protected_tab_page('/volunteer')` cannot drift into offering a link that 404s or 403s. The hub also opens for the desk (`can_view_check_in_desk`) |
 | `can_edit_tournament(user, tournament)` | Staff, or TA of that tournament |
 | `can_manage_payouts(user, tournament)` | Same people as `can_edit_tournament` — read **and** edit one tournament's prize split (an unannounced split is admin data, so reads are gated too) |
 | `can_crud_match(user, match)` | Staff, or TA of the match's tournament |
-| `can_run_match(user, match)` | Staff, **proctor**, or TA of the match's tournament — running a match on the floor: seat/start/finish, recording the result, seed rolls, station assignment. Deliberately **not** confirming |
+| `can_run_match(user, match)` | Staff, **proctor**, a `STREAM_MANAGER` when the match has a stage, or TA of the match's tournament — running a match on the floor: seat/start/finish, recording the result, seed rolls, station assignment. Deliberately **not** confirming |
 | `can_confirm_match(user, match)` | Staff, or TA of the match's tournament. **Excludes `PROCTOR` by design**: confirming advances the native bracket and pushes the result to Challonge, which is the admin's verification step — a proctor's workflow ends at recording the winner. `MatchScheduleService._transition` defaults to `can_run_match` and only `confirm_match` passes `authorize=can_confirm_match` |
 | `can_approve_crew(user, match)` | Staff, TA, or CC of the match's tournament |
 | `can_view_schedule_board(user)` | Staff, `STREAM_MANAGER`, or TA/CC of any tournament here — the same predicates `pages/admin.py` appends the Schedule tab on, so a report's drill-out link is never offered to someone the board would refuse. What they may *do* once there is a separate question, answered per capability by `MatchBoardAccess` ([frontend](frontend.md#match-board-capabilities-themetablesmatch_accesspy)) |

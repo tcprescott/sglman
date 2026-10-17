@@ -253,7 +253,7 @@ async def enroll_tournament_player(
     user_id: int,
     tenant: TenantArg = None,
 ) -> OperationResult:
-    """Add a member to a tournament's roster, ignoring the signup window. Staff only.
+    """Add a member to a tournament's roster, ignoring the signup window. Staff or that tournament's admins.
 
     `user_id` comes from `list_users`; the person must already be a member of
     this community.
@@ -268,7 +268,7 @@ async def remove_tournament_player(
     user_id: int,
     tenant: TenantArg = None,
 ) -> OperationResult:
-    """Take someone off a tournament's roster, whatever the signup window says. Staff only."""
+    """Take someone off a tournament's roster, whatever the signup window says. Staff or that tournament's admins."""
     tournament = await _tournament(tournament_id)
     await TournamentService().unenroll_player(tournament, await _user(user_id), current_actor().user)
     return OperationResult(detail=f'Removed user {user_id} from {tournament.name}.')
@@ -282,7 +282,7 @@ async def link_challonge_tournament(
     challonge: str,
     tenant: TenantArg = None,
 ) -> TournamentResponse:
-    """Link a tournament to a Challonge bracket by URL or ID and import it. Staff or that tournament's admins.
+    """Link a tournament to a Challonge bracket by URL or ID and import it. Staff only.
 
     Refused when the tournament already has a native bracket.
     """
@@ -295,7 +295,7 @@ async def unlink_challonge_tournament(
     tournament_id: int,
     tenant: TenantArg = None,
 ) -> TournamentResponse:
-    """Detach a tournament from Challonge and drop its mirrored bracket. Staff or that tournament's admins.
+    """Detach a tournament from Challonge and drop its mirrored bracket. Staff only.
 
     Nothing on Challonge is deleted; linking again re-imports it.
     """
@@ -310,7 +310,7 @@ async def sync_challonge_tournament(
 ) -> OperationResult:
     """Pull the latest entrants and matches from a linked Challonge bracket now.
 
-    Staff or that tournament's admins. Linked brackets also sync on their own.
+    Staff only. Linked brackets also sync on their own.
     """
     await _tournament(tournament_id)
     counts = await ChallongeService().sync_bracket(tournament_id, current_actor().user, force=True)

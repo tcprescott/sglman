@@ -20,6 +20,7 @@ from pages.home_tabs.accommodation_section import render_accommodation_section
 from pages.home_tabs.api_tokens_section import render_api_tokens_section
 from pages.home_tabs.challonge_link_section import CONFIG as CHALLONGE_CONFIG
 from pages.home_tabs.emergency_contact_section import render_emergency_contact_section
+from pages.home_tabs.equipment import equipment_checkouts_section
 from pages.home_tabs.my_feedback_section import render_my_feedback_section
 from pages.home_tabs.notification_channels_section import ChannelRows, render_test_button
 from pages.home_tabs.racetime_link_section import CONFIG as RACETIME_CONFIG
@@ -257,8 +258,13 @@ async def render_edit_info_tab(focus: str | None = None):
                 # "who you are *here*"; a player with no grants gets nothing.
                 if roles:
                     with ui.row().classes('items-center gap-1 wrap q-mt-xs'):
-                        for role in sorted(r.value for r in roles):
-                            ui.badge(role.replace('_', ' ').title()).props('outline color=primary')
+                        for role in sorted(roles, key=lambda r: r.value):
+                            ui.badge(role.label).props('outline color=primary')
+
+        # Above the form, full width, and only while something is out: it is the
+        # one thing on Profile that isn't a setting.
+        if FeatureFlag.EQUIPMENT in live:
+            await equipment_checkouts_section(user)
 
         # Auto-save status indicator (updated by the on_change handlers above).
         with ui.row().classes('items-center gap-1 q-mt-sm'):

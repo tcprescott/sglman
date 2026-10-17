@@ -79,7 +79,7 @@ async def create_stage(
     stream_url: Optional[str] = None,
     is_active: bool = True,
 ) -> StageInfo:
-    """Add a stage (a stream or play area matches are assigned to). Staff or stream managers."""
+    """Add a stage (a stream or play area matches are assigned to). Staff or broadcast techs."""
     stage = await StageService().create_stage(
         name=name, stream_url=stream_url, is_active=is_active, actor=current_actor().user,
     )
@@ -96,7 +96,7 @@ async def update_stage(
     """Change a stage. Only what you pass changes; an empty `stream_url` clears it.
 
     Set `is_active` false to retire a stage that has matches on it. Staff or
-    stream managers.
+    broadcast techs.
     """
     service = StageService()
     stage = require_found(await service.get_stage_by_id(stage_id), 'Stage')
@@ -110,7 +110,7 @@ async def delete_stage(
     stage_id: int,
     tenant: TenantArg = None,
 ) -> OperationResult:
-    """Permanently delete a stage with no matches on it. Staff or stream managers."""
+    """Permanently delete a stage with no matches on it. Staff or broadcast techs."""
     service = StageService()
     stage = require_found(await service.get_stage_by_id(stage_id), 'Stage')
     await service.delete_stage(stage, actor=current_actor().user)

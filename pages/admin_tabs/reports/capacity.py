@@ -14,7 +14,6 @@ from application.services import (
     get_user_from_session,
 )
 from application.utils.timezone import format_local_datetime, format_local_display
-from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.section import section_panel
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -36,6 +35,7 @@ from .shared import (
     report_jumps,
     report_page_shell,
     reports_url,
+    schedule_drill,
     themed_chart_option,
     tournament_filter,
 )
@@ -53,7 +53,7 @@ async def capacity_page(
     start_d, end_d = await default_date_range(start, end)
     focus_dt = _parse_focus(focus)
     viewer = await get_user_from_session(app.storage.user)
-    can_open_board = await AuthService.can_view_schedule_board(viewer)
+    board_drill, can_open_board = schedule_drill(await AuthService.schedule_board_scope(viewer))
 
     def nav(**overrides) -> None:
         params: dict[str, Any] = {'report': 'capacity', 'start': start_d, 'end': end_d, 'tournament_id': tournament_id}
@@ -162,6 +162,7 @@ async def capacity_page(
                     focus_rows = [
                         {
                             'match_id': m.id,
+                            'tournament_id': m.tournament_id,  # type: ignore[attr-defined]
                             'tournament': m.tournament.name if m.tournament else '',
                             'scheduled_at': format_local_display(m.scheduled_at),
                             'players': len(m.players),
@@ -185,7 +186,7 @@ async def capacity_page(
                     # *these* matches; this is the only table that names them.
                     focus_actions = enable_drill_link(
                         focus_table, focus_columns, focus_rows,
-                        lambda r: admin_url(SCHEDULE, match_id=r['match_id']),
+                        board_drill,
                         enabled=can_open_board,
                         hint='Open on the schedule board',
                     )

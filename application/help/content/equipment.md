@@ -54,14 +54,15 @@ something and it still shows as yours, tell the desk.
 ## Seeing what you have out
 
 :::snippet equipment-yours
-My Schedule has an Equipment you have out section listing everything checked out
-to you, with when you took it. **View** opens the item's page.
+While you're holding something, the top of your Profile has an Equipment you
+have out card listing everything checked out to you, with when you took it.
+**View** opens the item's page.
 
-It's empty once everything you borrowed is checked back in, so it's the quickest
-way to make sure you've returned it all before you leave.
+The card goes away once everything you borrowed is checked back in, so it's the
+quickest way to make sure you've returned it all before you leave.
 :::
 
-![The Equipment you have out section on My Schedule, with one item and its View button marked 1](/static/help/equipment/yours-phone.webp "Equipment you have out, on My Schedule. **View** (1) opens the item.")
+![The Equipment you have out card on Profile, with one item and its View button marked 1](/static/help/equipment/yours-phone.webp "Equipment you have out, on Profile. **View** (1) opens the item.")
 
 ## Running the equipment desk
 

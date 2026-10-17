@@ -207,7 +207,7 @@ class AdminUserDialog(BaseUserDialog):
                 # and the service refuses it, so offering it here would only ever
                 # produce an error dialog.
                 role_options = {
-                    r.value: r.name.replace('_', ' ').title()
+                    r.value: r.label
                     for r in Role.tenant_grantable()
                 }
                 current_roles = []

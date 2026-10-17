@@ -4,7 +4,6 @@ slug: staff-challonge
 icon: account_tree
 order: 242
 feature: CHALLONGE
-audience: staff
 roles: STAFF
 summary: Connecting Challonge, linking a bracket, matching its entrants to members, and moving it through its stages.
 ---
