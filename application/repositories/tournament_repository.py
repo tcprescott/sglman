@@ -138,6 +138,19 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         return entrants
 
     @staticmethod
+    async def admins_by_tournament(
+        tournament_ids: List[int],
+    ) -> dict[int, list[Any]]:
+        """``{tournament_id: [User, …]}`` of each tournament's own admins, A to Z."""
+        tournaments = await scoped(
+            Tournament.filter(id__in=tournament_ids)
+        ).prefetch_related('admins')
+        return {
+            t.id: sorted(t.admins, key=lambda u: (u.display_name or u.username or '').lower())
+            for t in tournaments
+        }
+
+    @staticmethod
     async def enrolled_tournament_ids(user_id: int) -> set[int]:
         """The tournaments in *this tenant* one user is enrolled in.
 
