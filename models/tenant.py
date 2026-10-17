@@ -177,14 +177,10 @@ class ProfileNudgeDismissal(Model):
 
 
 class WatchLayoutVote(Model):
-    """One browser's view of one Watch page layout, and its thumbs up or down.
+    """One browser's rating of one Watch page layout, from the layout trial.
 
-    The Watch page (``/live``) offers three layouts while the community decides
-    which to keep. A viewer lands on a random one, can switch, and can rate each.
-    A row per browser per layout: created when they first see it (``vote``
-    null), so the tally can say how many saw a layout as well as how many
-    liked it. Keyed by NiceGUI's ``app.storage.browser`` id, because most
-    viewers never sign in.
+    Retired: the community kept the one-page layout, so nothing in the app reads or
+    writes these rows any more. The table stays to keep the trial's votes.
     """
 
     id = fields.IntField(pk=True)
@@ -192,7 +188,7 @@ class WatchLayoutVote(Model):
         'models.Tenant', related_name='watch_layout_votes', on_delete=fields.CASCADE)
     tenant_id: int
     session_id = fields.CharField(max_length=64)
-    # A ``WATCH_LAYOUTS`` key (application/services/watch_layout_service.py).
+    # 'one_page', 'tabs' or 'rail'.
     layout = fields.CharField(max_length=16)
     # 'up', 'down', or null for seen but not rated.
     vote = fields.CharField(max_length=8, null=True)

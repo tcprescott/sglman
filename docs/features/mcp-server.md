@@ -166,7 +166,8 @@ agree.
 | `PLATFORM` | the global `SUPER_ADMIN` role; names no community; **listed only to a super admin** | `require_super_admin` |
 | `ACTOR` | a live token + membership of the named community | `require_api_actor` |
 | `STAFF` | `AuthService.is_staff` | `require_staff` |
-| `ADMIN` | `AuthService.can_view_admin` | `require_admin` |
+| `ADMIN` | `AuthService.can_view_admin` (staff, TA, CC) | `require_admin` |
+| `VOLUNTEER_ADMIN` | `AuthService.can_view_volunteer_admin` (`ADMIN` plus a volunteer coordinator) | `require_volunteer_admin` |
 
 The feature flag is checked **before** the role, matching `@protected_page`: a
 subsystem the community has not enabled is hidden from everyone, staff included,
@@ -245,8 +246,8 @@ discover the clash after creating the match.
 | `get_player_availability` | ACTOR (self, or staff for anyone else) | — |
 | `list_users` | STAFF | — |
 | `list_match_crew`, `crew_coverage_report` | ADMIN | — |
-| `list_volunteer_positions`, `list_volunteer_shifts` | ADMIN | `VOLUNTEERS` |
-| `volunteer_coverage`, `volunteer_hour_trends` | ADMIN | `VOLUNTEERS` |
+| `list_volunteer_positions`, `list_volunteer_shifts` | VOLUNTEER_ADMIN | `VOLUNTEERS` |
+| `volunteer_coverage`, `volunteer_hour_trends` | VOLUNTEER_ADMIN | `VOLUNTEERS` |
 | `my_volunteer_shifts` | ACTOR | `VOLUNTEERS` |
 | `list_join_requests` | STAFF | — |
 
@@ -260,7 +261,9 @@ its own, so `VOLUNTEERS` is declared at the tool — without it a community with
 volunteers off could still read its volunteer hours here.
 
 `list_match_crew` includes **unapproved** signups, which is why it is ADMIN while
-`get_match` is ACTOR — `get_match` reuses the REST serializer and inherits its
+`get_match` is ACTOR, and `CrewService.get_match_crew` then narrows it to the
+people who may approve that match's crew (`can_approve_crew`: staff, or a TA/CC
+of its tournament). `get_match` reuses the REST serializer and inherits its
 rule that unapproved crew are never disclosed.
 
 ### Reports

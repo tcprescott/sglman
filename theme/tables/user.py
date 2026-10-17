@@ -203,7 +203,7 @@ class UserTableView:
         for r in u.roles:
             if tid is not None and r.tenant_id != tid:
                 continue
-            label = r.role.value.replace('_', ' ').title()
+            label = r.role.label
             if label not in seen:
                 seen.add(label)
                 role_labels.append(label)

@@ -83,7 +83,7 @@ the key is set, and rolling without one raises. See
 | `speedgaming_etl` | Online tournaments | no | admin SpeedGaming tab, `/speedgaming` API, sync worker | `speedgaming_sync_service.py`, `speedgaming_sync_worker.py` |
 | `brackets` | Online tournaments | no (ships dark) | admin Brackets tab, the home Event switcher's Brackets view, public bracket pages (`/tournament/{id}/brackets`, `/brackets/{id}`), `/brackets` API | `bracket_service.py` |
 | `challonge` | Community | **yes** | admin Challonge tab, the profile's Challonge link row (no REST router exists) | `challonge_service.py`; `push_result_if_linked` soft-skips |
-| `equipment` | Community | **yes** | `/equipment`, the My Schedule equipment section, admin Equipment tab, `api/routers/equipment.py` | `equipment_service.py` |
+| `equipment` | Community | **yes** | `/equipment`, the Profile "Equipment you have out" card, admin Equipment tab, `api/routers/equipment.py` | `equipment_service.py` |
 | `volunteers` | Community | **yes** | `/volunteer` + its nav link, admin Volunteers/Schedule, `/volunteers` API | `volunteer/` (reminder worker skips) |
 | `triforce_texts` | Community | **yes** | the Tournaments-card Triforce button, admin Triforce tab, `/triforce-texts` API | `triforce_text_service.py`; the seed-roll text embed soft-returns `None` |
 | `feedback` | Community | **yes** | the drawer's Feedback item (`theme/base.py`), admin Feedback tab, the profile's "Your feedback" card, `api/routers/feedback.py` | `feedback_service.py` |

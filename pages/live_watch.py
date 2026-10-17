@@ -18,14 +18,12 @@ import time
 
 from nicegui import app, context, ui
 
-from application.services import AuthService, TenantService, WatchLayoutService, get_user_from_session
-from application.services.watch_layout_service import WATCH_LAYOUTS
+from application.services import AuthService, TenantService, get_user_from_session
 from application.tenant_context import require_tenant_id
 from application.utils import live_audience
 from middleware.auth import public_page
 from pages.watch_data import get_watch_view, watch_version
 from theme.base import BaseLayout
-from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.watch_live import LiveWatch
 
@@ -45,17 +43,10 @@ def create() -> None:
         await BaseLayout(user=user).render()
 
         view = await get_watch_view(tenant_id)
-        # Each viewer lands on a random layout and keeps it (app.storage.user is
-        # per browser, signed in or not) until they pick another.
-        layout = WatchLayoutService.resolve(app.storage.user.get('watch_layout'))
-        app.storage.user['watch_layout'] = layout
-        session_id = app.storage.browser.get('id')
-        await WatchLayoutService().mark_seen(session_id, layout)
         root_path = context.client.request.scope.get('root_path', '') or ''
         with ui.column().classes('page-container'):
             page_header('Watch', subtitle=f'Times in {view.timezone_label}' if view.timezone_label else None)
-            await _layout_bar(layout, session_id)
-            live = LiveWatch(root_path, await AuthService.schedule_board_scope(user), layout=layout)
+            live = LiveWatch(root_path, await AuthService.schedule_board_scope(user))
             live.render(view)
 
         seen = {'version': watch_version(tenant_id), 'at': time.monotonic()}
@@ -74,50 +65,3 @@ def create() -> None:
         client.on_connect(lambda: live_audience.viewer_joined(tenant_id, client.id))
         client.on_disconnect(lambda: live_audience.viewer_left(tenant_id, client.id))
 
-
-async def _layout_bar(layout: str, session_id: str | None) -> None:
-    """The layout switcher and its thumbs up/down, while the community decides."""
-    service = WatchLayoutService()
-    mine = {'vote': (await service.votes_for(session_id)).get(layout)}
-
-    def switch(key: str) -> None:
-        if key == layout:
-            return
-        app.storage.user['watch_layout'] = key
-        ui.navigate.reload()
-
-    with ui.element('section').classes('wiz-watch-layout').props('aria-label="Page layout"'):
-        ui.label("We're trying three layouts. Pick one, and tell us what you think.").classes(
-            'wiz-watch-layout__lead')
-        with ui.row().classes('wiz-watch-layout__controls items-center'):
-            with ui.element('div').classes('wiz-watch-layout__pick').props('role="group" aria-label="Layout"'):
-                for key, label in WATCH_LAYOUTS.items():
-                    on = key == layout
-                    ui.button(label, on_click=lambda k=key: switch(k)).props(
-                        f'no-caps {"unelevated" if on else "outline"} aria-pressed={"true" if on else "false"}',
-                    ).classes('wiz-watch-layout__option')
-
-            @ui.refreshable
-            def thumbs() -> None:
-                for vote, icon, name in (('down', 'thumb_down', 'I don\'t like this layout'),
-                                         ('up', 'thumb_up', 'I like this layout')):
-                    on = mine['vote'] == vote
-                    ui.button(icon=icon, on_click=lambda v=vote: cast(v)).props(
-                        f'round {"unelevated" if on else "flat"} aria-pressed={"true" if on else "false"} '
-                        f'aria-label="{name}"',
-                    ).classes('wiz-watch-layout__vote').tooltip(name)
-
-            async def cast(vote: str) -> None:
-                new = None if mine['vote'] == vote else vote
-                try:
-                    await service.vote(session_id, layout, new)
-                except ValueError as e:
-                    notify_error(e)
-                    return
-                mine['vote'] = new
-                thumbs.refresh()
-                if new:
-                    ui.notify('Thanks, noted.', color='positive')
-
-            with ui.row().classes('wiz-watch-layout__thumbs items-center no-wrap'):
-                thumbs()

@@ -630,7 +630,7 @@ def _create_mock() -> None:
                     seen = set()
                     labels = []
                     for r in u.roles:
-                        label = r.role.value.replace('_', ' ').title()
+                        label = r.role.label
                         if label not in seen:
                             seen.add(label)
                             labels.append(label)
@@ -700,7 +700,7 @@ def _create_mock() -> None:
                     value=random.randint(10_000_000_000_000_000, 99_999_999_999_999_999),
                     format='%.0f',
                 ).classes('w-full')
-                role_options = {r.value: r.name.replace('_', ' ').title() for r in Role}
+                role_options = {r.value: r.label for r in Role}
                 role_select = ui.select(
                     options=role_options,
                     value=[],

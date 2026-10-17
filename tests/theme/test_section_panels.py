@@ -21,10 +21,10 @@ import inspect
 
 import pytest
 
-from pages.home_tabs import availability, equipment, event, my_crew, my_schedule, player
+from pages.home_tabs import availability, event, my_crew, my_schedule, player
 
 #: Every module that contributes one section to My Schedule.
-SECTION_MODULES = [availability, equipment, my_crew, player]
+SECTION_MODULES = [availability, my_crew, player]
 
 
 class TestTheEventViewSwitcher:

@@ -1,13 +1,12 @@
 """My Schedule — everything the viewer personally committed to, on one scroll.
 
 Your matches, the crew slots you signed up for, your volunteer shifts, when you
-said you can play, and any equipment you are still holding. Most of these were
+said you can play. (Equipment you're holding lives on Profile.) Most of these were
 separate tabs, which meant the answer to "what am I doing at this event?" was spread across four taps and,
 on a phone, three of them lived behind **More**.
 
 Sections render in commitment order: what you are scheduled to play, then what
-you volunteered for, then what you told staff about your time, then what you are
-carrying. Every section stays open. A section whose feature the community has
+you volunteered for, then what you told staff about your time. Every section stays open. A section whose feature the community has
 turned off is not built at all.
 
 Each is a panel (``theme/section.py``) rather than a heading over a hairline
@@ -24,7 +23,6 @@ from nicegui import app, ui
 from application.services import FeatureFlagService, TournamentService, get_user_from_session
 from models import FeatureFlag
 from pages.home_tabs.availability import AVAILABILITY_SECTION_ID, availability_tab
-from pages.home_tabs.equipment import equipment_checkouts_section
 from pages.home_tabs.my_crew import my_crew_tab
 from pages.home_tabs.my_timeline import my_timeline_view
 from pages.home_tabs.my_volunteer_shifts import my_volunteer_shifts_section
@@ -87,8 +85,6 @@ async def my_schedule_tab(
             if volunteer:
                 await my_volunteer_shifts_section(volunteer, release=release, focus=shifts)
         await availability_tab()
-        if FeatureFlag.EQUIPMENT in live:
-            await equipment_checkouts_section()
 
     @steady_refreshable
     async def body() -> None:

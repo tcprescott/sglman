@@ -20,6 +20,9 @@ from theme.tables.tournament import TournamentTableView, tournament_columns
 async def admin_tournaments_page() -> None:
     actor = await get_user_from_session(app.storage.user)
     can_create = await AuthService.is_staff(actor)
+    # A tournament admin edits, rosters and syncs only the tournaments they run,
+    # so their list is those; every other row would open controls that refuse.
+    own_ids = None if can_create else (await AuthService.tournament_scope(actor))[0]
 
     with ui.column().classes('page-container'):
         with page_header(
@@ -37,13 +40,15 @@ async def admin_tournaments_page() -> None:
             await dialog.open()
 
         def get_query():
-            return Tournament.filter(tenant_id=require_tenant_id())
+            query = Tournament.filter(tenant_id=require_tenant_id())
+            return query if own_ids is None else query.filter(id__in=own_ids)
         
         table_view = TournamentTableView(
             columns=columns, get_query=get_query,
             submit_tournament_callback=add_tournament if can_create else None,
             table_key=TableKeys.ADMIN_TOURNAMENTS, searchable=True, can_delete=can_create,
             can_sync=True,
+            sync_sites=None if can_create else frozenset({'startgg'}),
         )
         
         # Route through the view's _bg so the tab-switch refresh rebinds the

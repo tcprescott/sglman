@@ -112,7 +112,7 @@ class MatchInbox:
         finished = [r for r in rows if r.get('state') == 'Finished'] if self.access.confirm else []
         late = [
             r for r in rows
-            if self.access.run and r.get('state') == 'Scheduled' and r.get('is_overdue')
+            if self.access.can_run_row(r) and r.get('state') == 'Scheduled' and r.get('is_overdue')
             and r.get('players') and not r.get('is_racetime')
         ]
         total = len(requests) + len(finished) + len(late)

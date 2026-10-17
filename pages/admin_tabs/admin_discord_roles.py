@@ -31,7 +31,7 @@ from theme.tables.preferences import TableKeys, search_input
 # tenant_grantable, not every Role: a mapping is a standing grant, and
 # SUPER_ADMIN is a platform role no community may hand out.
 _ROLE_OPTIONS = {
-    r.value: r.value.replace('_', ' ').title() for r in Role.tenant_grantable()
+    r.value: r.label for r in Role.tenant_grantable()
 }
 _GRANT_OPTIONS = {g.value: g.value.replace('_', ' ').title() for g in TournamentGrant}
 

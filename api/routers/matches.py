@@ -10,7 +10,7 @@ from api.dependencies import ServiceErrorRoute, require_admin, require_api_actor
 from api.schemas.crew import CrewSignupInfo, MatchCrewResponse
 from api.schemas.matches import MatchResponse
 from application.errors import require_found
-from application.services import MatchWatcherService
+from application.services import CrewService, MatchWatcherService
 from application.tenant_context import require_tenant_id
 from models import Match, User
 
@@ -107,21 +107,16 @@ async def get_match(match_id: int):
 @router.get(
     "/{match_id}/crew",
     response_model=MatchCrewResponse,
-    summary="List a match's crew, including pending signups (admin only)",
+    summary="List a match's crew, including pending signups",
     description=(
         "Every commentator and tracker signup on a match, approved or not, with "
         "when each approved crew member confirmed. `GET /matches/{match_id}` "
         "shows approved crew only.\n\n"
-        "**Who can call this:** Admins (any admin role, tournament admin or crew coordinator)."
+        "**Who can call this:** Staff, or Admins or Crew coordinators of this match's tournament."
     ),
 )
 async def get_match_crew(match_id: int, actor: User = Depends(require_admin)):
-    match = require_found(
-        await Match.filter(id=match_id, tenant_id=require_tenant_id())
-        .prefetch_related('commentators__user', 'trackers__user')
-        .first(),
-        "Match",
-    )
+    match = await CrewService().get_match_crew(match_id, actor)
     return MatchCrewResponse(
         match_id=match.id,
         commentators=[

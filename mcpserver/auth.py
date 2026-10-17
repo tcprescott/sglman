@@ -81,12 +81,17 @@ class Gate(Enum):
 
     ``PLATFORM`` also names no community, and requires the global super-admin
     role: the ``/platform`` page's surface, mirroring ``require_super_admin``.
+
+    ``VOLUNTEER_ADMIN`` is ``ADMIN`` plus a volunteer coordinator, for the
+    volunteer reads that coordinator manages in Admin (mirroring
+    ``require_volunteer_admin``).
     """
 
     GLOBAL = 'global'
     PLATFORM = 'platform'
     ACTOR = 'actor'
     ADMIN = 'admin'
+    VOLUNTEER_ADMIN = 'volunteer_admin'
     STAFF = 'staff'
 
     @property
@@ -182,6 +187,10 @@ async def authorize(
     if gate is Gate.ADMIN:
         await AuthService.ensure(
             await AuthService.can_view_admin(actor.user), 'Admin access required'
+        )
+    elif gate is Gate.VOLUNTEER_ADMIN:
+        await AuthService.ensure(
+            await AuthService.can_view_volunteer_admin(actor.user), 'Admin access required'
         )
     elif gate is Gate.STAFF:
         await AuthService.ensure(

@@ -9,17 +9,15 @@ from typing import Any, Dict, List, Optional
 from mcp.server.mcpserver import MCPServer
 
 from api._helpers import load_community_user_or_404
-from api._match_view import MATCH_PREFETCH
 from api.schemas.memberships import JoinRequestResponse
-from application.errors import require_found
 from application.services import (
     AuthService,
+    CrewService,
     PlayerAvailabilityService,
     ReportsService,
     TenantMembershipService,
     UserService,
 )
-from application.tenant_context import require_tenant_id
 from mcpserver.auth import Gate, current_actor
 from mcpserver.registry import register
 from mcpserver.schemas import (
@@ -96,18 +94,12 @@ async def list_match_crew(
 ) -> MatchCrew:
     """List a match's commentators and trackers, including pending signups.
 
-    Requires admin access. `get_match` deliberately hides unapproved crew from
-    everyone; this is the coordinator's view of who has actually volunteered, so
-    it sits behind a higher gate than the match itself.
+    Staff, or an admin or crew coordinator of the match's tournament. `get_match`
+    deliberately hides unapproved crew from everyone; this is the approver's
+    view of who has actually volunteered, so it sits behind the same gate as
+    approving them.
     """
-    from models import Match
-
-    match = require_found(
-        await Match.filter(id=match_id, tenant_id=require_tenant_id())
-        .prefetch_related(*MATCH_PREFETCH)
-        .first(),
-        'Match',
-    )
+    match = await CrewService().get_match_crew(match_id, current_actor().user)
 
     def to_info(row) -> CrewMemberInfo:
         return CrewMemberInfo(

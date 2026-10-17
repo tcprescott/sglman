@@ -4,7 +4,6 @@ slug: staff-emergency-contacts
 icon: contact_phone
 order: 249
 feature: EMERGENCY_CONTACTS
-audience: staff
 roles: STAFF
 summary: Opening an attendee's emergency contact when something happens, and what the audit log records.
 ---

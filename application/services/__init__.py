@@ -146,7 +146,6 @@ from .volunteer import (
     VolunteerScheduleService,
     volunteer_reminder,
 )
-from .watch_layout_service import WatchLayoutService
 from .web_push_service import WebPushService
 from .webhook_service import WebhookService
 
@@ -262,7 +261,6 @@ __all__ = [
     'VolunteerQualificationService',
     'VolunteerRoleMappingService',
     'VolunteerScheduleService',
-    'WatchLayoutService',
     'WebPushService',
     'WebhookService',
     'active_users_metrics',

@@ -426,7 +426,7 @@ async def offer_match_for_stream(
 ) -> OperationResult:
     """Offer your own match for stream coverage, before it starts.
 
-    Only a player in the match can offer it. Stream managers see the offer when
+    Only a player in the match can offer it. Broadcast techs see the offer when
     they choose stream candidates; it does not put the match on stream.
     """
     await MatchStreamVolunteerService().volunteer(match_id, current_actor().user)

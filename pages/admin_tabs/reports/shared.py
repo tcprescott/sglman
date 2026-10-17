@@ -13,7 +13,7 @@ from nicegui import context, ui
 
 from application.services import SystemConfigService, TenantThemeService, TournamentService
 from application.utils.timezone import local_day_bounds
-from pages.admin_tabs.links import REPORTS, admin_url
+from pages.admin_tabs.links import REPORTS, SCHEDULE, admin_url
 from theme.dialog._helpers import native_date_input
 from theme.empty_state import cat_fact
 from theme.page_header import page_header
@@ -531,6 +531,23 @@ def enable_drill_link(
     table.add_slot('body-cell-drill', _DRILL_CELL)
     table.on('drill', _follow_drill)
     return _DRILL_ACTION
+
+
+def schedule_drill(
+    board_scope: Optional[frozenset[int]],
+) -> tuple[Callable[[Mapping], Optional[str]], bool]:
+    """``(url_for, enabled)`` for a match row's "Open on the schedule board".
+
+    ``board_scope`` is :meth:`AuthService.schedule_board_scope`. A tournament
+    admin's board shows only the tournaments they run, so a row from any other
+    tournament gets no link rather than one that opens a board without it.
+    """
+    def url_for(row: Mapping) -> Optional[str]:
+        if board_scope is not None and row.get('tournament_id') not in board_scope:
+            return None
+        return admin_url(SCHEDULE, match_id=row['match_id'])
+
+    return url_for, board_scope is None or bool(board_scope)
 
 
 def _follow_drill(e) -> None:

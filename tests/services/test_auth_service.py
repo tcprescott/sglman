@@ -53,8 +53,8 @@ def make_user(user_id: int = 1):
     return user
 
 
-def make_match(tournament_id: int = 100, match_id: int = 1):
-    return SimpleNamespace(id=match_id, tournament_id=tournament_id)
+def make_match(tournament_id: int = 100, match_id: int = 1, stage_id: int | None = None):
+    return SimpleNamespace(id=match_id, tournament_id=tournament_id, stage_id=stage_id)
 
 
 def make_tournament(tournament_id: int = 100):
@@ -236,6 +236,19 @@ class TestRunVsCrud:
         match = make_match()
         assert await AuthService.can_run_match(make_user(), match) is False
         assert await AuthService.can_crud_match(make_user(), match) is False
+
+    async def test_broadcast_tech_runs_a_match_on_a_stage(self, patch_roles, patch_tournament_membership):
+        patch_roles({Role.STREAM_MANAGER})
+        patch_tournament_membership()
+        match = make_match(tournament_id=999, stage_id=3)
+        assert await AuthService.can_run_match(make_user(), match) is True
+        assert await AuthService.can_crud_match(make_user(), match) is False
+        assert await AuthService.can_confirm_match(make_user(), match) is False
+
+    async def test_broadcast_tech_cannot_run_an_off_stage_match(self, patch_roles, patch_tournament_membership):
+        patch_roles({Role.STREAM_MANAGER})
+        patch_tournament_membership()
+        assert await AuthService.can_run_match(make_user(), make_match(stage_id=None)) is False
 
 
 # ---------------------------------------------------------------------------
@@ -440,6 +453,24 @@ class TestViewAdmin:
     async def test_proctor_alone_cannot_view_admin(self, patch_roles):
         patch_roles({Role.PROCTOR})
         assert await AuthService.can_view_admin(make_user()) is False
+
+    async def test_broadcast_tech_alone_cannot_view_admin(self, patch_roles):
+        patch_roles({Role.STREAM_MANAGER})
+        assert await AuthService.can_view_admin(make_user()) is False
+
+    @pytest.mark.parametrize('role', [Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR])
+    async def test_a_single_tab_admin_role_cannot_view_admin(self, patch_roles, role):
+        """Held to their own Admin tabs, not the reports and crew reads."""
+        patch_roles({role})
+        assert await AuthService.can_view_admin(make_user()) is False
+
+    async def test_a_volunteer_coordinator_reads_the_volunteer_admin_data(self, patch_roles):
+        patch_roles({Role.VOLUNTEER_COORDINATOR})
+        assert await AuthService.can_view_volunteer_admin(make_user()) is True
+
+    async def test_an_equipment_manager_does_not_read_volunteer_admin_data(self, patch_roles):
+        patch_roles({Role.EQUIPMENT_MANAGER})
+        assert await AuthService.can_view_volunteer_admin(make_user()) is False
 
     async def test_volunteer_alone_cannot_view_admin(self, patch_roles):
         patch_roles({Role.VOLUNTEER})
