@@ -227,7 +227,8 @@ Stateless authorization policy: every check is a `@staticmethod async def` takin
 | `can_view_schedule_board(user)` | `bool` | Whether the admin Schedule tab is reachable: Staff (incl. super-admin), `STREAM_MANAGER`, or TA/CC of any tournament in this tenant. Reports resolve drill-out links against it. |
 | `can_view_volunteer(user)` | `bool` | Whether the Volunteer hub is reachable here: `FeatureFlag.VOLUNTEERS` live **and** (super-admin or one of `VOLUNTEER`/`PROCTOR`/`STAFF`). The nav's single source of truth, mirroring the `@protected_tab_page('/volunteer')` gate so the header link cannot dead-end. |
 | `can_open_admin(user)` | `bool` | Whether the nav offers Admin: `/admin` has at least one tab for this viewer, flags included. Wider than `can_view_admin` by the online-play roles (`PRESET_MANAGER`, `SYNC_ADMIN`, `QUALIFIER_ADMIN`, per-qualifier admins) and narrower where a coordinator's or equipment manager's feature is off. Only the nav uses it. |
-| `can_view_admin(user)` | `bool` | Super-admin, an admin role in this tenant (`STAFF`, `STREAM_MANAGER`, `EQUIPMENT_MANAGER`, `VOLUNTEER_COORDINATOR`), or TA/CC of a tournament in this tenant. Excludes `PROCTOR`/`VOLUNTEER`. |
+| `can_view_admin(user)` | `bool` | Staff (super-admin included), or TA/CC of a tournament in this tenant: the Reports tab's audience. No other role passes; each admin role is held to its own tab gates. |
+| `can_view_volunteer_admin(user)` | `bool` | `can_view_admin` or `can_manage_volunteers`: the admin-side volunteer reads (positions, shifts, coverage, hours). |
 | `can_edit_tournament(user, tournament)` | `bool` | Staff, or TA of that tournament. |
 | `can_manage_payouts(user, tournament)` | `bool` | Staff, or TA of that tournament — gates reading and editing the prize split. |
 | `can_crud_match(user, match)` | `bool` | Staff, or TA of the match's tournament. |

@@ -35,14 +35,6 @@ class AuthService:
       so they never operate a feature the tenant has not enabled.
     """
 
-    # Per-tenant roles that pass ``can_view_admin``: the admin REST API, the MCP
-    # admin scope, the reports and staff help. Excludes PROCTOR and VOLUNTEER,
-    # whose workflows live on the Volunteer page, and STREAM_MANAGER (Broadcast
-    # Tech), which is held to its own stage and match-running gates.
-    _ADMIN_ROLES: ClassVar[set[Role]] = {
-        Role.STAFF, Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR,
-    }
-
     @staticmethod
     def is_system(user: Optional[User]) -> bool:
         """The reserved automation actor (``User.is_system``).
@@ -142,18 +134,37 @@ class AuthService:
 
     @staticmethod
     async def can_view_admin(user: Optional[User]) -> bool:
-        """Any admin role in this tenant or any TA/CC tournament membership in this
-        tenant. A platform SUPER_ADMIN can view any tenant's admin."""
+        """Staff, or a TA/CC of any tournament in this tenant: the people the
+        Reports tab and the per-tournament admin reads are for. A platform
+        SUPER_ADMIN passes everywhere.
+
+        Gates the admin REST API, the MCP admin scope, the reports and
+        ``audience: staff`` help. The other admin roles each own one or two
+        Admin tabs and are held to those tabs' own gates instead
+        (``can_manage_volunteers``, ``can_manage_equipment``, ``can_manage_stages``…),
+        so none of them reads the community's reports or crew lists through it.
+        """
         if user is None:
             return False
-        if await AuthService.is_super_admin(user):
-            return True
-        if await AuthService.get_roles(user) & AuthService._ADMIN_ROLES:
+        if await AuthService.is_staff(user):
             return True
         admin_q, cc_q = AuthService._tournament_relations(user)
         if await admin_q.exists():
             return True
         return await cc_q.exists()
+
+    @staticmethod
+    async def can_view_volunteer_admin(user: Optional[User]) -> bool:
+        """The admin-side volunteer reads: positions, shifts, coverage and hours.
+
+        ``can_view_admin`` (whose Reports tab carries Volunteer Coverage and the
+        hours insight) plus a volunteer coordinator, who manages exactly these
+        in Admin → Volunteers and Volunteer Shifts.
+        """
+        return (
+            await AuthService.can_view_admin(user)
+            or await AuthService.can_manage_volunteers(user)
+        )
 
     @staticmethod
     async def can_open_admin(user: Optional[User]) -> bool:

@@ -39,7 +39,7 @@ async def list_volunteer_shifts(
 ) -> List[ShiftSummary]:
     """List volunteer shifts in a window, with who is assigned to each.
 
-    Requires admin access. `start` and `end` are ISO 8601 timestamps (UTC).
+    Requires admin access or the volunteer coordinator role. `start` and `end` are ISO 8601 timestamps (UTC).
     """
     start_dt, end_dt = _window(start, end)
     shifts = await VolunteerScheduleService().list_shifts_for_window(start_dt, end_dt)
@@ -67,7 +67,7 @@ async def volunteer_coverage(
 ) -> List[Dict[str, Any]]:
     """Per-shift filled-versus-needed counts across a window — where the gaps are.
 
-    Requires admin access.
+    Requires admin access or the volunteer coordinator role.
     """
     start_dt, end_dt = _window(start, end)
     return await VolunteerScheduleService().coverage(start_dt, end_dt)
@@ -81,7 +81,7 @@ async def volunteer_hour_trends(
 ) -> Dict[str, Any]:
     """Scheduled versus checked-in volunteer hours over time, and the fill rate.
 
-    Requires admin access. `bucket` is `week` or `month`. A shift contributes
+    Requires admin access or the volunteer coordinator role. `bucket` is `week` or `month`. A shift contributes
     `duration × assignees` scheduled hours to the bucket it starts in; fill rate
     measures those against the hours the roster actually needed.
 
@@ -101,7 +101,7 @@ async def list_volunteer_positions(
 ) -> List[VolunteerPositionInfo]:
     """List the volunteer jobs a community schedules — the names shifts hang off.
 
-    Requires admin access. Set `active_only` to skip retired positions.
+    Requires admin access or the volunteer coordinator role. Set `active_only` to skip retired positions.
     """
     service = VolunteerPositionService()
     positions = await (service.list_active() if active_only else service.list_all())
@@ -144,18 +144,18 @@ def register_tools(mcp: MCPServer) -> None:
         feature=FeatureFlag.VOLUNTEERS, title='My volunteer shifts',
     )
     register(
-        mcp, list_volunteer_positions, gate=Gate.ADMIN,
+        mcp, list_volunteer_positions, gate=Gate.VOLUNTEER_ADMIN,
         feature=FeatureFlag.VOLUNTEERS, title='List volunteer positions',
     )
     register(
-        mcp, list_volunteer_shifts, gate=Gate.ADMIN,
+        mcp, list_volunteer_shifts, gate=Gate.VOLUNTEER_ADMIN,
         feature=FeatureFlag.VOLUNTEERS, title='List volunteer shifts',
     )
     register(
-        mcp, volunteer_coverage, gate=Gate.ADMIN,
+        mcp, volunteer_coverage, gate=Gate.VOLUNTEER_ADMIN,
         feature=FeatureFlag.VOLUNTEERS, title='Volunteer coverage',
     )
     register(
-        mcp, volunteer_hour_trends, gate=Gate.ADMIN,
+        mcp, volunteer_hour_trends, gate=Gate.VOLUNTEER_ADMIN,
         feature=FeatureFlag.VOLUNTEERS, title='Volunteer hour trends',
     )

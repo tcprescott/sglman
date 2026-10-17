@@ -426,6 +426,26 @@ class TestMatchCrewEndpoint:
         async with client_for(app, raw) as c:
             assert (await c.get('/api/matches/9999/crew')).status_code == 404
 
+    async def test_a_crew_coordinator_reads_only_their_tournaments_crew(self, db, app):
+        """Pending crew are the approver's view, so a coordinator of another
+        tournament is refused, like approving them would be."""
+        match = await self._match_with_mixed_crew()
+        own, raw_own = await create_user_token(username='own_cc')
+        await (await match.tournament).crew_coordinators.add(own)
+        other, raw_other = await create_user_token(username='other_cc')
+        await (await Tournament.create(name='Other')).crew_coordinators.add(other)
+        async with client_for(app, raw_own) as c:
+            assert (await c.get(f'/api/matches/{match.id}/crew')).status_code == 200
+        async with client_for(app, raw_other) as c:
+            assert (await c.get(f'/api/matches/{match.id}/crew')).status_code == 403
+
+    async def test_single_tab_admin_roles_are_forbidden(self, db, app):
+        match = await self._match_with_mixed_crew()
+        for role in (Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR):
+            _, raw = await create_user_token(username=role.value, roles=[role])
+            async with client_for(app, raw) as c:
+                assert (await c.get(f'/api/matches/{match.id}/crew')).status_code == 403, role
+
 
 class TestHardPresetStaysOffTheApi:
     """The opt-in must not become readable one API call away from the page.
