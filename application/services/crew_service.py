@@ -28,7 +28,7 @@ from application.utils.discord_messages_crew import (
 )
 from application.utils.match_labels import players_label
 from application.utils.timezone import format_local_display, to_utc_aware
-from models import Commentator, Tracker, User
+from models import Commentator, Match, Tracker, User
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +210,7 @@ class CrewService:
         if was_approved:
             await self._notify_crew_withdrawal(match, user, role, approved_by_id)
 
-    async def get_match_crew(self, match_id: int, actor: Optional[User]):
+    async def get_match_crew(self, match_id: int, actor: Optional[User]) -> Match:
         """A match with every crew signup on it, pending ones included.
 
         Pending crew are the approver's working view, so this is gated like
