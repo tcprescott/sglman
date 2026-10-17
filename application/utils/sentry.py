@@ -68,6 +68,33 @@ _SHUTDOWN_FLUSH_TIMEOUT = 2.0
 REPLAY_ID_KEY = 'sentry_replay_id'
 
 
+#: engine.io's ERROR for a poll that names a session the server no longer holds:
+#: a tab left open across a deploy, or a phone waking from sleep. The browser
+#: opens a fresh session on its own, so nobody can act on the report.
+_STALE_SESSION_PREFIXES = ('Invalid session ', "'Session is disconnected' ")
+
+
+class StaleSocketSessionFilter(logging.Filter):
+    """Downgrades engine.io's stale-session error to a WARNING.
+
+    Sentry SGLMAN-13/14. Still in the container log and Sentry Logs, so a burst
+    after a deploy stays visible, but no longer opens an issue.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.levelno >= logging.ERROR and record.getMessage().startswith(_STALE_SESSION_PREFIXES):
+            record.levelno = logging.WARNING
+            record.levelname = logging.getLevelName(logging.WARNING)
+        return True
+
+
+def install_stale_session_filter() -> None:
+    """Attach the filter to the ``engineio.server`` logger once; safe to call repeatedly."""
+    engineio_logger = logging.getLogger('engineio.server')
+    if not any(isinstance(f, StaleSocketSessionFilter) for f in engineio_logger.filters):
+        engineio_logger.addFilter(StaleSocketSessionFilter())
+
+
 def _scrub_event(event: Dict[str, Any], hint: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Strip auth headers and cookies from outgoing Sentry events.
 
@@ -264,6 +291,7 @@ def init_sentry() -> None:
         return
 
     logs_level = _sentry_logs_level()
+    install_stale_session_filter()
     for name in _NOISY_FOR_SENTRY_LOGS:
         ignore_logger_for_sentry_logs(name)
 

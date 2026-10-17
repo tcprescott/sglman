@@ -390,11 +390,11 @@ class BaseLayout:
         # Drag-to-resize table headers; in the head because a lazy tab build's <script> never runs.
         ui.add_head_html(f'<script src="{asset_url("js/table-columns.js")}"></script>')
         ui.add_head_html(f'<script defer src="{asset_url("js/a11y.js")}"></script>')
+        ui.add_head_html(f'<script defer src="{asset_url("js/busy.js")}"></script>')
         ui.add_head_html(f'<script defer src="{asset_url("js/dialog-keyboard.js")}"></script>')
         install_usage_capture(self._tenant_id)
         install_browser_monitoring()
-        # Phoenix brand palette: gold primary, ember secondary — overridable per
-        # tenant (theme/base loads TenantThemeService.get_current_theme).
+        # Phoenix palette (gold primary, ember secondary), overridable per tenant via TenantThemeService.
         apply_brand_palette(colors)
         if self._chromeless:
             # The one control a kiosk still needs: a room's lighting is not the

@@ -163,6 +163,7 @@ WRITE_TOOLS = {
     'remove_tournament_player',
     'revoke_community_role',
     'seat_match',
+    'set_crew_approval',
     'set_match_review',
     'set_match_stream_candidate',
     'set_tournament_payout_split',

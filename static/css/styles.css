@@ -7095,3 +7095,25 @@ ol.wiz-help-list { list-style-type: decimal; }
     padding: 2px 6px;
     word-break: break-all;
 }
+
+/* Busy button (theme/busy.py): while a slow action runs the pressed button
+   says what it's doing beside a spinner, on a quiet neutral fill so it reads
+   as "not pressable right now" in either mode. Quasar's bg- and text- colour
+   classes and the disabled fade are !important in its own layer, hence "theme". */
+@layer theme {
+    .q-btn.wiz-busy-btn {
+        background: var(--surface-sunken) !important;
+        color: var(--fg-secondary) !important;
+        opacity: 1 !important;
+    }
+}
+.q-btn.wiz-busy-btn.q-btn--outline::before { border-color: transparent; }
+.q-btn.wiz-busy-btn .q-btn__content { flex-wrap: nowrap; white-space: nowrap; }
+.q-btn.wiz-busy-btn .q-btn__content > .q-spinner { order: -1; margin-right: 8px; align-self: center; }
+.wiz-busy__elapsed {
+    margin-left: 6px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    opacity: 0.85;
+}
+.wiz-busy__elapsed:empty { display: none; }

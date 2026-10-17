@@ -195,6 +195,7 @@ def render_platform_chrome(
     # headers could not be dragged wider.
     ui.add_head_html(f'<script src="{asset_url("js/table-columns.js")}"></script>')
     ui.add_head_html(f'<script defer src="{asset_url("js/a11y.js")}"></script>')
+    ui.add_head_html(f'<script defer src="{asset_url("js/busy.js")}"></script>')
     ui.add_head_html(f'<script defer src="{asset_url("js/dialog-keyboard.js")}"></script>')
     install_timezone_detection()
     install_browser_monitoring()
