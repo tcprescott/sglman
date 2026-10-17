@@ -9,8 +9,8 @@ summary: Setting a tournament's prize pool, splitting it by placement, naming th
 ---
 
 :::snippet admin-payouts
-**Admin → Payouts** records what each placement of a tournament wins and builds
-the block you paste when the money goes out. Staff see every tournament. A
+Admin → Payouts records what each placement in a tournament wins and builds the
+block you paste when the money goes out. Staff see every tournament. A
 tournament admin sees only their own.
 :::
 
@@ -26,36 +26,35 @@ paid, how much of the pool is allocated, and a status:
 ## The pool
 
 The **Prize pool** button on each row sets the advertised pool and any bonus on
-top. Shares come out of the two added together. Leave a field
-blank while nobody has decided it; blank and zero aren't the same thing.
+top. Shares come out of the two added together. Leave a field blank until
+someone's decided it, because blank and zero mean different things.
 
-Change the pool whenever it moves. Every share is worked out from it each time
-it's read, so nothing else needs editing.
+Change the pool whenever it moves. Shares are worked out from it every time, so
+you don't need to edit anything else.
 
 ## The split
 
-**Edit split**, in the row's ⋮ menu, lists one row per paid place: the place,
-its share as a percentage, and the winner. **Add place** (1) adds a row, and the red
-bin (2) on a row removes that place.
+**Edit split**, in the row's ⋮ menu, has one row per paid place: the place, its
+share as a percentage, and the winner. **Add place** (1) adds a row, and the red
+bin (2) on a row removes it.
 
-Shares can add up to less than 100%. Whatever's left over is unallocated, and the
-Allocated column shows it. They can't add up to more.
+Shares can add up to less than 100%, and the Allocated column shows what's left
+over. They can't add up to more.
 
-For a joint placing, add two rows with the same place and give each its own
-share. Two players tied for third at 10% each are two 10% rows, not one 20% row
-split later.
+For a tie, add two rows with the same place and give each its own share. Two
+players tied for third at 10% each are two 10% rows, not one 20% row you split
+later.
 
 ![The split dialog for a finished tournament: first at 50%, second at 30%, and two third places at 10% each, each with a winner picked, with Add place marked 1 and the first row's red bin marked 2](/static/help/staff-payouts/split.webp "Two third places, each paid their own share.")
 
 You can save the split before the tournament finishes and fill in the winners
-afterwards. The winner list holds the tournament's entrants, plus anyone already
-named.
+later. The winner list has the tournament's entrants, plus anyone already named.
 
 ## Copying the payout block
 
-**Copy for Matcherino**, in the row's ⋮ menu, puts the block on your clipboard,
-ready to paste wherever your payouts get sent from. It opens with the total pool and the
-bonus, then one line per place:
+**Copy for Matcherino**, in the row's ⋮ menu, copies the block to your
+clipboard, ready to paste wherever you send payouts from. It starts with the
+total pool and the bonus, then has one line per place:
 
 | Line | Example |
 |---|---|
@@ -63,8 +62,8 @@ bonus, then one line per place:
 | No handle on file | `3rd place - greenpotion (no Matcherino handle): 10% / $110.00` |
 | Nobody named yet | `3rd place - (unassigned): 10% / $110.00` |
 
-Each winner's Matcherino handle comes from their Profile. A winner who hasn't
-entered one is called out, so you know who to chase before the run.
+Each winner's Matcherino handle comes from their Profile. If a winner hasn't
+entered one, the block says so, and you know who to chase before you pay out.
 
-Amounts are rounded to the cent per row, so the total paid can come out a cent
-under the pool.
+Amounts are rounded to the cent on each row, so the total paid can come out a
+cent under the pool.
