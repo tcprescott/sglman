@@ -180,6 +180,10 @@ async def test_each_audience_gets_its_own_copy_and_button(
     watching = by_id[6]
     assert watching['message'].startswith("A match you're watching in **Cup**")
     assert watching['link'].url.endswith('/home/schedule')
+    # Players and crew have somewhere to be; a watcher only follows along.
+    assert watching['silent'] is True
+    assert not any(by_id[pid].get('silent') for pid in (1, 2))
+    assert not crew.get('silent')
 
 
 async def test_reminder_dm_names_the_stage_and_the_time(
