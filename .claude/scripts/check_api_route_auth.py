@@ -42,7 +42,7 @@ NON_ACTOR = {"require_feature"}
 #   health   — a liveness probe, deliberately open.
 #   rotate   — a push service reissued an endpoint; the caller proves itself by
 #              knowing the old endpoint and auth, and has no token to send.
-ALLOWLIST = {("health", "health"), ("web_push", "rotate")}
+ALLOWLIST = {("health", "health"), ("version", "version"), ("web_push", "rotate")}
 
 
 def is_write_dep(name: str) -> bool:
