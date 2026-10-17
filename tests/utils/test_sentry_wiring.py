@@ -199,3 +199,32 @@ class TestFlush:
 
     async def test_flush_sentry_is_safe_without_init(self):
         await wiring.flush_sentry()
+
+
+class TestStaleSocketSession:
+    """Sentry SGLMAN-13/14: engine.io's stale-session error is a WARNING, not an issue."""
+
+    def _record(self, msg, level=logging.ERROR):
+        return logging.LogRecord('engineio.server', level, __file__, 1, msg, None, None)
+
+    def test_invalid_session_is_downgraded(self):
+        record = self._record('Invalid session abc (further occurrences of this error will be logged with level INFO)')
+        assert wiring.StaleSocketSessionFilter().filter(record) is True
+        assert record.levelno == logging.WARNING
+        assert record.levelname == 'WARNING'
+
+    def test_disconnected_session_is_downgraded(self):
+        record = self._record("'Session is disconnected' abc (further occurrences ...)")
+        wiring.StaleSocketSessionFilter().filter(record)
+        assert record.levelno == logging.WARNING
+
+    def test_other_engineio_errors_stay_errors(self):
+        record = self._record('https://evil.example is not an accepted origin.')
+        wiring.StaleSocketSessionFilter().filter(record)
+        assert record.levelno == logging.ERROR
+
+    def test_installs_once(self):
+        wiring.install_stale_session_filter()
+        wiring.install_stale_session_filter()
+        filters = logging.getLogger('engineio.server').filters
+        assert sum(isinstance(f, wiring.StaleSocketSessionFilter) for f in filters) == 1
