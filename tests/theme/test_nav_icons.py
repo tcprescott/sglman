@@ -70,3 +70,21 @@ def test_admin_aliases_cover_every_renamed_slug():
     source = (ROOT / 'pages/admin.py').read_text()
     for alias in ('schedule', 'users', 'check-in', 'presets', 'vol-roster', 'vol-schedule'):
         assert f"'aliases': ('{alias}',)" in source, alias
+
+
+def test_nav_section_matches_its_own_pages_only():
+    from theme.base import nav_section_matches
+
+    assert nav_section_matches('/', '/')
+    assert nav_section_matches('/', '/home/my-schedule')
+    assert not nav_section_matches('/', '/volunteer')
+    assert nav_section_matches('/volunteer', '/volunteer')
+    assert nav_section_matches('/admin', '/admin/settings/general')
+    assert not nav_section_matches('/live', '/liveness')
+    assert not nav_section_matches('/admin', '/')
+
+
+def test_current_section_has_its_own_highlight():
+    css = (ROOT / 'static/css/styles.css').read_text()
+    assert '.q-drawer .q-item.wiz-nav-section--active {' in css
+    assert '.q-drawer .wiz-nav-section--active .material-symbols-outlined' in css

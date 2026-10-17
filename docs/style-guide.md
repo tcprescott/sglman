@@ -223,6 +223,7 @@ Desktop pages use the width rather than stretching one column across it:
   Quasar's `nowrap` to stretch one column: a 31-character Discord handle or six
   role tags otherwise push the table off the page.
 - The side menu is 224px. Don't widen it for one long label; shorten the label.
+- The side menu marks two things differently. The section you're in (Home, Volunteer, Admin, Help…) gets an accent tint via `mark_nav_section()` in `theme/base.py`; the page within it (a tab row) gets the grey `q-item--active` fill. Both fill the icon.
 
 ## Match boards
 
