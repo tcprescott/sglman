@@ -477,13 +477,6 @@ STAGE_VALUE_JS = (
 # rather than a clear button — "none" is one of the answers, not the absence of
 # one, and a clear affordance that only appears once something is chosen cannot
 # be found by someone looking for it.
-_STAGE_READONLY_BODY = (
-    '<a __IF__="props.value && props.row.stage_url" :href="props.row.stage_url" target="_blank" '
-    'rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.value }}</a>\n'
-    '    <span v-else-if="props.value">{{ props.value }}</span>\n'
-    '    <span v-else>-</span>'
-)
-
 STAGE_ADMIN_SLOT = f'''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
     <div v-if="__STREAM__" style="display: flex; align-items: center; gap: 4px;">
         <q-select :model-value="{STAGE_VALUE_JS}" :options="props.row.stage_options || []"
@@ -496,13 +489,14 @@ STAGE_ADMIN_SLOT = f'''<q-td :props="props" :class="[props.row._flash ? 'wiz-row
             <q-icon name="open_in_new" size="18px" />
             <q-tooltip>Open the stream</q-tooltip>
         </a>
-    </div>
-    __STAGE_READONLY_BODY__
-</q-td>'''.replace('__STAGE_READONLY_BODY__', _STAGE_READONLY_BODY.replace('__IF__', 'v-else-if'))
+    </div><span v-else>{{ props.value || '-' }}</span>
+</q-td>'''
 
 STAGE_READONLY_SLOT = '''<q-td :props="props" :class="[props.row._flash ? 'wiz-row-flash' : '', props.row._removed ? 'wiz-row-removed' : '']" :inert="props.row._removed ? '' : null" :data-wiz-row="props.row.id">
-    __STAGE_READONLY_BODY__
-</q-td>'''.replace('__STAGE_READONLY_BODY__', _STAGE_READONLY_BODY.replace('__IF__', 'v-if'))
+    <a v-if="props.value && props.row.stage_url" :href="props.row.stage_url" target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.value }}</a>
+    <span v-else-if="props.value">{{ props.value }}</span>
+    <span v-else>-</span>
+</q-td>'''
 
 
 # Read-only seed cell (no Generate button) — the variant the home schedule /
@@ -757,13 +751,9 @@ def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess
     value, which for a seed is an untruncated URL.
     """
     discord_id_js = f"'{discord_id}'" if discord_id else 'null'
-    # Only a scoped board narrows these per row; otherwise the callback the
-    # caller wired is the whole answer, as it always was.
-    edit_js = access.edit_js() if access.edit_scope is not None else 'true'
-    stream_js = access.stream_js() if access.stream_scope is not None else 'true'
 
-    table.add_slot('body-cell-edit', EDIT_SLOT.replace('__EDIT__', edit_js))
-    table.add_slot('body-cell-id', ID_SLOT.replace('__EDIT__', edit_js) if has_edit else ID_SLOT_READONLY)
+    table.add_slot('body-cell-edit', EDIT_SLOT.replace('__EDIT__', access.edit_slot_js()))
+    table.add_slot('body-cell-id', ID_SLOT.replace('__EDIT__', access.edit_slot_js()) if has_edit else ID_SLOT_READONLY)
     table.add_slot('body-cell-tournament', TOURNAMENT_SLOT)
     table.add_slot('body-cell-scheduled_at', SCHEDULED_AT_SLOT)
 
@@ -805,6 +795,6 @@ def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess
             discord_id_js=discord_id_js,
         ))
     if want_stage_admin:
-        table.add_slot('body-cell-stage', STAGE_ADMIN_SLOT.replace('__STREAM__', stream_js))
+        table.add_slot('body-cell-stage', STAGE_ADMIN_SLOT.replace('__STREAM__', access.stream_slot_js()))
     if want_stage_readonly:
         table.add_slot('body-cell-stage', STAGE_READONLY_SLOT)

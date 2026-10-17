@@ -125,6 +125,16 @@ class MatchBoardAccess:
     def crew_js(self, row: str = 'props.row') -> str:
         return _row_js(self.approve_crew, self.crew_scope, row)
 
+    def edit_slot_js(self) -> str:
+        """``edit_js`` for a slot that already exists only when an edit callback
+        is wired: a scoped board narrows it per row, any other leaves it to the
+        callback."""
+        return self.edit_js() if self.edit_scope is not None else 'true'
+
+    def stream_slot_js(self) -> str:
+        """``stream_js`` on the same terms as :meth:`edit_slot_js`."""
+        return self.stream_js() if self.stream_scope is not None else 'true'
+
     @classmethod
     def for_roles(
         cls,

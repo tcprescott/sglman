@@ -971,7 +971,7 @@ Crew signup/undo and acknowledge buttons only render for the logged-in user's ow
 | `assign_stream` | `can_assign_match_stream` | Assign (stage) |
 | `approve_crew` | `can_approve_crew` | the crew approval toggle and name link |
 
-`run_on_stage_only` is the one per-row refinement: a Broadcast Tech (`STREAM_MANAGER`) holds `run` only for a match on a stage, so `can_run_row(row)` gates the Python controls and `run_js()` fills `__RUN__` in slot templates with `(!!props.row.stage_id)` instead of `true`.
+Rows refine the page-level answer. Each capability has a scope (`edit_scope`, `run_scope`, `confirm_scope`, `stream_scope`, `crew_scope`; `None` = every row) and `run_on_stage` adds any match on a stage to `run`. `for_roles(..., admin_tournament_ids=, crew_tournament_ids=)` fills them for a non-staff viewer: a Broadcast Tech runs only staged matches (`run_on_stage_only`), a Broadcast Tech who is also a tournament admin edits and confirms only their tournaments' rows, and a TA of A who coordinates B runs A and approves crew on both. `can_*_row(row)` gates the Python controls (sheet, inbox) and `run_js()`/`confirm_js()`/`crew_js()`/`stream_js()`/`edit_slot_js()` fill the slot templates, reading `props.row.tournament_id` and `props.row.stage_id`.
 
 These are **page-level approximations of per-match gates** — a tournament admin's board answers "may you do this to *some* match here", and the service re-checks the actual match on every call. That is deliberate: the board is the cheap filter, the service is the enforcement. It is also why a TA's or coordinator's board is *scoped* to the tournaments they run.
 

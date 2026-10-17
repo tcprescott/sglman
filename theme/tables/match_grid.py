@@ -398,8 +398,7 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
     # The card's edit affordance mirrors the desktop first cell: a pencil where
     # the board declares an `edit` column, the plain number where it declares
     # `id` (the proctor's, who calls matches out by number).
-    # Only a scoped board narrows edit per row; otherwise has_edit is the answer.
-    edit_js = access.edit_js() if access.edit_scope is not None else 'true'
+    edit_js = access.edit_slot_js()
     if 'edit' in present and has_edit:
         caption_inner += (
             f'<q-btn v-if="{edit_js}" flat round dense icon="edit" color="primary" size="sm" class="q-ml-xs"'
