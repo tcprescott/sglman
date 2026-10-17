@@ -538,7 +538,7 @@ class MatchService(
         flag: bool,
         actor: Optional[User] = None,
     ) -> Match:
-        """Toggle Match.is_stream_candidate. Stream Managers globally; TAs within their tournaments."""
+        """Toggle Match.is_stream_candidate. Broadcast Techs globally; TAs within their tournaments."""
         match = await self._require_match(match_id)
 
         await AuthService.ensure(
@@ -570,7 +570,7 @@ class MatchService(
         stage_id: Optional[int],
         actor: Optional[User] = None,
     ) -> Match:
-        """Assign or clear the Stage for a match. Stream Managers globally; TAs within their tournaments.
+        """Assign or clear the Stage for a match. Broadcast Techs globally; TAs within their tournaments.
 
         Both branches DM the players and approved crew. Until this fanned out,
         the only way to learn you were on stage was to be looking at the

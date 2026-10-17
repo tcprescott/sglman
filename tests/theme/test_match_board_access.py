@@ -66,14 +66,20 @@ def patch_gates(monkeypatch):
     return apply
 
 
+@pytest.mark.parametrize('stage_id', [None, 7], ids=['off-stage', 'on-stage'])
 @pytest.mark.parametrize('role', list(ROLES))
 @pytest.mark.parametrize('field,gate', PAIRS)
-async def test_every_capability_matches_the_service_gate(role, field, gate, patch_gates):
+async def test_every_capability_matches_the_service_gate(role, field, gate, stage_id, patch_gates):
     kwargs, roles, is_ta, is_cc = ROLES[role]
     patch_gates(roles, is_ta, is_cc)
 
-    board = getattr(MatchBoardAccess.for_roles(**kwargs), field)
-    service = await gate(SimpleNamespace(id=1), SimpleNamespace(id=1, tournament_id=100))
+    access = MatchBoardAccess.for_roles(**kwargs)
+    # ``run`` is the one capability resolved per row (a broadcast tech's reach
+    # depends on the match having a stage); every other field is page-level.
+    board = access.can_run_row({'stage_id': stage_id}) if field == 'run' else getattr(access, field)
+    service = await gate(
+        SimpleNamespace(id=1), SimpleNamespace(id=1, tournament_id=100, stage_id=stage_id),
+    )
 
     assert board is service, (
         f'{role}: the board says {field}={board} and {gate.__name__} says {service}'
@@ -95,9 +101,24 @@ def test_a_crew_coordinator_gets_exactly_one():
     assert [f for f, _ in PAIRS if getattr(access, f)] == ['approve_crew']
 
 
-def test_a_stream_manager_gets_exactly_one():
+def test_a_broadcast_tech_runs_only_matches_on_a_stage():
     access = MatchBoardAccess.for_roles(is_stream_manager=True)
-    assert [f for f, _ in PAIRS if getattr(access, f)] == ['assign_stream']
+    assert [f for f, _ in PAIRS if getattr(access, f)] == ['run', 'assign_stream']
+    assert access.run_on_stage_only
+    assert access.can_run_row({'stage_id': 3})
+    assert not access.can_run_row({'stage_id': None})
+    assert access.run_js() == '(!!props.row.stage_id)'
+
+
+def test_a_broadcast_tech_who_also_proctors_runs_everything():
+    access = MatchBoardAccess.for_roles(is_stream_manager=True, is_proctor=True)
+    assert not access.run_on_stage_only
+    assert access.can_run_row({'stage_id': None})
+    assert access.run_js() == 'true'
+
+
+def test_run_js_is_false_without_run():
+    assert MatchBoardAccess.for_roles(is_crew_coordinator=True).run_js() == 'false'
 
 
 def test_a_proctor_runs_matches_and_nothing_else():
@@ -109,4 +130,4 @@ def test_capabilities_combine_rather_than_replace():
     """One person can hold two roles; the board must be their union."""
     access = MatchBoardAccess.for_roles(is_stream_manager=True, is_crew_coordinator=True)
     assert access.assign_stream and access.approve_crew
-    assert not access.edit and not access.run and not access.confirm
+    assert not access.edit and not access.confirm

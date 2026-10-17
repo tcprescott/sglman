@@ -319,11 +319,11 @@ def _players_and_crew(access):
 
 
 @pytest.mark.parametrize('access,allowed', [
-    (STAFF, True), (PROCTOR, True), (COORDINATOR, False), (STREAM_MANAGER, False),
+    (STAFF, True), (PROCTOR, True), (COORDINATOR, False),
 ])
 def test_running_a_match_needs_the_run_capability(access, allowed):
     """Check In / Start / Finish / Stations are ``can_run_match``, which admits a
-    proctor and refuses a coordinator and a stream manager alike."""
+    proctor and refuses a coordinator."""
     assert access.run is allowed
     state_cell, card = _state_and_grid_slots(access)
     cells, _grid = _players_and_crew(access)
@@ -335,6 +335,19 @@ def test_running_a_match_needs_the_run_capability(access, allowed):
         assert ('false' in guard) != allowed, (
             f'{emit} is guarded by {guard!r} for {access}'
         )
+
+
+def test_a_broadcast_tech_runs_only_rows_on_a_stage():
+    """``can_run_match`` admits a broadcast tech for a match with a stage, so
+    every run guard reads the row's stage rather than a constant."""
+    state_cell, card = _state_and_grid_slots(STREAM_MANAGER)
+    cells, _grid = _players_and_crew(STREAM_MANAGER)
+
+    for template, emit in ((state_cell, "$parent.$emit('seat'"),
+                           (card, "$parent.$emit('seat'"),
+                           (cells['body-cell-players'], "$emit('assign_stations'")):
+        guard = _own_guard(template, emit)
+        assert '(!!props.row.stage_id)' in guard, f'{emit} is guarded by {guard!r}'
 
 
 @pytest.mark.parametrize('access,allowed', [

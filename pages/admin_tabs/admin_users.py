@@ -451,7 +451,7 @@ async def _members_panel(
         # text, like the match board's filters (theme/tables/match_filters.py).
         with ui.card().classes('match-filters-card match-filters-card--compact user-filters') as filters_card:
             with ui.row().classes('match-filter-row'):
-                role_options = {r.value: r.name.replace('_', ' ').title() for r in Role}
+                role_options = {r.value: r.label for r in Role}
                 role_options[_TA_FILTER] = 'Tournament Admin'
                 role_options[_CC_FILTER] = 'Crew Coordinator'
                 role_select = (

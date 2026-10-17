@@ -31,7 +31,7 @@ def _fill(template: str, *, admin_controls: bool, access: MatchBoardAccess,
     return (
         template
         .replace('__IA__', _bool_js(admin_controls))
-        .replace('__RUN__', _bool_js(access.run))
+        .replace('__RUN__', access.run_js())
         .replace('__CONFIRM__', _bool_js(access.confirm))
         .replace('__CREW__', _bool_js(access.approve_crew))
         .replace('__DID__', discord_id_js)

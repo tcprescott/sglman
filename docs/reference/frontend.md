@@ -343,10 +343,10 @@ Tab visibility — a user sees the union of every row they match. "(any)" means 
 | Tab | Group | Visible to | Flag |
 |---|---|---|---|
 | Setup | Operations | Staff, Tournament Admin (any) — only while `TenantSetupService.is_ready` is false, and placed **first** so a new community lands on the checklist | — |
-| Schedule | Operations | Staff, Tournament Admin (any), Crew Coordinator (any), Stream Manager | — |
+| Schedule | Operations | Staff, Tournament Admin (any), Crew Coordinator (any), Broadcast Tech (`STREAM_MANAGER`) | — |
 | Users | Operations | Staff | — |
 | Tournaments | Operations | Staff, Tournament Admin (any) | — |
-| Stages | Operations | Staff, Stream Manager | — |
+| Stages | Operations | Staff, Broadcast Tech (`STREAM_MANAGER`) | — |
 | Payouts | Operations | Staff, Tournament Admin (any) | `PAYOUTS` |
 | Check-in | Operations | Staff | `EVENT_CHECK_IN` |
 | Presets | Online play | Staff, Preset Manager | — |
@@ -367,7 +367,7 @@ Tab visibility — a user sees the union of every row they match. "(any)" means 
 
 Tabs are appended in role order, then **stable-sorted by `_ADMIN_GROUP_ORDER`** (Operations → Online play → Community → System), which the drawer renders as labeled sections.
 
-A **`MatchBoardAccess`** is passed into the Schedule tab — one field per `AuthService` gate (`edit`/`run`/`confirm`/`assign_stream`/`approve_crew`), resolved from the viewer's roles. See [Match board capabilities](#match-board-capabilities-themetablesmatch_accesspy). STREAM_MANAGER reaches the tab for exactly one control (`assign_stream`); a crew coordinator for exactly one (`approve_crew`), and their board is narrowed to the tournaments they run. Proctors do **not** reach this tab at all: they get their own [Proctor Station](#volunteer-hub-volunteer-pagesvolunteerpy) board on `/volunteer`, which shares the lifecycle handlers but not the frame.
+A **`MatchBoardAccess`** is passed into the Schedule tab — one field per `AuthService` gate (`edit`/`run`/`confirm`/`assign_stream`/`approve_crew`), resolved from the viewer's roles. See [Match board capabilities](#match-board-capabilities-themetablesmatch_accesspy). STREAM_MANAGER (Broadcast Tech) reaches the tab for `assign_stream` plus `run` on rows that have a stage (`run_on_stage_only`); a crew coordinator for exactly one (`approve_crew`), and their board is narrowed to the tournaments they run. Proctors do **not** reach this tab at all: they get their own [Proctor Station](#volunteer-hub-volunteer-pagesvolunteerpy) board on `/volunteer`, which shares the lifecycle handlers but not the frame.
 
 **Deep-link query params.** Besides the `section` path segment, the page declares every tab's params in one signature and forwards each as a kwargs dict to the tab that owns it:
 
@@ -970,6 +970,8 @@ Crew signup/undo and acknowledge buttons only render for the logged-in user's ow
 | `confirm` | `can_confirm_match` | Confirm, Record/Change Winner |
 | `assign_stream` | `can_assign_match_stream` | Assign (stage) |
 | `approve_crew` | `can_approve_crew` | the crew approval toggle and name link |
+
+`run_on_stage_only` is the one per-row refinement: a Broadcast Tech (`STREAM_MANAGER`) holds `run` only for a match on a stage, so `can_run_row(row)` gates the Python controls and `run_js()` fills `__RUN__` in slot templates with `(!!props.row.stage_id)` instead of `true`.
 
 These are **page-level approximations of per-match gates** — a tournament admin's board answers "may you do this to *some* match here", and the service re-checks the actual match on every call. That is deliberate: the board is the cheap filter, the service is the enforcement. It is also why a TA's or coordinator's board is *scoped* to the tournaments they run.
 

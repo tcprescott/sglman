@@ -65,17 +65,17 @@ def test_the_checklist_is_not_offered_to_a_non_admin_role():
     assert _labels(tabs) == ['Match Schedule', 'Stages']
 
 
-def test_the_stream_manager_reaches_the_board_with_only_the_stage_control():
-    """The role ``assign_stage`` names in its own docstring had no surface.
-
-    Granting the tab is only half of it — the board must offer them the one
-    control the service admits and none of the ones it refuses.
+def test_the_broadcast_tech_reaches_the_board_with_the_stage_and_on_stage_run_controls():
+    """The board offers a broadcast tech what the services admit: the stage on
+    any match, and running a match that is on a stage, but never editing,
+    confirming or approving crew.
     """
     tabs = build_admin_tabs(AdminAccess(is_stream_manager=True), set(), {}, None)
     _fn, _args, kwargs = next(t['content'] for t in tabs if t['label'] == 'Match Schedule')
     access = kwargs['access']
     assert access.assign_stream is True
-    assert not access.edit and not access.run and not access.confirm and not access.approve_crew
+    assert access.run is True and access.run_on_stage_only is True
+    assert not access.edit and not access.confirm and not access.approve_crew
     # Community-wide authority, so their board is not narrowed to a tournament set.
     assert kwargs['tournament_ids'] is None
 

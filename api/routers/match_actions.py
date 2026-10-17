@@ -172,7 +172,7 @@ async def delete_match(match_id: int, actor: User = Depends(require_write_actor)
         "it alerts people who follow stream candidates. It doesn't put the "
         "match on a stage."
         "\n\n"
-        "**Who can call this:** Staff, Stream manager or Admins of this tournament."
+        "**Who can call this:** Staff, Broadcast tech or Admins of this tournament."
     ),
 )
 async def set_stream_candidate(match_id: int, body: StreamCandidateRequest, actor: User = Depends(require_write_actor)):
@@ -189,7 +189,7 @@ async def set_stream_candidate(match_id: int, body: StreamCandidateRequest, acto
         "null. Players, approved crew and watchers are DMed either way, and "
         "the pre-match stage reminder is re-armed."
         "\n\n"
-        "**Who can call this:** Staff, Stream manager or Admins of this tournament."
+        "**Who can call this:** Staff, Broadcast tech or Admins of this tournament."
     ),
 )
 async def assign_stage(match_id: int, body: AssignStageRequest, actor: User = Depends(require_write_actor)):
@@ -208,7 +208,7 @@ async def assign_stage(match_id: int, body: AssignStageRequest, actor: User = De
         "station is taken by another match, or a key isn't one of the match's "
         "player slots."
         "\n\n"
-        "**Who can call this:** Staff, Proctor or Admins of this tournament."
+        "**Who can call this:** Staff, Proctor, Broadcast tech (matches on a stage) or Admins of this tournament."
     ),
 )
 async def assign_stations(match_id: int, body: AssignStationsRequest, actor: User = Depends(require_write_actor)):
@@ -226,7 +226,7 @@ async def assign_stations(match_id: int, body: AssignStationsRequest, actor: Use
         "with 400 when the tournament races on racetime.gg, the match doesn't "
         "have exactly two players, or the community has no stations set up."
         "\n\n"
-        "**Who can call this:** Staff, Proctor or Admins of this tournament."
+        "**Who can call this:** Staff, Proctor, Broadcast tech (matches on a stage) or Admins of this tournament."
     ),
 )
 async def suggest_stations(match_id: int, actor: User = Depends(require_write_actor)):
@@ -254,7 +254,7 @@ async def suggest_stations(match_id: int, actor: User = Depends(require_write_ac
         "the match has no players, it's already checked in, or someone else "
         "changed it first."
         "\n\n"
-        "**Who can call this:** Staff, Proctor or Admins of this tournament."
+        "**Who can call this:** Staff, Proctor, Broadcast tech (matches on a stage) or Admins of this tournament."
     ),
 )
 async def seat_match(match_id: int, actor: User = Depends(require_write_actor)):
@@ -273,7 +273,7 @@ async def seat_match(match_id: int, actor: User = Depends(require_write_actor)):
         "isn't checked in yet, is already started, or someone else changed it "
         "first."
         "\n\n"
-        "**Who can call this:** Staff, Proctor or Admins of this tournament."
+        "**Who can call this:** Staff, Proctor, Broadcast tech (matches on a stage) or Admins of this tournament."
     ),
 )
 async def start_match(match_id: int, actor: User = Depends(require_write_actor)):
@@ -291,7 +291,7 @@ async def start_match(match_id: int, actor: User = Depends(require_write_actor))
         "DMed. Fails with 400 when the match hasn't started, is already "
         "finished, or someone else changed it first."
         "\n\n"
-        "**Who can call this:** Staff, Proctor or Admins of this tournament."
+        "**Who can call this:** Staff, Proctor, Broadcast tech (matches on a stage) or Admins of this tournament."
     ),
 )
 async def finish_match(match_id: int, actor: User = Depends(require_write_actor)):
@@ -332,7 +332,7 @@ async def confirm_match(match_id: int, actor: User = Depends(require_write_actor
         "bracket instead). Changing the result of a confirmed match needs "
         "Staff or Admins of this tournament."
         "\n\n"
-        "**Who can call this:** Staff, Proctor or Admins of this tournament."
+        "**Who can call this:** Staff, Proctor, Broadcast tech (matches on a stage) or Admins of this tournament."
     ),
 )
 async def record_result(match_id: int, body: RecordResultRequest, actor: User = Depends(require_write_actor)):
@@ -350,7 +350,7 @@ async def record_result(match_id: int, body: RecordResultRequest, actor: User = 
         "400 when flagging a match that isn't finished or is already "
         "confirmed."
         "\n\n"
-        "**Who can call this:** Staff, Proctor or Admins of this tournament to flag; Staff or Admins of this tournament to clear."
+        "**Who can call this:** Staff, Proctor, Broadcast tech (matches on a stage) or Admins of this tournament to flag; Staff or Admins of this tournament to clear."
     ),
 )
 async def set_review(match_id: int, body: SetReviewRequest, actor: User = Depends(require_write_actor)):
@@ -381,7 +381,7 @@ async def set_review(match_id: int, body: SetReviewRequest, actor: User = Depend
         "has no randomizer set up, the match has no players, or the "
         "randomizer fails."
         "\n\n"
-        "**Who can call this:** Staff, Proctor or Admins of this tournament."
+        "**Who can call this:** Staff, Proctor, Broadcast tech (matches on a stage) or Admins of this tournament."
     ),
 )
 async def generate_seed(match_id: int, actor: User = Depends(require_write_actor)):
@@ -494,7 +494,7 @@ async def unwatch_match(match_id: int, actor: User = Depends(require_write_actor
     ),
 )
 async def offer_for_stream(match_id: int, actor: User = Depends(require_write_actor)):
-    """For a player in the match, before it starts. Stream managers see the offer
+    """For a player in the match, before it starts. Broadcast techs see the offer
     when they pick stream candidates; it does not put the match on stream."""
     await MatchStreamVolunteerService().volunteer(match_id, actor)
     return DetailResponse(detail="Offered for stream")
