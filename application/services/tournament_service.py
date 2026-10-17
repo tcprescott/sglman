@@ -650,7 +650,7 @@ class TournamentService(TournamentSignupMixin):
         return await self.repository.get_by_id(tournament_id)
 
     async def list_schedulable(
-        self, keep_id: Optional[int] = None,
+        self, actor: Optional[User], keep_id: Optional[int] = None,
     ) -> tuple[list[Tournament], dict[int, int]]:
         """The admin match dialog's Tournament options, and their entrant counts.
 
@@ -661,8 +661,14 @@ class TournamentService(TournamentSignupMixin):
         (``keep_id`` spares the one an existing match already points at, so
         editing it does not blank its own chip); the counts let the dialog
         label the rest.
+
+        A tournament admin is offered only the tournaments they run, the same
+        ones ``create_match`` will accept from them.
         """
         tournaments = await self.repository.get_all(active_only=True)
+        if not await AuthService.is_staff(actor):
+            admin_ids, _ = await AuthService.tournament_scope(actor)
+            tournaments = [t for t in tournaments if t.id in admin_ids]
         if keep_id is not None and not any(t.id == keep_id for t in tournaments):
             current = await self.repository.get_by_id(keep_id)
             if current is not None:
@@ -705,8 +711,8 @@ class TournamentService(TournamentSignupMixin):
         method must hit the same wall.
         """
         await AuthService.ensure(
-            await AuthService.can_grant_roles(actor),
-            'Only Staff can manage tournament entrants',
+            await AuthService.can_edit_tournament(actor, tournament),
+            'Only staff or this tournament\'s admins can manage its entrants',
         )
         if not await TenantMembershipService().is_member(target):
             raise ValueError(
@@ -722,8 +728,8 @@ class TournamentService(TournamentSignupMixin):
 
     async def unenroll_player(self, tournament: Tournament, target: User, actor: User) -> None:
         await AuthService.ensure(
-            await AuthService.can_grant_roles(actor),
-            'Only Staff can manage tournament entrants',
+            await AuthService.can_edit_tournament(actor, tournament),
+            'Only staff or this tournament\'s admins can manage its entrants',
         )
         await self.repository.unenroll_player(tournament, target)
         await self._record_enrolment(actor, target, tournament, added=False)

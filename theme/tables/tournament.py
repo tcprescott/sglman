@@ -194,10 +194,14 @@ def tournament_columns() -> list[dict]:
 class TournamentTableView:
     """Encapsulates the tournament table UI and logic for admin/player dashboards."""
     def __init__(self, columns, get_query, extra_slots=None, submit_tournament_callback=None,
-                 table_key=None, searchable=False, can_delete=False, can_sync=False):
+                 table_key=None, searchable=False, can_delete=False, can_sync=False,
+                 sync_sites=None):
         self.columns = columns
         # Offer Sync bracket (row) and Sync all linked brackets (toolbar).
         self.can_sync = can_sync
+        # The bracket-site keys the viewer may sync, or None for every live one:
+        # a tournament admin syncs start.gg but not Challonge, which is staff's.
+        self.sync_sites = sync_sites
         self._live_sites: list = []
         # When set, this view's desktop columns follow the viewer's saved layout.
         self.table_key = table_key
@@ -354,7 +358,10 @@ class TournamentTableView:
         # row just to len() it.
         tournament_query = self.get_query().annotate(player_count=Count('players'))
         all_tournaments = await tournament_query.order_by('name')
-        self._live_sites = await bracket_sources.live_sources() if self.can_sync else []
+        self._live_sites = [
+            s for s in (await bracket_sources.live_sources() if self.can_sync else [])
+            if self.sync_sites is None or s.key in self.sync_sites
+        ]
         self.table.rows = [_tournament_row(t, self._live_sites) for t in all_tournaments]
         self.table.update()
 
@@ -420,6 +427,9 @@ class TournamentTableView:
     async def sync_all(self):
         actor = await get_user_from_session(app.storage.user)
         tournaments = await self.get_query().order_by('name')
+        if self.sync_sites is not None:
+            live = await bracket_sources.live_sources()
+            tournaments = [t for t in tournaments if _bracket_site(t, live) in self.sync_sites]
         results = await bracket_sources.sync_all(list(tournaments), actor)
         if not results:
             ui.notify('No tournaments here are linked to a bracket site.', color='warning')

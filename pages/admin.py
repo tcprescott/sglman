@@ -140,9 +140,11 @@ def build_admin_tabs(
     # tabs[0], so a new community lands on the checklist rather than on Create
     # Match, which cannot yet succeed. It disappears on its own once the
     # required steps are done — nothing stores that it was seen.
+    # Filled in once every tab is known, so a step only links to a tab the viewer has.
+    setup_kwargs: dict = {'steps': setup_steps, 'base_path': base_path}
     if setup_steps and not TenantSetupService.is_ready(setup_steps) and (is_staff or is_ta_any):
         tabs.append({'label': 'Setup', 'icon': 'checklist', 'group': 'Operations',
-                     'content': (admin_setup_page, (), {'steps': setup_steps, 'base_path': base_path})})
+                     'content': (admin_setup_page, (), setup_kwargs)})
     # STREAM_MANAGER is here because assigning a stage is a match-board action
     # and this is the only board that offers it — the role existed for that job
     # with no surface that did it. What they get once here is one control:
@@ -216,6 +218,7 @@ def build_admin_tabs(
                                  {'panes': settings_panes, 'pane': settings_pane,
                                   'base_path': base_path})})
 
+    setup_kwargs['reachable_tabs'] = frozenset(t['label'] for t in tabs)
     tabs.sort(key=lambda t: _ADMIN_GROUP_ORDER.index(t['group']))
     return tabs
 

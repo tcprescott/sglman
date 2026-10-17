@@ -306,6 +306,7 @@ class ReportsService:
             if include_match:
                 coverage_rows.append({
                     'match_id': match.id,
+                    'tournament_id': match.tournament_id,  # type: ignore[attr-defined]
                     'tournament_name': match.tournament.name if match.tournament else '',
                     'scheduled_at': self._local(match.scheduled_at),
                     'stage': match.stage.name if match.stage else '',
@@ -423,6 +424,7 @@ class ReportsService:
             block['scheduled_hours'] += (we - ws).total_seconds() / 3600.0
             block['matches'].append({
                 'match_id': match.id,
+                'tournament_id': match.tournament_id,  # type: ignore[attr-defined]
                 'tournament_name': match.tournament.name if match.tournament else '',
                 'start': ws,
                 'end': we,

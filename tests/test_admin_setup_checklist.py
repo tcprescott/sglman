@@ -110,3 +110,17 @@ def test_group_order_is_unchanged_by_the_new_tab():
     groups = [t['group'] for t in tabs]
     assert groups == sorted(groups, key=['Operations', 'Online play', 'Community',
                                          'Integrations', 'System'].index)
+
+
+def test_setup_steps_only_link_to_tabs_the_viewer_has():
+    """A tournament admin's checklist linked to Members, Stages and Settings,
+    which are staff's tabs, so every link landed on a refusal."""
+    tabs = build_admin_tabs(AdminAccess(is_tournament_admin=True), set(), {}, _steps(ready=False))
+    _fn, _args, kwargs = next(t['content'] for t in tabs if t['label'] == 'Setup')
+    reachable = kwargs['reachable_tabs']
+    assert 'Tournaments' in reachable
+    assert 'Members' not in reachable and 'Stages' not in reachable
+
+    staff_tabs = build_admin_tabs(STAFF, set(), {}, _steps(ready=False))
+    _fn, _args, staff_kwargs = next(t['content'] for t in staff_tabs if t['label'] == 'Setup')
+    assert {'Members', 'Tournaments', 'Stages'} <= staff_kwargs['reachable_tabs']
