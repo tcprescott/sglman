@@ -12,9 +12,10 @@ from application.utils.app_links import (
 from theme.base import BaseLayout
 
 
-def _menu(*, volunteer: bool, check_in: bool) -> list[str]:
+def _menu(*, volunteer: bool, check_in: bool, proctor: bool = False) -> list[str]:
     layout = BaseLayout(show_volunteer=volunteer)
     layout._show_check_in = check_in
+    layout._show_proctor = proctor
     layout._build_top_menu()
     return [item['label'] for item in layout.top_menu]
 
@@ -27,6 +28,10 @@ def test_desk_worker_gets_volunteer_not_a_desk_item():
 
 def test_volunteer_appears_once():
     assert _menu(volunteer=True, check_in=True).count('Volunteer') == 1
+
+
+def test_proctor_gets_volunteer_with_volunteers_off():
+    assert 'Volunteer' in _menu(volunteer=False, check_in=False, proctor=True)
 
 
 def test_nothing_to_do_hides_volunteer():

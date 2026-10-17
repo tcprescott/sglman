@@ -372,9 +372,11 @@ events staff have opened. Run one tick by hand with
 
 - The desk is the **Check-in Desk** tab of the Volunteer hub
   (`/volunteer/check-in-desk`). It opens the only open event, or lists them when
-  several are open; `?event=<id>` picks one. The tab, and Volunteer in the menu
-  for a desk role with no volunteer role, show while an event is open
-  (`BaseLayout` via `AuthService.can_view_check_in_desk`). `/checkin` and
+  several are open; `?event=<id>` picks one. The tab shows while an event is open
+  (or always, for a desk role with nothing else on the hub, where it says no
+  event is open). Volunteer in the menu shows to a desk role whenever check-in
+  is on, so desk workers can find it before doors open (`BaseLayout` via
+  `AuthService.can_view_check_in_desk`). `/checkin` and
   `/checkin/{event_id}` redirect there.
 - The desk itself It's phone-first: the search box, progress
   bar, the All / Not yet / Checked in / Comped / Walk-ups switch (the app's

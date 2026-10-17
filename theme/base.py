@@ -138,9 +138,10 @@ class BaseLayout:
         self._show_event_info = False
         # Members only, for the same reason: /qualifiers runs the membership gate.
         self._show_qualifiers = False
-        # The check-in desk, offered only while an event is open and to people
-        # who can work it. False on the synchronous error path, like Feedback.
+        # The desk, whenever check-in is on, and Proctor Station, which a proctor
+        # keeps with VOLUNTEERS off. False on the error path, like Feedback.
         self._show_check_in = False
+        self._show_proctor = False
         # Whether the viewer belongs to this community (or is a super-admin).
         # Gates what only a member can use: Feedback, whose submit the service
         # refuses to anyone else, and the home sections on a tab-less page.
@@ -234,9 +235,9 @@ class BaseLayout:
             self._show_qualifiers = await FeatureFlagService().is_enabled(
                 FeatureFlag.ASYNC_QUALIFIERS,
             )
-        if self._is_member and await AuthService.can_view_check_in_desk(self.user):
-            from application.services import CheckInService
-            self._show_check_in = await CheckInService().has_open_event()
+        if self._is_member:
+            self._show_check_in = await AuthService.can_view_check_in_desk(self.user)
+            self._show_proctor = await AuthService.can_open_proctor_station(self.user)
         await self._load_theme_colors()
         return self
 
@@ -279,7 +280,7 @@ class BaseLayout:
         if self._tenant_id is not None:
             self.top_menu.append({'label': 'Watch', 'icon': 'live_tv', 'url': '/live'})
         # The desk is a Volunteer tab, so desk workers get Volunteer too.
-        if self._show_volunteer or self._show_check_in:
+        if self._show_volunteer or self._show_proctor or self._show_check_in:
             self.top_menu.append({'label': 'Volunteer', 'icon': 'volunteer_activism', 'url': '/volunteer'})
         if self._show_admin:
             self.top_menu.append({'label': 'Admin', 'icon': 'admin_panel_settings', 'url': '/admin'})
