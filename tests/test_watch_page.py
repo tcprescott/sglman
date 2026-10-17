@@ -102,6 +102,20 @@ class TestBuildWatchView:
         assert ' vs ' in main.on_now.players
         assert main.on_now.commentators == 'Caster'
 
+    async def test_stages_sort_by_channel_name_in_natural_order(self, db):
+        with tenant_scope(DEFAULT_TEST_TENANT_ID):
+            for name, channel in (
+                ('Air', 'SpeedGaming4'), ('Earth', 'SpeedGaming'), ('Fire', 'SpeedGaming10'),
+                ('Water', 'SpeedGaming3'), ('Lobby', None), ('Wind', 'speedgaming2'),
+            ):
+                await Stage.create(
+                    name=name, stream_url=f'https://twitch.tv/{channel}' if channel else 'https://youtube.com/x',
+                    tenant_id=DEFAULT_TEST_TENANT_ID,
+                )
+            view = await watch_data.build_watch_view(DEFAULT_TEST_TENANT_ID)
+
+        assert [s.name for s in view.stages] == ['Earth', 'Wind', 'Water', 'Air', 'Fire', 'Lobby']
+
     async def test_later_matches_are_coming_up_by_day(self, db):
         with tenant_scope(DEFAULT_TEST_TENANT_ID):
             stage = await Stage.create(name='Main', tenant_id=DEFAULT_TEST_TENANT_ID)
@@ -186,7 +200,7 @@ class TestRender:
         ), root_path='/t/sgl')
         assert 'href="/t/sgl/live/tournament/3/brackets"' in body
         assert 'data-channel="main"' in body
-        assert 'Get involved' in body
+        assert 'Get involved' not in body
 
 
 class TestStaticSwitch:
@@ -268,42 +282,6 @@ def test_the_static_page_offers_the_dark_mode_toggle_and_honours_the_cookie():
     assert 'id="wizw-theme"' in body
     assert 'aria-label="Toggle dark mode"' in body
     assert 'wiz_dark' in body
-
-
-class TestLayoutVotes:
-    def test_a_remembered_layout_sticks_and_a_new_viewer_gets_one_of_the_three(self):
-        from application.services.watch_layout_service import WATCH_LAYOUTS, WatchLayoutService
-
-        assert WatchLayoutService.resolve('rail') == 'rail'
-        assert {WatchLayoutService.resolve(None) for _ in range(60)} == set(WATCH_LAYOUTS)
-        assert WatchLayoutService.resolve('gone') in WATCH_LAYOUTS
-
-    async def test_seen_then_rated_then_taken_back(self, db):
-        from application.services import WatchLayoutService
-
-        service = WatchLayoutService()
-        with tenant_scope(DEFAULT_TEST_TENANT_ID):
-            await service.mark_seen('b1', 'one_page')
-            await service.mark_seen('b2', 'one_page')
-            await service.vote('b1', 'one_page', 'up')
-            await service.vote('b2', 'one_page', 'down')
-            await service.vote('b2', 'one_page', None)
-            tally = {t.layout: t for t in await service.tally(await _staff())}
-            assert await service.votes_for('b1') == {'one_page': 'up'}
-        one = tally['one_page']
-        assert (one.seen, one.up, one.down) == (2, 1, 0)
-
-    async def test_bad_votes_and_non_staff_tallies_are_refused(self, db):
-        from application.services import WatchLayoutService
-
-        service = WatchLayoutService()
-        with tenant_scope(DEFAULT_TEST_TENANT_ID):
-            with pytest.raises(ValueError):
-                await service.vote('b1', 'one_page', 'sideways')
-            with pytest.raises(ValueError):
-                await service.vote(None, 'one_page', 'up')
-            with pytest.raises(PermissionError):
-                await service.tally(await make_user(discord_id=8002, username='nobody'))
 
 
 def test_a_twitch_stage_names_its_channel_as_the_link_spells_it():

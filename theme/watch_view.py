@@ -35,8 +35,6 @@ COMING_UP_LIMIT = 12
 #: How often the static rendering refetches itself.
 STATIC_REFRESH_SECONDS = 60
 
-#: Stands in for the "Get involved" section until its content is settled.
-GET_INVOLVED_PLACEHOLDER = 'Ways to help out are coming soon.'
 
 
 @dataclass
@@ -314,10 +312,6 @@ def render_watch_document(view: WatchView, *, root_path: str = '', refresh_url: 
         _tag('h2', 'wiz-watch__h2', 'On stream today') + stages
         + _tag('div', 'wiz-watch-two', _coming(view) + _tournaments(view, root_path)),
     )
-    involved = _tag(
-        'div', 'wizs-card',
-        _tag('h2', 'wiz-watch__h2', 'Get involved') + _tag('div', 'wizs-muted', GET_INVOLVED_PLACEHOLDER),
-    )
     zone = f'Times in {view.timezone_label}' if view.timezone_label else ''
     body = (
         _WATCH_CSS
@@ -328,7 +322,7 @@ def render_watch_document(view: WatchView, *, root_path: str = '', refresh_url: 
         )
         + _tag(
             'div', 'wizs-wrap wizw-stack',
-            _THEATER + f'<div id="wizw-live">{live}</div>' + involved,
+            _THEATER + f'<div id="wizw-live">{live}</div>',
         )
         + (_WATCH_JS % (STATIC_REFRESH_SECONDS * 1000))
     )
