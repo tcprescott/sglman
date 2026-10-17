@@ -378,11 +378,15 @@ def _coordinator(uid, *, discord_id='900', dm_notifications=True):
 
 
 class TestReleaseFanOut:
-    async def _run(self, service, recipients_by_role):
+    async def _run(self, service, recipients_by_role, on_duty=(), can_manage=True):
         async def list_users_with_role(role):
             return recipients_by_role.get(role, [])
 
-        with patch('application.services.volunteer.volunteer_coordinator_dm.UserRoleRepository') as repo, \
+        with patch('application.services.staff_alert_service.UserRoleRepository') as repo, \
+                patch('application.services.staff_alert_service.StaffAlertService.on_duty_now',
+                      AsyncMock(return_value=list(on_duty))), \
+                patch('application.services.staff_alert_service.AuthService.can_manage_volunteers',
+                      AsyncMock(return_value=can_manage)), \
                 patch('application.services.tenant_service.TenantService') as tenants, \
                 patch('application.services.discord.discord_queue.enqueue') as enqueue:
             repo.list_users_with_role = AsyncMock(side_effect=list_users_with_role)
@@ -394,7 +398,7 @@ class TestReleaseFanOut:
             )
         return enqueue
 
-    async def test_one_dm_per_coordinator_deduped(self, service):
+    async def test_nobody_on_duty_falls_back_to_all_staff_deduped(self, service):
         from models import Role
         both_roles = _coordinator(1)
         staff_only = _coordinator(2)
@@ -402,6 +406,26 @@ class TestReleaseFanOut:
             Role.VOLUNTEER_COORDINATOR: [both_roles],
             Role.STAFF: [both_roles, staff_only],
         })
+        assert enqueue.call_count == 2
+
+    async def test_on_duty_admin_replaces_all_staff(self, service):
+        from models import Role
+        on_duty = _coordinator(3)
+        on_duty.is_active = True
+        enqueue = await self._run(service, {
+            Role.VOLUNTEER_COORDINATOR: [_coordinator(1)],
+            Role.STAFF: [_coordinator(2), _coordinator(4)],
+        }, on_duty=[on_duty])
+        # The coordinator and the person on duty; the other staff are spared.
+        assert enqueue.call_count == 2
+
+    async def test_on_duty_who_cannot_manage_volunteers_falls_back_to_staff(self, service):
+        from models import Role
+        on_duty = _coordinator(3)
+        on_duty.is_active = True
+        enqueue = await self._run(service, {
+            Role.STAFF: [_coordinator(2), _coordinator(4)],
+        }, on_duty=[on_duty], can_manage=False)
         assert enqueue.call_count == 2
 
     async def test_skips_coordinators_who_cannot_be_dmed(self, service):

@@ -427,9 +427,9 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
     # The five view-bearing senders below are thin wrappers over send_dm: each
     # resolves its registered view factory by kind (populated by the bot package
     # at startup — see the registries above) and defers to send_dm.
-    async def send_dm_with_crew_buttons(self, user_id: int, message: str, match_id: int, embed: Optional[discord.Embed] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
+    async def send_dm_with_crew_buttons(self, user_id: int, message: str, match_id: int, embed: Optional[discord.Embed] = None, link: Optional[DMLink] = None, silent: bool = False) -> Tuple[bool, str]:
         """Send a DM with the commentator/tracker crew signup buttons for a match."""
-        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_CREW_SIGNUP](match_id), embed=embed, link=link)
+        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_CREW_SIGNUP](match_id), embed=embed, link=link, silent=silent)
 
     async def send_dm_with_acknowledgment_button(self, user_id: int, message: str, match_id: int, embed: Optional[discord.Embed] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
         """Send a DM with a match Acknowledge button."""
@@ -576,8 +576,8 @@ class MockDiscordService(MockGuildOpsMixin, MockScheduledEventsMixin):
 
     # Thin wrappers matching DiscordService's public surface; all defer to the
     # single send_dm stub above (the buttons are irrelevant in mock mode).
-    async def send_dm_with_crew_buttons(self, user_id: int, message: str, match_id: int, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
-        return await self.send_dm(user_id, message, embed=embed, link=link)
+    async def send_dm_with_crew_buttons(self, user_id: int, message: str, match_id: int, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None, silent: bool = False) -> Tuple[bool, str]:
+        return await self.send_dm(user_id, message, embed=embed, link=link, silent=silent)
 
     async def send_dm_with_acknowledgment_button(self, user_id: int, message: str, match_id: int, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
         return await self.send_dm(user_id, message, embed=embed, link=link)

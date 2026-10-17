@@ -308,26 +308,26 @@ Ephemeral confirmation strings sit beside their domain's builders: `match_ack_co
 | Harder settings offered | `notify_match_scheduled` (create / request / time change) → `MatchHardPresetService.send_offer(match)` (skipped when the tournament has no `hard_preset`, the seed is already rolled, or staff set a `preset_override`) | `send_dm_with_hard_preset_buttons` | Play the harder preset **or** Back out — one, chosen from the reader's own answer |
 | Harder settings agreed / broken | `MatchHardPresetService` on the unanimity transition, and on a roster change that breaks one | `send_dm` via `notify_hard_preset_agreement` | Link only |
 | Match preset set by staff | `MatchHardPresetService.set_override` | `send_dm` via `notify_hard_preset_override` | Link only |
-| Scheduled/rescheduled — crew & watcher info | same call sites → `notify_match_crew(match, msg)` | `send_dm` (crew) / `send_dm_with_unwatch_button` (watchers) | Unwatch (watchers only) |
-| Crew signup invitation (subscribers) | same call sites → `notify_tournament_subscribers_scheduled(match, msg, notified_ids)` | `send_dm_with_crew_buttons` | Sign up as Commentator / Tracker |
+| Scheduled/rescheduled — crew & watcher info | same call sites → `notify_match_crew(match, msg)`; the watcher copy is silent | `send_dm` (crew) / `send_dm_with_unwatch_button` (watchers) | Unwatch (watchers only) |
+| Crew signup invitation (subscribers) | same call sites → `notify_tournament_subscribers_scheduled(match, msg, notified_ids)`, silent | `send_dm_with_crew_buttons` | Sign up as Commentator / Tracker |
 | Stream candidate alert | `MatchService.create_match` (flagged) / `set_stream_candidate(flag=True)` → `notify_stream_candidate_subscribers` | `send_dm_with_crew_buttons` | Sign up as Commentator / Tracker |
 | Crew approved — ack request | `CrewService.update_crew_approval(approved=True)` → `_request_crew_acknowledgment` | `send_dm_with_crew_acknowledgment_button` | Acknowledge |
 | Match seated (checked in) | `MatchScheduleService.seat_match` → `notify_match_participants` | `send_dm` / `send_dm_with_unwatch_button` | Unwatch (watchers only) |
 | Match started / finished | `MatchScheduleService.start_match` / `finish_match` → `notify_match_participants(silent=True, players=False)`: crew and watchers only, no ping | `send_dm` / `send_dm_with_unwatch_button` | Unwatch (watchers only) |
-| Match confirmed | `MatchScheduleService.confirm_match` → `notify_match_participants` | `send_dm` / `send_dm_with_unwatch_button` | Unwatch (watchers only) |
+| Match confirmed | `MatchScheduleService.confirm_match` → `notify_match_participants(silent=True)`: everyone, no ping | `send_dm` / `send_dm_with_unwatch_button` | Unwatch (watchers only) |
 | Match cancelled | `MatchService._cancel_match` (the `CancellationMixin` in `match_cancellation.py`) → `notify_match_cancelled(recipients, message, embed)` (recipients collected before the delete) | `send_dm` | none |
-| Stage assigned / cleared | `MatchService.assign_stage` → `notify_stage_changed` | `send_dm` | View your match (link) |
-| Stage reminder | `stage_reminder` loop → `notify_stage_reminder` | `send_dm` | View your match (link) |
+| Stage assigned / cleared | `MatchService.assign_stage` → `notify_stage_changed` (watcher copy silent) | `send_dm` | View your match (link) |
+| Stage reminder | `stage_reminder` loop → `notify_stage_reminder` (watcher copy silent) | `send_dm` | View your match (link) |
 | Crew withdrew (approved) | `CrewService.undo_crew_signup` → `_notify_crew_withdrawal` (tournament crew owners + approver) | `send_dm` | Fill the slot (link) |
 | Crew approval withdrawn | `CrewService.update_crew_approval(approved=False)` → `_notify_crew_approval_withdrawn` | `send_dm` | none |
 | Bracket matchup ready | `_bracket/notifications.py` → `_send_matchup_ready(...)` per entrant (opt-in only) | `send_dm` | Pick a time (link) |
 | Seed generated | `MatchScheduleService.generate_seed` → inline `_send_seed_dms()` per opted-in player | `send_dm` | Open your seed (link, off-site); for a pasted seed (WWR, Z1R) Copy it from Wizzrobe → `player_match` |
 | Volunteer shift assigned — ack request | `VolunteerScheduleService.assign(notify=True)` | `send_dm_with_volunteer_acknowledgment_button` | Acknowledge |
 | Volunteer shift starting | `volunteer_reminder` loop (`_start_dms`), once per published assignment whose shift started in the last 30 minutes and that isn't checked in | `send_dm_with_volunteer_arrival_buttons` | I'm here / Running late / I can't make it, plus a My Shifts link |
-| Volunteer running late | `VolunteerArrivalService.report_late` → coordinators + staff | `send_dm` | Open the schedule |
+| Volunteer running late / shift given back | `VolunteerArrivalService.report_late` / `VolunteerScheduleService.release` → `notify_coordinators`: coordinators + `StaffAlertService.volunteer_alert_recipients` (on duty, else all staff) | `send_dm` | Open the schedule |
 | Volunteer shift reminder | `volunteer_reminder` loop, per un-reminded upcoming assignment | `send_dm_with_volunteer_acknowledgment_button` | Acknowledge |
 | Admin direct message | `SendMessageDialog.send` — awaited inline, **not** queued | `send_dm` | none |
 
-Note the asymmetry in lifecycle notifications: scheduling/rescheduling DMs are split (players get the Acknowledge DM via `notify_acknowledgment_request`; crew, watchers, and subscribers get informational variants), while seated/confirmed DMs go to everyone at once via `notify_match_participants` and started/finished skip the players and go out silent.
+Note the asymmetry in lifecycle notifications: scheduling/rescheduling DMs are split (players get the Acknowledge DM via `notify_acknowledgment_request`; crew, watchers, and subscribers get informational variants), while seated/confirmed DMs go to everyone at once via `notify_match_participants` (confirmed silently) and started/finished skip the players and go out silent. A DM nobody has to act on goes out silent: watchers and tournament followers never get pinged for scheduling or stage news.
 
 `send_dm(..., silent=True)` sends with Discord's `SUPPRESS_NOTIFICATIONS` flag (`@silent`): the DM lands but doesn't ping. The web-push copy carries `silent: true` and the Telegram copy `disable_notification`; email has no quiet mode.

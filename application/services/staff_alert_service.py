@@ -13,7 +13,8 @@ Now it goes to
 If nobody is on such a shift (a community that never set the switch, or a gap
 in the roster) the alert falls back to every STAFF member, so it is never lost.
 Community-wide requests (join, ADA, community events) are not match alerts and
-still go to all staff.
+still go to all staff. A volunteer running late or giving a shift back goes to
+the volunteer coordinators plus the same on-duty set, with the same fallback.
 """
 
 from datetime import datetime, timezone
@@ -85,6 +86,25 @@ class StaffAlertService:
             for admin in tournament.admins:
                 if admin.id not in opted_out:
                     await add(admin)
+        return list(recipients.values())
+
+    @staticmethod
+    async def volunteer_alert_recipients(at: Optional[datetime] = None) -> List[User]:
+        """Who hears that a volunteer is running late or gave a shift back.
+
+        The volunteer coordinators, plus whoever is on duty and can manage the
+        roster; every STAFF member stands in for the on-duty set when that is
+        empty.
+        """
+        recipients: Dict[int, User] = {}
+        for user in await StaffAlertService.on_duty_now(at):
+            if user.is_active and await AuthService.can_manage_volunteers(user):
+                recipients.setdefault(user.id, user)
+        if not recipients:
+            for user in await UserRoleRepository.list_users_with_role(Role.STAFF):
+                recipients.setdefault(user.id, user)
+        for user in await UserRoleRepository.list_users_with_role(Role.VOLUNTEER_COORDINATOR):
+            recipients.setdefault(user.id, user)
         return list(recipients.values())
 
     @staticmethod
